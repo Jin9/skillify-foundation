@@ -109,8 +109,20 @@ def validate(skill_dir: Path) -> list[str]:
             errors.append(f"frontmatter description is too long: {len(description)} > 1024")
         if "<" in description or ">" in description:
             errors.append("frontmatter description must not contain XML angle brackets")
-        if "use when" not in description.lower():
-            errors.append('frontmatter description should include "Use when" trigger language')
+        trigger_markers = (
+            "use when",
+            "use for",
+            "use after",
+            "use specifically when",
+            "triggers on",
+            "activate when",
+        )
+        if not any(marker in description.lower() for marker in trigger_markers):
+            errors.append(
+                "frontmatter description should include trigger language "
+                '(one of: "Use when", "Use for", "Use after", '
+                '"Triggers on", "Activate when")'
+            )
 
     for key, value in fields.items():
         if "<" in value or ">" in value:
