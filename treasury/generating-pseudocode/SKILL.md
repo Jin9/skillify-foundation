@@ -1,5 +1,5 @@
 ---
-name: pseudocode-architect
+name: generating-pseudocode
 description: Analyzes requirements or existing code to generate clean, language-agnostic pseudocode. Use when planning algorithms, breaking down complex logic, or designing systems before actual implementation. Do NOT use for writing production-ready code in specific languages.
 ---
 
