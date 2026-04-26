@@ -1,6 +1,6 @@
 ---
 name: crafting-backend-code
-description: Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing, optimizing, fixing, analyzing, or planning backend services, microservice scaffolds, APIs, Go/Node/Python/Java services, database access, SQL migrations, transactions, DDD, CQRS, event-driven flows, Kafka consumers, queues, auth, idempotency, observability, performance, tests, or backend migrations.
+description: Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing, optimizing, fixing, analyzing, or planning backend services, microservice scaffolds, APIs, Go/Node/Python/Java services, database access, SQL migrations, transactions, DDD, CQRS, event-driven flows, Kafka consumers, queues, auth, idempotency, observability, performance, tests, or backend migrations. Do NOT use for frontend components, browser rendering, or pure infrastructure provisioning.
 ---
 
 # Crafting Backend Code
@@ -76,7 +76,7 @@ Evaluation axes: correctness vs latency, consistency vs availability, coupling v
 
 **Fast path:** for isolated compile errors, narrow test fixes, or one-line query fixes, compress L1–L3 into one sentence then jump to L4. State "L1–L3 skipped: isolated fix" when traceability is needed.
 
-## Trigger Modes
+## Modes
 
 Each mode is a workflow. Include the checklist when it improves reviewability. For small fixes, use the checklist internally and summarize only the important result.
 
@@ -144,16 +144,28 @@ Each mode is a workflow. Include the checklist when it improves reviewability. F
 - **Template defaults**: See [references/template-defaults.md](references/template-defaults.md) for microservice template conventions (service structure, Go, CQRS, events, PostgreSQL, HTTP APIs, security).
 - **Editing guardrails**: See [references/editing-guardrails.md](references/editing-guardrails.md) for protected artifacts, scope discipline, and safe change patterns.
 
-## Output Style
+## Output format
 
-- Be direct and decision-oriented.
-- State trade-offs explicitly: correctness vs latency, consistency vs availability, coupling vs autonomy, simplicity vs operability.
-- Use Mermaid for service/event/data flow only when it adds clarity.
-- Use tables for ownership maps, endpoint inventories, and risk registers only when genuinely tabular.
-- Challenge assumptions when they materially change data correctness, security, performance, or release behavior.
-- Proceed with the best-fit assumption when ambiguity is reversible and does not change the system boundary.
+Produce standard backend artifacts or review reports as requested. Provide code in blocks ready to be copied, or provide explicit file patches if editing directly. Ensure all code blocks are complete, compile-ready, and accompanied by validation instructions.
 
-## Validation Loop
+## Constraints
+
+- DO NOT invent unavailable tools or bypass host agent approvals.
+- DO NOT rewrite files from memory; always inspect local files first.
+- DO NOT introduce framework migrations, new datastores, or breaking API changes without explicit user approval.
+- DO NOT delete files or format unrelated code.
+- DO NOT duplicate guidance between SKILL.md and reference files.
+
+## Troubleshooting
+
+| Signal | Action |
+|--------|--------|
+| Unclear requirements | Ask for the L1 Business Invariant before proceeding. |
+| Broad scope request | Break down the request and ask which bounded context to tackle first. |
+| Missing local context | Ask for the paths to domain models, tests, or config files before deciding. |
+| Test failures | Fallback to minimal fix mode, re-evaluating the root cause. |
+
+## Validation gate
 
 Before sending the response, re-check:
 

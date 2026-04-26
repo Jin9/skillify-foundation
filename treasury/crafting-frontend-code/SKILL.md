@@ -1,6 +1,6 @@
 ---
 name: crafting-frontend-code
-description: Reviews, designs, and safely implements frontend code with a conservative, repo-first posture for Claude, Gemini, and Codex. Use when designing, reviewing, optimizing, fixing, analyzing, or planning React/TypeScript frontend features, TSX/JSX components, Next.js or Vite apps, component boundaries, rendering models, state ownership, data fetching, forms, design systems, accessibility, performance, tests, or frontend migrations.
+description: Reviews, designs, and safely implements frontend code with a conservative, repo-first posture for Claude, Gemini, and Codex. Use when designing, reviewing, optimizing, fixing, analyzing, or planning React/TypeScript frontend features, TSX/JSX components, Next.js or Vite apps, component boundaries, rendering models, state ownership, data fetching, forms, design systems, accessibility, performance, tests, or frontend migrations. Do NOT use for backend business logic, Terraform, or CLI tools without UI.
 ---
 
 # Crafting Frontend Code
@@ -74,7 +74,7 @@ Pragmatic over pure: hooks, composition, and types are tools, not religion. Choo
 
 **Fast path:** for visual tweaks, copy fixes, isolated component bug fixes, or one-line type narrowings, compress L1-L3 into one sentence then jump to L4. State "L1-L3 skipped: isolated fix" only when the response needs that traceability; otherwise keep the output brief.
 
-## Trigger Modes
+## Modes
 
 Each mode is a workflow. For design, optimize, analyze, review, and plan responses, include the checklist when it improves reviewability. For direct implementation or small fixes, use the checklist internally and summarize only the important result. Concrete output shapes per mode: see [references/examples.md](references/examples.md).
 
@@ -139,15 +139,19 @@ Each mode is a workflow. For design, optimize, analyze, review, and plan respons
 - **When unclear**: do not guess blindly. State assumptions, provide 2-3 interpretations, and proceed only when the ambiguity is cosmetic, reversible, or one path is clearly dominant. Ask before choices that materially change UX, data correctness, security, a11y, performance, architecture, or release behavior.
 - **Code defaults**: Respect the repo first. For greenfield or proposal work, prefer TypeScript `strict`, server state in TanStack Query, local/client state in React context or Zustand, forms in RHF + Zod, token-based styling, and tests in the repo's existing unit/component/E2E stack. Do not add or swap libraries without a clear reason and user approval.
 
-## Editing Guardrails
+## Output format
 
-- Read before writing. Do not rewrite files from memory or apply broad mechanical changes without inspecting current code.
-- Do not introduce framework migrations, new state managers, new form libraries, new design-token systems, or new CI gates unless requested.
-- Do not change auth/session/token storage, CSP, payment flows, analytics/privacy behavior, generated API clients, routing semantics, or persisted data formats without explicit approval.
-- Do not delete files, mass-format unrelated files, or "clean up" code outside the requested scope.
-- Keep dependency changes separate from feature fixes when possible. If a dependency is required, explain why the existing stack cannot solve the problem.
-- Prefer feature flags, compatibility wrappers, or additive props for risky UI changes.
-- Preserve public component APIs unless the task is explicitly a breaking refactor.
+Produce standard frontend artifacts, component designs, or review reports as requested. Provide code in blocks ready to be copied, or provide explicit file patches if editing directly. Ensure all code blocks are complete, compile-ready, and accompanied by validation instructions.
+
+## Constraints
+
+- DO NOT rewrite files from memory or apply broad mechanical changes without inspecting current code.
+- DO NOT introduce framework migrations, new state managers, new form libraries, new design-token systems, or new CI gates unless requested.
+- DO NOT change auth/session/token storage, CSP, payment flows, analytics/privacy behavior, generated API clients, routing semantics, or persisted data formats without explicit approval.
+- DO NOT delete files, mass-format unrelated files, or "clean up" code outside the requested scope.
+- DO NOT mix dependency changes with feature fixes when possible. If a dependency is required, explain why the existing stack cannot solve the problem.
+- DO NOT break public component APIs unless the task is explicitly a breaking refactor.
+- DO NOT duplicate guidance between SKILL.md and reference files.
 
 ## Reference Stack (summary)
 
@@ -183,7 +187,16 @@ Full layering rules, state-ownership map, rendering-model decision, and risky pa
 - Challenge assumptions when they materially change UX, perf, a11y, or architecture.
 - Proceed with the best-fit assumption when the ambiguity is reversible and does not change the system boundary.
 
-## Validation Loop
+## Troubleshooting
+
+| Signal | Action |
+|--------|--------|
+| Missing context | Ask for the paths to existing components, hooks, or package.json before deciding. |
+| React warnings | Fallback to analyzing dependencies, stale closures, or unhandled effects. |
+| Styling conflicts | Inspect existing token/theme definitions before adding ad-hoc CSS. |
+| Unclear intent | Ask for the L1 User Intent + success state before proceeding. |
+
+## Validation gate
 
 Before sending the response, re-check:
 
