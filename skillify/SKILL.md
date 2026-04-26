@@ -116,6 +116,7 @@ skill-name/
 ├── references/
 ├── templates/
 ├── scripts/
+├── platforms/
 ├── assets/
 └── examples/
 ```
@@ -174,6 +175,7 @@ For post-ship maintenance, read `references/lifecycle-and-iteration.md`.
 | Workflow structure patterns | `references/workflow-patterns.md` |
 | Platform adaptation | `references/platform-compatibility.md` |
 | Safety review before enabling a skill | `references/security-checklist.md` |
+| Cross-platform deployment | `platforms/deployment-guide.md` |
 
 ## Templates and scripts
 
@@ -184,3 +186,4 @@ For post-ship maintenance, read `references/lifecycle-and-iteration.md`.
 - `scripts/init_skill.py` - Boilerplate skill folder generator.
 - `scripts/quick_validate.py` - Deterministic frontmatter and structure validator.
 - `scripts/check_links.py` - Local reference/template link checker.
+- `platforms/install.sh` - Cross-platform skill installation script.
