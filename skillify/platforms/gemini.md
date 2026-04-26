@@ -1,41 +1,57 @@
-# Gemini CLI — Global Skill Setup
+# Gemini CLI - Skill Setup
 
 ## How It Works
 
-Gemini CLI discovers skills from `~/.gemini/skills/`. The format is identical to Claude Code: a `SKILL.md` with YAML frontmatter and optional `references/` directory.
+Gemini CLI supports skills as `SKILL.md` directories. Skills can live in
+Gemini-native locations or in the shared `.agents/skills/` locations used
+by multiple agent hosts.
 
-Gemini pre-loads skill metadata at startup and reads the full skill body on demand when the task matches.
+Gemini uses `GEMINI.md` and `AGENTS.md` for always-on instructions. Keep
+repeatable workflows in `SKILL.md` and use rule files only for background
+policy.
 
 ## Install
 
-```bash
-# Create skill directory
-mkdir -p ~/.gemini/skills/skillify/references
+Run the cross-platform installer from this directory:
 
-# Copy canonical files
-cp ../SKILL.md ~/.gemini/skills/skillify/SKILL.md
-cp ../references/*.md ~/.gemini/skills/skillify/references/
+```bash
+bash install.sh
+```
+
+Manual personal install from `skillify/platforms/`:
+
+```bash
+for DEST in "$HOME/.gemini/skills/skillify" "$HOME/.agents/skills/skillify"; do
+  mkdir -p "$DEST"
+  cp ../SKILL.md "$DEST/"
+  for dir in references templates scripts platforms examples assets; do
+    if [ -d "../$dir" ]; then
+      mkdir -p "$DEST/$dir"
+      cp -R "../$dir/." "$DEST/$dir/"
+    fi
+  done
+done
+```
+
+For project-scoped use, copy the skill folder to either location:
+
+```text
+<repo>/.gemini/skills/skillify/
+<repo>/.agents/skills/skillify/
 ```
 
 ## Verify
 
 ```bash
-ls -la ~/.gemini/skills/skillify/
-# Should show: SKILL.md, references/
+gemini skills list
 ```
 
-Then open Gemini CLI and ask: *"Create a skill for processing CSV files"* — the skill should trigger automatically.
+You can also use `/skills list` from a Gemini CLI session. Then ask:
+*"Create a skill for processing CSV files"*. Gemini should activate the
+skill after discovery and approval.
 
 ## Format Notes
 
-- Gemini CLI uses the **exact same format** as Claude Code — no adaptation needed.
-- The canonical `SKILL.md` works as-is.
-- If you also use Gemini's global instructions (`~/.gemini/GEMINI.md`), no changes needed there unless you want to add a memory trigger.
-
-## Optional: Add Memory Trigger
-
-To make Gemini remember this skill exists across sessions, add to `~/.gemini/GEMINI.md`:
-
-```markdown
-- When the user mentions 'skill template' or 'create a skill', activate the 'skillify' skill to guide SKILL.md authoring using best practices.
-```
+- Gemini CLI uses the canonical `SKILL.md` format.
+- `GEMINI.md` can mention that skill authoring should use `skillify`, but should not duplicate the full workflow.
+- Include referenced support directories when copying a skill.

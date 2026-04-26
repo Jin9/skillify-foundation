@@ -1,39 +1,64 @@
-# OpenAI Codex — Skill Setup via AGENTS.md
+# OpenAI Codex - Skill Setup
 
 ## How It Works
 
-Codex discovers project instructions from `AGENTS.md` files placed at the repository root or within subdirectories. Unlike Claude/Gemini, Codex does **not** use YAML frontmatter or a global `~/.codex/skills/` directory.
+Codex supports on-demand skills through `SKILL.md` directories and
+always-on project instructions through `AGENTS.md`. Use a skill when the
+workflow should load only for matching requests; use `AGENTS.md` for
+repo-wide policy that should always apply.
 
-Instead, the skill content is embedded directly into an `AGENTS.md` file using plain markdown. Codex resolves `AGENTS.md` hierarchically — root-level files provide global defaults, subdirectory files override for specific scopes.
+Supported skill locations include the cross-agent `.agents/skills/` path
+and Codex's local `$CODEX_HOME/skills/` path.
 
 ## Install
 
-Copy the generated `AGENTS.md` into any repository root where you want the skill available:
+Run the cross-platform installer from this directory:
 
 ```bash
-cp agents.md /path/to/your/project/AGENTS.md
+bash install.sh
 ```
 
-Or append to an existing `AGENTS.md`:
+Manual personal install from `skillify/platforms/`:
 
 ```bash
-echo "" >> /path/to/your/project/AGENTS.md
+for DEST in "$HOME/.agents/skills/skillify" "${CODEX_HOME:-$HOME/.codex}/skills/skillify"; do
+  mkdir -p "$DEST"
+  cp ../SKILL.md "$DEST/"
+  for dir in references templates scripts platforms examples assets; do
+    if [ -d "../$dir" ]; then
+      mkdir -p "$DEST/$dir"
+      cp -R "../$dir/." "$DEST/$dir/"
+    fi
+  done
+done
+```
+
+For project-scoped use, copy the skill folder to:
+
+```text
+<repo>/.agents/skills/skillify/
+```
+
+## Optional AGENTS.md Wrapper
+
+If you want always-on project instructions instead of an on-demand skill,
+append the prebuilt wrapper:
+
+```bash
 cat agents.md >> /path/to/your/project/AGENTS.md
 ```
 
-## Format Differences from Claude/Gemini
-
-| Feature | Claude / Gemini | Codex |
-|---|---|---|
-| Discovery | YAML frontmatter `name` + `description` | Markdown headings in `AGENTS.md` |
-| Scope | Global (`~/.claude/skills/`) | Per-repo (`AGENTS.md` at root) |
-| Reference files | `references/*.md` loaded on demand | Inline in `AGENTS.md` or linked files |
-| Progressive disclosure | Native (filesystem-based) | Manual (use `## Section` headers) |
-
-## Generated File
-
-See [agents.md](agents.md) for the Codex-compatible version of this skill.
+Do not use the wrapper as a replacement for the `SKILL.md` skill when you
+need trigger-based loading or referenced support files.
 
 ## Verify
 
-Place the `AGENTS.md` in a project, open Codex, and ask: *"Create a skill for processing CSV files"* — the agent should follow the embedded authoring workflow.
+Restart Codex if required by your host, then ask:
+*"Create a skill for processing CSV files"*. The agent should load
+`skillify`, or you can explicitly invoke `$skillify` where supported.
+
+## Format Notes
+
+- Keep `SKILL.md` frontmatter intact for skill discovery.
+- Keep `AGENTS.md` short and repo-specific.
+- Include the whole skill folder; `skillify` references `scripts/`, `templates/`, `references/`, and `platforms/`.

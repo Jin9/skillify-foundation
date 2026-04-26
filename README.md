@@ -138,12 +138,12 @@ The `literature/` directory contains the complete research corpus — 37 documen
 
 ## Platform Compatibility
 
-Skillify generates skills compatible with:
+Skillify generates portable `SKILL.md` folders compatible with:
 
-- **Claude Code** — `SKILL.md` in `.claude/skills/` or project root
-- **OpenAI Codex** — `SKILL.md` in `.codex/skills/`
-- **GitHub Copilot** — Instruction files in `.github/copilot-instructions.md` or custom skill folders
-- **Gemini / Antigravity** — Skill files in `.gemini/skills/`
+- **Claude Code** - `.claude/skills/` or `~/.claude/skills/`
+- **OpenAI Codex** - `.agents/skills/`, `~/.agents/skills/`, or `$CODEX_HOME/skills/`
+- **GitHub Copilot** - `.github/skills/`, `.agents/skills/`, `~/.copilot/skills/`, or optional custom instructions
+- **Gemini / Antigravity** - `.agents/skills/`, `.gemini/skills/`, `~/.gemini/skills/`, or `~/.gemini/antigravity/skills/`
 
 Use the **Adapt** mode to convert between platform conventions.
 

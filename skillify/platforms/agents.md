@@ -1,7 +1,7 @@
 # Skill: Skillify
 
-> **Source**: Adapted from `skillify/SKILL.md` for OpenAI Codex (AGENTS.md format).
-> This is a generated file. Edit the canonical `SKILL.md` and re-run `platforms/install.sh` to regenerate.
+> **Source**: Adapted from `skillify/SKILL.md` as an optional OpenAI Codex `AGENTS.md` wrapper.
+> This is a prebuilt always-on wrapper. Edit the canonical `SKILL.md` first, then update this file only if you need project policy instructions.
 
 ## Purpose
 

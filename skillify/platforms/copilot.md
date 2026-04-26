@@ -1,49 +1,67 @@
-# GitHub Copilot — Skill Setup via copilot-instructions.md
+# GitHub Copilot - Skill Setup
 
 ## How It Works
 
-Copilot reads custom instructions from two locations:
-1. **Repository-wide**: `.github/copilot-instructions.md` — applies to all Copilot interactions in that repo.
-2. **Path-specific**: `.github/instructions/<name>.instructions.md` — uses YAML `applyTo` to scope to specific files/paths.
+GitHub Copilot supports agent skills as `SKILL.md` directories for
+agent workflows. Copilot also supports always-on repository instructions
+through `.github/copilot-instructions.md` and path-specific
+`.github/instructions/*.instructions.md` files.
 
-Copilot does **not** support YAML frontmatter for skill discovery or global `~/` skill directories. Instructions are injected as system context for chat and inline suggestions.
+Use a skill for reusable, trigger-based workflows. Use Copilot
+instructions only for concise policy that should apply to every Copilot
+interaction in a repository.
 
 ## Install
 
-Copy the generated instructions file into any repository:
+Run the cross-platform installer from this directory:
+
+```bash
+bash install.sh
+```
+
+Manual personal install from `skillify/platforms/`:
+
+```bash
+for DEST in "$HOME/.copilot/skills/skillify" "$HOME/.agents/skills/skillify"; do
+  mkdir -p "$DEST"
+  cp ../SKILL.md "$DEST/"
+  for dir in references templates scripts platforms examples assets; do
+    if [ -d "../$dir" ]; then
+      mkdir -p "$DEST/$dir"
+      cp -R "../$dir/." "$DEST/$dir/"
+    fi
+  done
+done
+```
+
+For project-scoped use, copy the skill folder to either location:
+
+```text
+<repo>/.github/skills/skillify/
+<repo>/.agents/skills/skillify/
+```
+
+## Optional Custom Instructions
+
+If you want always-on repository guidance, append the prebuilt compact
+wrapper:
 
 ```bash
 mkdir -p /path/to/your/project/.github
-cp copilot-instructions.md /path/to/your/project/.github/copilot-instructions.md
-```
-
-Or append to an existing file:
-
-```bash
-echo "" >> /path/to/your/project/.github/copilot-instructions.md
 cat copilot-instructions.md >> /path/to/your/project/.github/copilot-instructions.md
 ```
 
-## Format Differences from Claude/Gemini
-
-| Feature | Claude / Gemini | Copilot |
-|---|---|---|
-| Discovery | YAML `name` + `description` | Always loaded for the repo |
-| Scope | Global skill directory | Per-repo `.github/` |
-| Progressive disclosure | Reference files loaded on demand | All content loaded at once |
-| Token budget | 500 lines per SKILL.md | ~1–2 pages recommended |
-| Frontmatter | Required (`name`, `description`) | Optional (only `applyTo` for path scoping) |
-
-## Generated File
-
-See [copilot-instructions.md](copilot-instructions.md) for the Copilot-compatible version.
+Keep this wrapper short. Long workflows belong in `SKILL.md` so they load
+only when relevant.
 
 ## Verify
 
-Place the file in `.github/copilot-instructions.md`, open VS Code with Copilot, and ask in chat: *"Create a skill for processing CSV files"* — the instructions should guide Copilot's response.
+Open a Copilot agent host for the target scope and ask:
+*"Create a skill for processing CSV files"*. The agent should follow the
+`skillify` workflow when skills are enabled for that host.
 
-## Limitations
+## Format Notes
 
-- Copilot does not support on-demand file loading. The full instruction content is injected every time.
-- Keep instructions concise (~1–2 pages) to avoid diluting Copilot's focus.
-- For complex skills, consider using Copilot's `AGENTS.md` support (agentic mode) instead.
+- Agent skills use the canonical `SKILL.md` format.
+- `.github/copilot-instructions.md` is always-on context, not skill discovery.
+- Include referenced support directories when copying a skill.

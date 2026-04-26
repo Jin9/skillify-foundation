@@ -1,43 +1,57 @@
 # Platform Deployment Guide
 
-This directory contains platform-specific configurations to install `skillify` globally across all supported AI coding agents.
+This directory contains platform-specific instructions for installing
+`skillify` across AI coding agents.
 
 ## Supported Platforms
 
-| Platform | Config Location | Format | Install Method |
+| Platform | Primary skill locations | Optional always-on file | Install method |
 |---|---|---|---|
-| **Claude** (Claude Code) | `~/.claude/skills/skillify/` | YAML frontmatter + markdown | Copy `SKILL.md` + `references/` |
-| **Gemini** (Gemini CLI) | `~/.gemini/skills/skillify/` | YAML frontmatter + markdown | Copy `SKILL.md` + `references/` |
-| **Codex** (OpenAI Codex) | `AGENTS.md` in project root | Plain markdown, no frontmatter | Append or merge into `AGENTS.md` |
-| **Copilot** (GitHub Copilot) | `.github/copilot-instructions.md` | Plain markdown | Append or merge into instructions |
-| **Antigravity** (Google DeepMind) | `~/.gemini/antigravity/` + user rules | YAML frontmatter + markdown | Copy to Gemini skills + user rule |
+| Claude Code | `~/.claude/skills/skillify/`, `.claude/skills/skillify/` | `CLAUDE.md` | Copy full skill folder |
+| OpenAI Codex | `~/.agents/skills/skillify/`, `$CODEX_HOME/skills/skillify/`, `.agents/skills/skillify/` | `AGENTS.md` | Copy full skill folder |
+| GitHub Copilot | `~/.copilot/skills/skillify/`, `~/.agents/skills/skillify/`, `.github/skills/skillify/`, `.agents/skills/skillify/` | `.github/copilot-instructions.md` | Copy full skill folder |
+| Gemini CLI | `~/.gemini/skills/skillify/`, `~/.agents/skills/skillify/`, `.gemini/skills/skillify/`, `.agents/skills/skillify/` | `GEMINI.md`, `AGENTS.md` | Copy full skill folder |
+| Antigravity | `~/.gemini/antigravity/skills/skillify/`, `.agents/skills/skillify/` | `~/.gemini/GEMINI.md`, `.agents/rules/` | Copy full skill folder |
 
 ## Quick Install
 
-Run the install script from this directory:
+Run from this directory:
 
 ```bash
 bash install.sh
 ```
 
-The script will:
-1. Copy the canonical `SKILL.md` and `references/` to Claude and Gemini global skill directories.
-2. Generate `AGENTS.md` (Codex-compatible) in the skill root.
-3. Generate `.github/copilot-instructions.md` (Copilot-compatible) in the skill root.
-4. Register the skill trigger in Antigravity's user rules.
+The script copies the full skill folder to user/global locations for the
+supported hosts:
+
+1. Claude Code: `~/.claude/skills/skillify/`
+2. Shared Agent Skills: `~/.agents/skills/skillify/`
+3. Codex compatibility path: `$CODEX_HOME/skills/skillify/`
+4. Gemini native path: `~/.gemini/skills/skillify/`
+5. Copilot native path: `~/.copilot/skills/skillify/`
+6. Antigravity global path: `~/.gemini/antigravity/skills/skillify/`
+
+It does not edit project rule files automatically. Use the prebuilt
+wrappers only when you want always-on instructions:
+
+- [agents.md](agents.md) - optional Codex `AGENTS.md` wrapper
+- [copilot-instructions.md](copilot-instructions.md) - optional Copilot custom instructions wrapper
 
 ## Manual Install
 
 See the platform-specific files in this directory:
-- [claude.md](claude.md) — Claude Code setup
-- [gemini.md](gemini.md) — Gemini CLI setup
-- [codex.md](codex.md) — OpenAI Codex setup
-- [copilot.md](copilot.md) — GitHub Copilot setup
-- [antigravity.md](antigravity.md) — Antigravity setup
+
+- [claude.md](claude.md) - Claude Code setup
+- [codex.md](codex.md) - OpenAI Codex setup
+- [copilot.md](copilot.md) - GitHub Copilot setup
+- [gemini.md](gemini.md) - Gemini CLI setup
+- [antigravity.md](antigravity.md) - Antigravity setup
 
 ## Architecture Decision
 
-We use **one canonical source** (`SKILL.md` + `references/`) and **generate platform-specific wrappers** from it, rather than maintaining five separate copies. This ensures:
-- Single source of truth for skill content
-- No drift between platforms
-- Platform-specific adaptations are minimal wrappers, not full rewrites
+Use one canonical source (`SKILL.md` plus support directories) and
+platform-specific installation notes. This avoids drift while preserving
+host-specific discovery paths.
+
+Copy the whole skill folder, not just `SKILL.md`: this skill references
+`references/`, `templates/`, `scripts/`, and `platforms/`.

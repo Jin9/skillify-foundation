@@ -1,47 +1,53 @@
-# Claude Code — Global Skill Setup
+# Claude Code - Skill Setup
 
 ## How It Works
 
-Claude Code discovers skills from `~/.claude/skills/`. Each skill is a directory containing a `SKILL.md` with YAML frontmatter (`name` + `description`) and an optional `references/` directory.
+Claude Code discovers skills from personal and project skill directories.
+Each skill is a directory containing `SKILL.md` with YAML frontmatter
+(`name` and `description`) plus optional supporting directories such as
+`references/`, `templates/`, `scripts/`, and `assets/`.
 
-Claude pre-loads all skill names and descriptions at startup. When a user request matches, Claude reads the full `SKILL.md` and loads reference files on demand.
+Claude keeps skill metadata available and loads the full skill when the
+request matches the description or the user explicitly invokes it.
 
 ## Install
 
-```bash
-# Create skill directory
-mkdir -p ~/.claude/skills/skillify/references
+Run the cross-platform installer from this directory:
 
-# Copy canonical files
-cp ../SKILL.md ~/.claude/skills/skillify/SKILL.md
-cp ../references/*.md ~/.claude/skills/skillify/references/
+```bash
+bash install.sh
 ```
+
+Manual personal install from `skillify/platforms/`:
+
+```bash
+DEST="$HOME/.claude/skills/skillify"
+mkdir -p "$DEST"
+cp ../SKILL.md "$DEST/"
+for dir in references templates scripts platforms examples assets; do
+  if [ -d "../$dir" ]; then
+    mkdir -p "$DEST/$dir"
+    cp -R "../$dir/." "$DEST/$dir/"
+  fi
+done
+```
+
+For project-scoped use, copy the same skill folder to
+`.claude/skills/skillify/` inside the target repository.
 
 ## Verify
 
 ```bash
 ls -la ~/.claude/skills/skillify/
-# Should show: SKILL.md, references/
+# Should show: SKILL.md plus referenced support directories.
 ```
 
-Then open Claude Code and ask: *"Create a skill for processing CSV files"* — the skill should trigger automatically.
-
-## Permissions
-
-If Claude Code requires explicit read permissions, add to `.claude/settings.local.json`:
-
-```json
-{
-  "permissions": {
-    "allow": [
-      "Read(//Users/<username>/.claude/skills/**)"
-    ]
-  }
-}
-```
+Then open Claude Code and ask: *"Create a skill for processing CSV files"*.
+The skill should trigger automatically, or you can invoke it explicitly if
+your host supports slash-based skill calls.
 
 ## Format Notes
 
-- Claude Code uses the **exact same format** as the canonical `SKILL.md` — no adaptation needed.
-- YAML frontmatter fields: `name` (lowercase, hyphens, ≤64 chars) and `description` (≤1024 chars).
-- Reference files are loaded on-demand via filesystem access.
+- Claude Code uses the canonical `SKILL.md` format directly.
+- Keep frontmatter portable: `name`, `description`, and only supported optional fields.
+- Keep repository policy in `CLAUDE.md`; keep reusable workflows in `SKILL.md`.

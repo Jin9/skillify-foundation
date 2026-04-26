@@ -1,40 +1,63 @@
-# Antigravity (Google DeepMind) — Skill Setup
+# Antigravity - Skill Setup
 
 ## How It Works
 
-Antigravity runs on the Gemini infrastructure and uses the same skill format as Gemini CLI (`~/.gemini/skills/`). Additionally, Antigravity supports **user rules** defined in its settings that act as persistent behavioral triggers across all conversations.
+Antigravity supports global skills in the Antigravity-specific Gemini
+directory and workspace skills in the shared `.agents/skills/` directory.
+It also supports persistent rules, but rules should reinforce activation
+or workspace policy rather than duplicate the full skill.
 
-The skill installation has two parts:
-1. **Skill files** — installed to Gemini's global skill directory (shared with Gemini CLI).
-2. **User rule** — a trigger rule in Antigravity's user settings that activates the skill when relevant keywords are detected.
+The recommended install has two choices:
+
+1. **Global skill** - available across Antigravity workspaces.
+2. **Workspace skill** - committed or copied into one repository.
 
 ## Install
 
-### Step 1: Install Skill Files (shared with Gemini)
+Run the cross-platform installer from this directory:
 
 ```bash
-# Create skill directory (reuses Gemini path)
-mkdir -p ~/.gemini/skills/skillify/references
-
-# Copy canonical files
-cp ../SKILL.md ~/.gemini/skills/skillify/SKILL.md
-cp ../references/*.md ~/.gemini/skills/skillify/references/
+bash install.sh
 ```
 
-### Step 2: Add User Rule
+Manual global install from `skillify/platforms/`:
 
-Add the following to your Antigravity user rules (Settings → User Rules):
+```bash
+DEST="$HOME/.gemini/antigravity/skills/skillify"
+mkdir -p "$DEST"
+cp ../SKILL.md "$DEST/"
+for dir in references templates scripts platforms examples assets; do
+  if [ -d "../$dir" ]; then
+    mkdir -p "$DEST/$dir"
+    cp -R "../$dir/." "$DEST/$dir/"
+  fi
+done
+```
 
+For workspace-scoped use, copy the skill folder to:
+
+```text
+<repo>/.agents/skills/skillify/
 ```
-When the user asks to create, author, write, refactor, review, or critique a SKILL.md or agent skill, activate the 'skillify' skill from ~/.gemini/skills/skillify/ and follow its authoring workflow, validation loop, and review checklist.
+
+## Optional Rule
+
+Add this rule only if Antigravity does not reliably activate the skill:
+
+```text
+When the user asks to create, author, write, refactor, review, audit, compress, split, merge, or adapt a SKILL.md or agent skill, use the skillify skill and follow its workflow and validation gates.
 ```
+
+Use global rules in `~/.gemini/GEMINI.md` and workspace rules in
+`.agents/rules/`, according to the scope you want.
 
 ## Verify
 
-Open Antigravity and ask: *"Create a skill for processing CSV files"* — the user rule should trigger skill activation, and the agent should follow the authoring workflow with the validation loop.
+Open Antigravity and ask: *"Create a skill for processing CSV files"*.
+The agent should activate `skillify`; if not, add the optional rule above.
 
 ## Format Notes
 
-- Antigravity uses the **exact same SKILL.md format** as Gemini CLI — no adaptation needed.
-- The user rule acts as a **persistent memory trigger** that ensures the skill is activated even when the default skill discovery mechanism doesn't fire.
-- Antigravity's `~/.gemini/GEMINI.md` global instructions are also respected and can contain additional memory triggers.
+- Antigravity uses the canonical `SKILL.md` format for skills.
+- `.agents/skills/` is the portable workspace path.
+- Rules are optional activation helpers, not the source of skill behavior.
