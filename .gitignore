@@ -1,5 +1,6 @@
 # Ignore the skill-design-methodology folder
 /skill-design-methodology
+/discovery
 
 # Ignore all __pycache__ directories
 **/__pycache__
