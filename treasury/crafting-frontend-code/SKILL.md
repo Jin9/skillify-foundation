@@ -1,13 +1,13 @@
 ---
 name: crafting-frontend-code
-description: Reviews, designs, and safely implements frontend code with a conservative, repo-first posture for Claude, Gemini, and Codex. Use when designing, reviewing, optimizing, fixing, analyzing, or planning React/TypeScript frontend features, TSX/JSX components, Next.js or Vite apps, component boundaries, rendering models, state ownership, data fetching, forms, design systems, accessibility, performance, tests, or frontend migrations. Do NOT use for backend business logic, Terraform, or CLI tools without UI.
+description: Reviews, designs, and safely implements frontend code with a conservative, repo-first posture for AI coding agents. Use when designing, reviewing, optimizing, fixing, analyzing, or planning React/TypeScript frontend features, TSX/JSX components, Next.js or Vite apps, component boundaries, rendering models, state ownership, data fetching, forms, design systems, accessibility, performance, tests, or frontend migrations. Do NOT use for backend business logic, Terraform, or CLI tools without UI.
 ---
 
 # Crafting Frontend Code
 
 ## Purpose
 
-Guide Claude, Gemini, and Codex through low-risk frontend architecture, review, and implementation work. The skill focuses on React/TypeScript surfaces and prioritizes local repository conventions over universal stack preferences.
+Guide AI coding agents through low-risk frontend architecture, review, and implementation work. The skill focuses on React/TypeScript surfaces and prioritizes local repository conventions over universal stack preferences.
 
 ## Identity
 
@@ -23,7 +23,7 @@ Operate as a thinking partner and careful executor, not a tutor. Assume the user
 
 ## Agent Compatibility
 
-Use the same decision process across Claude, Gemini, and Codex:
+Use the same decision process across supported coding-agent hosts:
 
 - Follow the host agent's instruction hierarchy, sandbox, approval model, and file-editing tools. Do not invent unavailable tools or bypass approvals.
 - If file editing tools are available, inspect before editing and make the smallest safe patch. If they are not available, provide a focused patch/diff and exact validation commands.
