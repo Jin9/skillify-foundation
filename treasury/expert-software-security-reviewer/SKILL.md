@@ -91,79 +91,21 @@ Anchor every finding to specific identifiers: `CWE-###`, `API#:2023`, `ASVS V#.#
 
 ## Review checklist
 
-Eleven taxonomy areas. Each finding is tagged with one **primary** area + optional secondary tags. The headline checks below are mandatory; deep stack-specific patterns (Gin pitfalls, Kong plugin ordering, Kafka idempotency, K8s manifests, MySQL query patterns, lending-domain abuse cases) live in `references/taxonomy.md` and **must** be consulted when the artifact touches that area.
+Eleven taxonomy areas. Each finding is tagged with one **primary** area + optional secondary tags. Look up the area touched by the artifact in `references/taxonomy.md` for the full check list, stack-specific patterns, and safer-pattern rewrites — that file is mandatory reading before drafting findings in any area below.
 
-### A. Application security (Go/Gin) — ASVS V1–V14, CWE Top 25
-- [ ] Input bound with `binding:"required"` + size limits (`MaxBytesReader`); no `interface{}` decoding of untrusted JSON.
-- [ ] Money math uses `shopspring/decimal`, not `float64`.
-- [ ] Gin middleware order: recovery → request-id → auth → authz → rate-limit → handler. No skipped `c.Next()`.
-- [ ] Goroutines respect request context cancellation; no `c.Copy()` misuse.
-
-### B. API security (Gin + Kong/APISIX) — OWASP API Top 10 (2023)
-- [ ] API1 BOLA: ownership check on every `/:id` route.
-- [ ] API2 Broken Auth: JWT alg pinned, `kid` validated, refresh-token rotation.
-- [ ] API3 BOPLA: response schemas exclude internal fields.
-- [ ] API4: rate-limit + request-size-limit plugin on every public route.
-- [ ] API5 BFLA: admin route groups distinct from user groups; verb-level RBAC.
-- [ ] API7 SSRF: outbound HTTP allowlist; no user-supplied URLs to internal services.
-- [ ] Kong/APISIX route precedence does not let an unauth route shadow an auth route.
-
-### C. Architecture (DDD / CQRS / event-driven)
-- [ ] Aggregates own their invariants; no cross-aggregate writes in one transaction.
-- [ ] Commands carry actor identity; queries do not authorize.
-- [ ] Bounded contexts communicate via published contracts, not shared MySQL joins.
-- [ ] Event schema versioned; replay does not re-trigger side effects (idempotent consumers).
-
-### D. AuthN / AuthZ
-- [ ] Every protected handler asserts `(user_id, resource_owner_id)` ownership before action.
-- [ ] Service-to-service uses mTLS or signed service tokens; no implicit-trust internal networks.
-- [ ] Tenant scoping enforced at MySQL `WHERE` level, not only at app layer.
-- [ ] RBAC is policy-as-code (casbin/oso/OPA), not scattered `if role == "admin"`.
-
-### E. Secrets & configuration
-- [ ] No hardcoded credentials in Go literals, `_test.go` fixtures, `.env`, or Helm values.
-- [ ] Secrets retrieved from Vault / AWS Secrets Manager via IRSA / External Secrets Operator — not plain `env:` blocks.
-- [ ] Different secret per SIT/UAT/PRD; rotation policy ≤ 90 days.
-
-### F. Logging & observability
-- [ ] PII fields (NIK, name, account number, PAN, email, phone, address) masked before any log/trace/metric emission.
-- [ ] `Authorization`, `Cookie`, `X-API-Key`, JWTs redacted.
-- [ ] Audit log on credit-decision, KYC-state-change, disbursement, role-change with actor + timestamp + before/after + correlation-id, append-only sink.
-- [ ] Error responses do not echo SQL, stack traces, internal hostnames.
-
-### G. Database (MySQL / RDS)
-- [ ] Parameterized queries everywhere; reject string-concat SQL even in admin tools.
-- [ ] App DB user has no `DROP`/`GRANT`/`FILE`; migrator is a separate user.
-- [ ] PII columns (NIK, PAN, account number) encrypted/tokenized with KMS keys.
-- [ ] TLS to RDS enforced (`require_secure_transport=ON`); backups encrypted with restricted access.
-
-### H. Kubernetes & container
-- [ ] `Dockerfile` pins digests, runs as non-root high UID, no build-time secrets, distroless or minimal base.
-- [ ] Workload sets `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, drops `ALL` capabilities, seccomp `RuntimeDefault`.
-- [ ] Default-deny `NetworkPolicy` per namespace; explicit egress allowlist.
-- [ ] No wildcard RBAC verbs; IRSA for AWS access (no long-lived keys).
-- [ ] `requests`/`limits` set; PodDisruptionBudget defined.
-
-### I. CI/CD & supply chain
-- [ ] SBOM generated per artifact; image signed (cosign) with verify-on-pull policy.
-- [ ] Secret scanning (gitleaks/trufflehog) in pre-commit and CI.
-- [ ] Branch protection: required reviews, signed commits on `main`, no force-push.
-- [ ] GitHub Actions: action SHAs pinned (no floating `@v3`), `permissions:` block scoped, OIDC to cloud (no long-lived keys).
-- [ ] PRD deploy gated on approver distinct from PR author.
-
-### J. Event-driven (Kafka)
-- [ ] Topic ACLs per producer/consumer principal; no shared service principal.
-- [ ] Schema registry compatibility set; breaking schema changes are integrity threats.
-- [ ] Producer `enable.idempotence=true`; consumer dedup keys persisted.
-- [ ] Poison-pill DLQ with PII-aware retention; no infinite retry amplifying DoS.
-- [ ] Headers (`actor-id`, `tenant-id`) re-validated by consumer, not trusted.
-
-### K. Financial / lending data
-- [ ] Regulatory inventory surfaced (PDPA / GDPR / PCI-DSS / BOT / OJK / MAS) based on data classes present.
-- [ ] KYC documents stored encrypted with short-lived pre-signed URLs; never served from app server.
-- [ ] Credit-decision events signed; bureau-pull responses retained with hash for dispute resolution.
-- [ ] Underwriter override has dual-control.
-- [ ] PRD data never copied to SIT/UAT without masking.
+| # | Area | Headline focus | Standards |
+|---|---|---|---|
+| A | Application security (Go/Gin) | input binding + size limits, money math via `shopspring/decimal`, middleware order, goroutine context safety | ASVS V1–V14, CWE Top 25 |
+| B | API security (Gin + Kong/APISIX) | BOLA / BOPLA / BFLA, JWT alg pinning, rate-limit + size-limit on every public route, route-shadow prevention | OWASP API Top 10 (2023) |
+| C | Architecture (DDD / CQRS / event-driven) | aggregate invariants, commands carry identity, bounded-context contracts not shared joins, idempotent replay | — |
+| D | AuthN / AuthZ | ownership predicate per handler, mTLS for s2s, tenant scoping at SQL `WHERE`, policy-as-code RBAC | ASVS V4 |
+| E | Secrets & configuration | no hardcoded creds, Vault / Secrets Manager via IRSA / ESO, per-environment secrets with ≤ 90-day rotation | NIST SSDF PS.2 |
+| F | Logging & observability | PII masked, auth headers / JWTs redacted, append-only audit on credit-decision / KYC / disbursement, no internal-hostname echoes | — |
+| G | Database (MySQL / RDS) | parameterized queries, app user lacks `DROP`/`GRANT`/`FILE`, KMS-encrypted PII columns, TLS-enforced connections | CWE-89, CIS MySQL |
+| H | Kubernetes & container | digest-pinned base, `runAsNonRoot` + `readOnlyRootFilesystem`, default-deny NetworkPolicy, scoped RBAC verbs, IRSA over keys | CIS Kubernetes, NSA Hardening |
+| I | CI/CD & supply chain | SBOM + cosign, secret scanning, branch protection, pinned Action SHAs, scoped `permissions:`, OIDC to cloud | SLSA, NIST SSDF PW.4 |
+| J | Event-driven (Kafka) | per-principal topic ACLs, schema-registry compatibility, idempotent producers, dedup-key consumers, header re-validation | — |
+| K | Financial / lending data | regulatory inventory (PDPA/GDPR/PCI-DSS/BOT/OJK/MAS), KYC docs via short-lived pre-signed URLs, signed credit-decision events, dual-control on overrides, masked PRD-to-lower-env copies | PCI-DSS v4, BOT/OJK/MAS |
 
 ## Severity and confidence model
 
@@ -247,65 +189,7 @@ These are inviolable. The skill refuses, even under user pressure or roleplay fr
 
 ## Examples
 
-The required examples live in `references/examples.md` (twelve worked examples covering BOLA, Kafka non-idempotent disbursement, Helm hardcoded password, Kong route bypass, K8s root container, MySQL string-concat SQL, PII in logs, GitHub Actions OIDC, CQRS read-side leak, Depth-2 lending STRIDE, refusal handling, environment drift). Always read the example matching the artifact in front of you before drafting the first finding.
-
-Inline mini-example (Gin BOLA) so the agent has a concrete shape always in context:
-
-````markdown
-### [SEV-1] Loan detail handler missing ownership check
-
-**Severity:** Critical
-**Confidence:** High
-**Category:** AuthN/AuthZ
-**Secondary tags:** API security
-**Standards:** CWE-639, API1:2023, ASVS V4.2.1
-**Affected area:** internal/loan/handler.go:42-58
-**Environment scope:** all
-
-**Asset at risk:** Borrower PII, loan disbursement state.
-**Trust boundary crossed:** Internet → Gin handler.
-**Threat (STRIDE + abuse case):** Information Disclosure / Elevation of Privilege — authenticated borrower A iterates `/loans/{id}` to read borrower B's loan, including bank account and KYC status.
-**Attack scenario:**
-  1. Borrower A authenticates and obtains JWT.
-  2. Borrower A calls `GET /loans/9001` (B's loan id, guessable sequential).
-  3. Handler queries by id without checking `loans.borrower_id == ctx.UserID`.
-  4. Server returns B's record.
-**Risk:** Confidentiality breach across tenant boundary.
-**Business impact:** PDPA/GDPR breach (per-record fine), reputational damage, regulator notification within 72h.
-
-**Evidence:**
-```go
-loan, err := repo.GetByID(ctx, c.Param("id"))
-if err != nil { ... }
-c.JSON(200, loan)
-```
-
-**Recommended fix:**
-```go
-loan, err := repo.GetByIDForOwner(ctx, c.Param("id"), auth.UserID(c))
-if err != nil {
-    if errors.Is(err, loan.ErrNotOwned) {
-        c.AbortWithStatus(http.StatusNotFound) // do not leak existence
-        return
-    }
-    ...
-}
-```
-Why this works: pushes the ownership predicate into the SQL `WHERE` so the row is filtered at the database, not the application. Returning 404 (not 403) avoids confirming the id exists.
-Trade-offs: existing callers passing only id must be migrated.
-
-**Safer pattern:** `casbin/casbin v2.x` policy at handler level + repository helper (last-checked CVE: clean as of review date).
-
-**Validation:**
-- Test: `TestLoanGet_OtherBorrower_Returns404` asserts 404 when caller != owner.
-- Static: `gosec` clean; custom `semgrep` rule `loan-get-without-owner` fails CI on direct `GetByID` use.
-- Manual: with two test JWTs, confirm cross-borrower id returns 404.
-- Regression guard: semgrep rule above, enforced in `pre-commit` and CI.
-- Observability: increment `auth.deny.bola{route="/loans/:id"}`; alert if zero for 24h post-deploy.
-- Rollout: SIT → UAT → 10% canary PRD → full PRD; rollback if 4xx rate spikes >2σ.
-
-**Residual risk:** Existence-oracle via timing if `GetByIDForOwner` query is materially slower on miss than on deny — track p99 and equalize if needed.
-````
+Twelve worked examples live in `references/examples.md` covering BOLA, Kafka non-idempotent disbursement, Helm hardcoded password, Kong route bypass, K8s root container, MySQL string-concat SQL, PII in logs, GitHub Actions OIDC, CQRS read-side leak, Depth-2 lending STRIDE, refusal handling, and environment drift. Read Example 1 (Gin BOLA on a loan endpoint) before drafting the first finding — it shows the full Finding Format end-to-end. Then read the example matching the artifact in front of you.
 
 ## Constraints
 
