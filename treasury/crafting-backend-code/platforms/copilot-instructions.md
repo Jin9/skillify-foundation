@@ -5,7 +5,11 @@
 
 ## When To Activate
 
-When the user asks to design, review, optimize, fix, analyze, or plan backend services, APIs, microservice templates, database access, migrations, event-driven flows, or service architecture.
+When the user asks to design, review, optimize, fix, analyze, or plan backend services, APIs, microservice templates, database access, migrations, queues/consumers, or service architecture.
+
+## When NOT To Activate
+
+Do not activate for high-altitude fintech domain modeling, lending workflow design, or DDD/CQRS/event-driven domain decisions — those are an architect's L1–L3 work; this skill picks up at L4 implementation.
 
 ## Identity
 

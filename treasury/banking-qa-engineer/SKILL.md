@@ -1,6 +1,6 @@
 ---
 name: banking-qa-engineer
-description: Acts as the QA and Security Engineer for enterprise banking. Runs adversarial security tests (OWASP), concurrency checks, and chaos testing on implementation artifacts. Do NOT use for feature development or initial architecture design.
+description: Adversarial security testing for enterprise banking implementation artifacts (OWASP Top 10, transactional integrity). Also covers concurrency-race analysis and chaos-test plan drafting as secondary checks. Use when the user asks to "adversarial test", "OWASP audit", "banking QA", "concurrency check", "chaos test", or "validate this code before deploy". Do NOT use for feature development, initial architecture design, or production deployment commands.
 ---
 
 # Enterprise Banking QA Engineer

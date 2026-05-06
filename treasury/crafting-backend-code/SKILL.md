@@ -1,6 +1,6 @@
 ---
 name: crafting-backend-code
-description: Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing, optimizing, fixing, analyzing, or planning backend services, microservice scaffolds, APIs, Go/Node/Python/Java services, database access, SQL migrations, transactions, DDD, CQRS, event-driven flows, Kafka consumers, queues, auth, idempotency, observability, performance, tests, or backend migrations. Do NOT use for frontend components, browser rendering, or pure infrastructure provisioning.
+description: Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing, optimizing, fixing, analyzing, or planning backend services, microservice scaffolds, APIs, Go/Node/Python/Java services, database access, SQL migrations, transactions, queues, consumers, auth, idempotency, observability, performance, tests, or backend migrations. Do NOT use for frontend components, browser rendering, pure infrastructure provisioning, or high-altitude fintech domain modeling and lending workflow design (use `fintech-systems-architect` for L1–L3 fintech architecture and hand back here for L4 implementation).
 ---
 
 # Crafting Backend Code
@@ -26,7 +26,7 @@ Guide agents through low-risk backend architecture, review, implementation, and 
 - Pure infrastructure / Terraform / Kubernetes work unless it changes backend runtime contracts.
 - Data science, ML pipelines, or offline analytics unless part of a backend service boundary.
 - Trivial copy edits or isolated typo fixes — answer directly without the full framework.
-- Deep fintech domain design when a dedicated fintech architecture skill is available.
+- High-altitude fintech domain modeling, lending workflow design, regulated event-flow architecture, or DDD/CQRS/event-driven domain decisions — defer L1–L3 to `fintech-systems-architect` and handle L4 implementation here.
 
 ## Degree Of Freedom
 
@@ -63,18 +63,9 @@ Use this workflow before recommending or editing code:
 6. **Validate proportionally**: run the narrowest relevant typecheck, lint, unit/integration test, build, or migration dry-run available. If skipped, state why.
 7. **Report residual risk**: call out unverified integration behavior, migration risk, concurrency assumptions, or unavailable tooling.
 
-## Thinking Model (L1 → L4)
+## Thinking Model
 
-Follow this layered sequence. Do not jump to code without passing through contract and data questions.
-
-1. **L1 — Business Invariant**: what rule must remain true? what is the success state and who owns it?
-2. **L2 — Service Boundary**: service/template ownership, API/message contract, data ownership, transactional boundary, authorization boundary.
-3. **L3 — Technical Strategy**: persistence model, query/command split, transaction scope, retries/timeouts, idempotency, observability, testing, and migration approach.
-4. **L4 — Implementation**: handlers, services/use cases, repositories/adapters, schemas/migrations, event consumers, tests, docs.
-
-Evaluation axes: correctness vs latency, consistency vs availability, coupling vs autonomy, simplicity vs operability.
-
-**Fast path:** for isolated compile errors, narrow test fixes, or one-line query fixes, compress L1–L3 into one sentence then jump to L4. State "L1–L3 skipped: isolated fix" when traceability is needed.
+Apply L1 → L4 (Business Invariant → Service Boundary → Technical Strategy → Implementation) before jumping to code. Use the **fast path** ("L1–L3 skipped: isolated fix") for one-line queries, narrow test fixes, or isolated compile errors. Full layer definitions, evaluation axes, and per-layer questions: see `references/thinking-model.md`.
 
 ## Modes
 
@@ -140,6 +131,7 @@ Each mode is a workflow. Include the checklist when it improves reviewability. F
 
 ## References
 
+- **Thinking model**: See [references/thinking-model.md](references/thinking-model.md) for L1–L4 layer definitions, per-layer questions, and evaluation axes.
 - **Decision rules**: See [references/decision-rules.md](references/decision-rules.md) for the full set of backend decision rules (ownership, contracts, idempotency, security, generated artifacts).
 - **Template defaults**: See [references/template-defaults.md](references/template-defaults.md) for microservice template conventions (service structure, Go, CQRS, events, PostgreSQL, HTTP APIs, security).
 - **Editing guardrails**: See [references/editing-guardrails.md](references/editing-guardrails.md) for protected artifacts, scope discipline, and safe change patterns.

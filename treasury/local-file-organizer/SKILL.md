@@ -41,16 +41,7 @@ Plan and apply safe, offline organization of local files. Always plan first, get
 2. **Build inventory.** Generate `inventory.tsv` with columns `path, filename, extension, size_bytes, modified_at`. Apply skip patterns from `references/inventory-and-models.md`.
 3. **Classify by business meaning.** Use filename, extension, path, size, and modified time first. Read file contents only with explicit user approval.
 4. **Propose taxonomy.** Default scheme and rules in `references/taxonomy-and-naming.md`. Prefer business meaning over file type.
-5. **Emit `move_plan.json`** following `templates/move-plan.json`:
-   ```json
-   {
-     "folders": ["<target/dir>"],
-     "moves": [
-       {"source_path": "...", "target_path": "...", "reason": "...", "confidence": 0.0}
-     ],
-     "review_required": [{"source_path": "...", "reason": "..."}]
-   }
-   ```
+5. **Emit `move_plan.json`** at the target root following the schema in `templates/move-plan.json` (top-level keys: `folders`, `moves`, `review_required`).
 6. **Validate the plan.** Apply confidence routing from `references/taxonomy-and-naming.md`. Reject any plan containing `rm`, overwrite, or hidden-folder modification.
 7. **Write `organization-report.md`** at the target root using `templates/organization-report.md`.
 8. **Write `rollback.sh`** at the target root following `references/script-generation.md`.

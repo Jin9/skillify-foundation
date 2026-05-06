@@ -13,10 +13,17 @@ Guide agents through low-risk backend architecture, review, implementation, and 
 - Creating or refining microservice templates, backend scaffolds, common package layouts, or reusable service patterns.
 - Reviewing a PR or branch that touches backend code, SQL, migrations, event contracts, auth, or service boundaries.
 - Diagnosing correctness, performance, concurrency, timeout, retry, queue, or database regressions.
-- Choosing service boundaries, REST / gRPC / messaging, sync / async flows, or transaction / saga / outbox patterns.
+- Choosing service boundaries, REST / gRPC / messaging, or sync / async flows.
 - Auditing API contracts, data ownership, security controls, idempotency, observability, or test coverage.
 - Planning backend migrations, refactors, extractions, schema changes, or platform service rollouts.
-- Keywords: "backend", "API", "service", "microservice", "scaffold", "handler", "repository", "database", "SQL", "migration", "transaction", "DDD", "CQRS", "Kafka", "queue", "consumer", "outbox", "idempotency", "auth", "Go", "Node", "Python", "Java", "PostgreSQL", "Redis", "OpenAPI", "gRPC".
+- Keywords: "backend", "API", "service", "microservice", "scaffold", "handler", "repository", "database", "SQL", "migration", "transaction", "queue", "consumer", "idempotency", "auth", "Go", "Node", "Python", "Java", "PostgreSQL", "Redis", "OpenAPI", "gRPC".
+
+## When NOT To Activate
+
+- Frontend components, pages, state management, styling, accessibility, or browser rendering.
+- Pure infrastructure / Terraform / Kubernetes work unless it changes backend runtime contracts.
+- High-altitude fintech domain modeling, lending workflow design, regulated event-flow architecture, or DDD/CQRS/event-driven domain decisions — those are the domain architect's L1–L3 work; pick this skill back up at L4 implementation.
+- Trivial copy edits or isolated typo fixes — answer directly.
 
 ## Identity
 

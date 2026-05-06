@@ -167,31 +167,11 @@ Eleven taxonomy areas. Each finding is tagged with one **primary** area + option
 
 ## Severity and confidence model
 
-### Severity (impact × exploitability × reachability, per finding)
+Authoritative rubric, escalation floors, chained-severity rules, confidence rules, and worked calls live in `references/severity-confidence.md`. Read that file when assigning labels at Step 7 of the review pipeline. Quick handles:
 
-| Severity | Definition | Lending example |
-|---|---|---|
-| **Critical** | Direct money loss, regulatory breach, or PII exposure of >1 record without auth. Internet-reachable. Straightforward exploit. | Disbursement endpoint missing ownership check; hardcoded RDS password in repo; Kong route bypassing JWT; KYC document URL not signed. |
-| **High** | Sensitive data exposure, privilege escalation, or integrity loss with preconditions. | BOLA on `/loans/:id`; PII in Kafka headers; secrets in K8s `env:`; replay on credit-decision event. |
-| **Medium** | Defense-in-depth gap, hardening miss, or chained exploit. | Missing rate-limit on auth endpoint; verbose error responses; `runAsNonRoot` not set; missing audit log on role change. |
-| **Low** | Best-practice deviation, weak adjacency, informational. | Missing security headers on a non-sensitive route; dependency pinned to minor not patch. |
-
-**Escalation floors** (override the matrix upward):
-- Hardcoded production credential → **Critical**.
-- PII in logs in PRD config → **High** minimum.
-- Default-deny NetworkPolicy missing in PRD namespace → **High** minimum.
-- Disbursement / credit-decision / KYC-state-change path missing audit log → **High** minimum.
-- Same secret across SIT/UAT/PRD → **Critical**.
-
-### Confidence
-
-| Confidence | When to use |
-|---|---|
-| **High** | Vulnerable pattern present in artifact, exploit path reasoned end-to-end, no compensating control visible. Cite line/key for both bug and missing control. |
-| **Medium** | Pattern present but a compensating control may exist outside the artifact (e.g., a WAF rule or Kong plugin not shown). Name what would need to be true to invalidate. |
-| **Low** | Suspicious shape; missing context. State the exact artifact needed to upgrade. |
-
-**Rules:** Never publish Critical/High at Low confidence without an explicit `[needs verification]` label. Do not fabricate APIs, middleware, or plugin names — withhold instead. Full rubric in `references/severity-confidence.md`.
+- **Severity** = `f(Impact, Exploitability, Reachability)` per finding. Levels: Critical, High, Medium, Low.
+- **Confidence** = certainty the finding is real and exploitable in this codebase. Levels: High, Medium, Low.
+- **Hard rule:** never publish Critical/High at Low confidence without an explicit `[needs verification]` label. Do not fabricate APIs, middleware, plugin names, or standard identifiers — withhold instead.
 
 ## Finding format
 

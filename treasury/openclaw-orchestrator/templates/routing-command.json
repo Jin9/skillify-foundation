@@ -1,0 +1,32 @@
+{
+  "command_id": "",
+  "issued_at": "",
+  "issued_by": "orchestrator",
+  "artifact": {
+    "id": "",
+    "type": "",
+    "source_phase": "",
+    "source_agent": "",
+    "tracking_board_card": ""
+  },
+  "routing": {
+    "target_agent": "",
+    "target_phase": "",
+    "channel": "",
+    "reason": ""
+  },
+  "constraints": {
+    "sandbox_required": false,
+    "read_only": false,
+    "max_iterations": 1
+  },
+  "expected_output": {
+    "artifact_type": "",
+    "tracking_board_column": "",
+    "qa_verdict_required": false
+  },
+  "audit": {
+    "prior_phase_passed": false,
+    "human_approval_referenced": null
+  }
+}
