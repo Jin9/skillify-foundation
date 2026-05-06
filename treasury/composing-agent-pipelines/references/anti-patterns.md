@@ -1,14 +1,18 @@
 # Pipeline-Specific Anti-Patterns
 
-These are failure modes specific to this skill. For general skill anti-patterns see `~/.claude/skills/skillify/references/anti-patterns.md`.
+These are failure modes specific to this skill. For general skill anti-patterns,
+use the active `skillify` skill's `references/anti-patterns.md`.
 
 ## 1. Recursive Compose
 
 Compose mode invoking Compose, or any phase invoking Compose, creates an unbounded loop and torches the context window.
 
-**Symptom**: An agent reads `SKILL.md` and decides to spawn another pipeline as part of its phase work.
+**Symptom**: A delegated worker reads `SKILL.md` and decides to start another pipeline as part of its phase work.
 
-**Fix**: Phase prompts must include the literal instruction "Do not spawn another `composing-agent-pipelines` instance. Use direct tools only." The composer's own validation gate refuses to start if it detects it was itself spawned via the Agent tool from inside another `composing-agent-pipelines` run (check by reading the parent process's manifest path, if surfaced).
+**Fix**: Phase prompts must include the literal instruction "Do not invoke
+`composing-agent-pipelines`." The composer's validation gate refuses recursive
+Compose when a parent manifest or caller metadata shows this skill is already
+inside another pipeline.
 
 ## 2. Infinite Review/Validate loops
 
@@ -21,33 +25,37 @@ If Review surfaces P1 issues, the natural temptation is to re-run Analyze → Re
 
 ## 3. Over-decomposition on trivial tasks
 
-Plan happily produces 8 sub-questions for a question that needed 1. Each sub-question fans out to an Explore agent — wasted parallelism and context.
+Plan happily produces 8 sub-questions for a question that needed 1. Each sub-question fans out to a worker — wasted parallelism and context.
 
-**Fix**: When the user prompt is under ~50 words and clearly single-domain, the composer should suggest skipping straight to the relevant phase mode (e.g., "this looks like a single-question gather; want to invoke Gather standalone instead?"). Plan's prompt also caps at 8 sub-questions and explicitly asks the agent to produce 1 sub-question if the task is atomic.
+**Fix**: When the user prompt is under ~50 words and clearly single-domain, the composer should suggest skipping straight to the relevant phase mode (e.g., "this looks like a single-question gather; want to invoke Gather standalone instead?"). Plan's prompt also caps at 8 sub-questions and explicitly asks for 1 sub-question if the task is atomic.
 
 ## 4. Re-reading the entire pipeline directory each phase
 
 Each phase only needs specific upstream artifacts. Reading the whole directory blows context.
 
-**Fix**: Phase prompts include exact file paths the agent should read. The agent is instructed to NOT use `ls` or `find` on the pipeline directory.
+**Fix**: Phase prompts include exact file paths the worker should read. The worker is instructed to NOT use `ls` or `find` on the pipeline directory.
 
-## 5. Background-agent zombies
+## 5. Background Worker Zombies
 
-Long-running Gather agents launched with `run_in_background: true` can be forgotten if the orchestrator crashes or the user halts.
+Long-running Gather workers launched in background mode can be forgotten if the orchestrator crashes or the user halts.
 
-**Fix**: Background is only allowed when the user explicitly asks. The manifest records the background id under `phases.gather.agent_calls[].background_id`. Before declaring Gather done, the composer must confirm all background agents reported completion. If the user halts, the composer must call `TaskStop` on outstanding background agents (when those tools are loaded).
+**Fix**: Background is only allowed when the user explicitly asks. The manifest
+records the background id under `phases.gather.delegations[].background_id`.
+Before declaring Gather done, the composer must confirm all background workers
+reported completion. If the user halts, stop outstanding background work using
+the host's cancellation mechanism when available.
 
 ## 6. Worktree leakage
 
-`isolation: worktree` creates a temporary git worktree. If the agent doesn't exit cleanly, the worktree persists.
+`isolation: worktree` creates a temporary git worktree. If the worker does not exit cleanly, the worktree persists.
 
 **Fix**: Only Gather and Validate may use worktrees, and only on explicit user request. Each phase must `ExitWorktree` before writing its artifact. The composer's gate verifies the worktree is closed by checking for residual paths in the manifest.
 
 ## 7. Manifest drift
 
-Multiple agents writing to `manifest.json` race; the orchestrator alone owns it.
+Multiple workers writing to `manifest.json` race; the orchestrator alone owns it.
 
-**Fix**: Spawned agents are forbidden to read or write the manifest. They write only to the artifact path the orchestrator specified. The orchestrator updates the manifest after each phase completes.
+**Fix**: Delegated workers are forbidden to write the manifest. They write only to the artifact path the orchestrator specified. The orchestrator updates the manifest after each phase completes.
 
 ## 8. Stale state collision
 

@@ -1,11 +1,11 @@
 # Pipeline State Convention
 
-Every pipeline run writes artifacts under a single task directory inside the current working directory. State is in-repo so artifacts survive sessions and are inspectable; the project's `.gitignore` should exclude `.claude/pipelines/`.
+Every pipeline run writes artifacts under a single task directory inside the current working directory. State is in-repo so artifacts survive sessions and are inspectable; the project's `.gitignore` should exclude `.agent-pipelines/`.
 
 ## Directory layout
 
 ```
-<cwd>/.claude/pipelines/<task-id>/
+<cwd>/.agent-pipelines/<task-id>/
 ├── manifest.json
 ├── 01-plan.md
 ├── 02-evidence/
@@ -36,7 +36,8 @@ The script refuses to overwrite an existing task-id. Pass `--resume <task-id>` t
 
 ## Manifest schema
 
-`manifest.json` is the only JSON file. It tracks phase status, timestamps, and the prompts issued to spawned agents (for reproducibility). Schema:
+`manifest.json` is the only JSON file. It tracks phase status, timestamps, and
+delegated or inline work calls for reproducibility. Schema:
 
 ```json
 {
@@ -52,8 +53,8 @@ The script refuses to overwrite an existing task-id. Pass `--resume <task-id>` t
       "started_at": "2026-05-06T12:00:00Z",
       "ended_at": "2026-05-06T12:05:00Z",
       "artifact": "01-plan.md",
-      "agent_calls": [
-        {"subagent_type": "Plan", "description": "Decompose audit task", "background_id": null}
+      "delegations": [
+        {"worker_type": "writer", "description": "Decompose audit task", "background_id": null}
       ]
     },
     "gather": {
@@ -61,9 +62,9 @@ The script refuses to overwrite an existing task-id. Pass `--resume <task-id>` t
       "started_at": "2026-05-06T12:05:00Z",
       "ended_at": null,
       "artifact": "02-evidence/",
-      "agent_calls": [
-        {"subagent_type": "Explore", "description": "q1: existing JWT validation", "background_id": null},
-        {"subagent_type": "Explore", "description": "q2: token rotation flow", "background_id": null}
+      "delegations": [
+        {"worker_type": "writer", "description": "q1: existing JWT validation", "background_id": null},
+        {"worker_type": "writer", "description": "q2: token rotation flow", "background_id": null}
       ]
     }
   },
@@ -74,16 +75,18 @@ The script refuses to overwrite an existing task-id. Pass `--resume <task-id>` t
 
 ### Status values
 - `pending` — declared in `phase_shape` but not started.
-- `running` — `Agent` calls issued, awaiting results or in-progress.
+- `running` — delegated or inline phase work is in progress.
 - `done` — artifact written, gate passed, ready for next phase.
 - `failed` — gate failed; pipeline halts.
 - `skipped` — phase deliberately omitted by the chosen domain shape.
 
 ### Update protocol
 
-Only the orchestrator writes to `manifest.json`. Spawned subagents must NOT touch it. The orchestrator updates via `scripts/update_manifest.py` at every phase boundary:
+Only the orchestrator writes to `manifest.json`. Delegated workers must NOT
+touch it. The orchestrator updates via `scripts/update_manifest.py` at every
+phase boundary:
 
-- **Before spawning the agent**: `--phase <name> --status running --add-agent-call "<subagent_type>|<description>"` (one `--add-agent-call` per spawned agent; for parallel Gather, repeat the flag N times).
+- **Before delegated or inline work**: `--phase <name> --status running --add-delegation "<worker_type>|<description>"` (one `--add-delegation` per worker; for parallel Gather, repeat the flag N times).
 - **After exit gate passes**: `--phase <name> --status done`. Optionally `--note "..."` to record a short summary (e.g., verdict counts).
 - **On gate failure**: `--phase <name> --status failed --halt "<reason>"`. The pipeline halts; no further phases run.
 - **On user halt**: `--halt "<reason>"`. Sets the top-level `halted_reason` and the current phase to `failed`.
@@ -93,7 +96,7 @@ The script always updates `updated_at` and is idempotent — calling `--status r
 ### What manifest does NOT contain
 - No raw evidence (lives in `02-evidence/*.md`).
 - No PII or credentials (must be scrubbed from any user prompt before persisting).
-- No verbose agent transcripts (only the `description` and `subagent_type`).
+- No verbose worker transcripts (only the `description`, `worker_type`, and optional `background_id`).
 
 ## Resumption rules
 

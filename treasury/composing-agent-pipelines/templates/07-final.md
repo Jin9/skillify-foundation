@@ -47,13 +47,13 @@ Anything that remained unanswered.
 
 Flat list of every artifact and source file referenced in this report.
 
-- `.claude/pipelines/<task-id>/01-plan.md`
-- `.claude/pipelines/<task-id>/02-evidence/q1.md`
-- `.claude/pipelines/<task-id>/02-evidence/q2.md`
-- `.claude/pipelines/<task-id>/03-analysis.md`
-- `.claude/pipelines/<task-id>/04-review.md`
-- `.claude/pipelines/<task-id>/05-validation.md`
-- `.claude/pipelines/<task-id>/06-decision.md`
+- `.agent-pipelines/<task-id>/01-plan.md`
+- `.agent-pipelines/<task-id>/02-evidence/q1.md`
+- `.agent-pipelines/<task-id>/02-evidence/q2.md`
+- `.agent-pipelines/<task-id>/03-analysis.md`
+- `.agent-pipelines/<task-id>/04-review.md`
+- `.agent-pipelines/<task-id>/05-validation.md`
+- `.agent-pipelines/<task-id>/06-decision.md`
 
 ## Word budget
 

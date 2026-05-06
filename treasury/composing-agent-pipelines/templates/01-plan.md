@@ -14,7 +14,7 @@ What does "done" look like for the overall pipeline? List 2–4 measurable condi
 
 ## Sub-questions
 
-Number each sub-question. Each must be answerable by a single Explore agent reading source files. Cap at 8. If the task is atomic, output exactly 1.
+Number each sub-question. Each must be answerable by one bounded worker or one inline read pass over source files. Cap at 8. If the task is atomic, output exactly 1.
 
 1. **q1**: [sub-question]
    - Why this matters: [one sentence]

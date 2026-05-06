@@ -20,7 +20,7 @@ Note that Validate runs *after* Decide here — to fact-check the recommendation
 
 ```
 $ python3 scripts/init_pipeline.py --slug event-bus-choice --domain decision --prompt "Choose between Kafka, NATS JetStream, RabbitMQ..."
-created: <cwd>/.claude/pipelines/event-bus-choice-3a8f51
+created: <cwd>/.agent-pipelines/event-bus-choice-3a8f51
 ```
 
 ## Step 3 — Plan (hard gate)
@@ -34,13 +34,13 @@ created: <cwd>/.claude/pipelines/event-bus-choice-3a8f51
 
 User confirms `proceed`.
 
-## Step 4 — Gather (4 parallel `Explore` agents)
+## Step 4 — Gather (4 parallel writer workers)
 
-Agents search the repo (existing docker-compose, Helm values, runbooks) and any docs/. Each writes `02-evidence/qN.md`.
+Workers search the repo (existing docker-compose, Helm values, runbooks) and any docs/. Each writes `02-evidence/qN.md`.
 
 ## Step 5 — Analyze
 
-1 × `general-purpose` agent produces `03-analysis.md`:
+One writer worker produces `03-analysis.md`:
 - F1 (P1): Infra team already runs Kafka in 2 other services. Cites `02-evidence/q1.md#F1`.
 - F2 (P1): Workload needs partitioned ordering at 10k msg/s. Cites `q2.md#F1`.
 - F3 (P2): Go SDK maturity: Kafka (Sarama/segmentio) > NATS > RabbitMQ. Cites `q4.md#F1, F2, F3`.
@@ -48,7 +48,7 @@ Agents search the repo (existing docker-compose, Helm values, runbooks) and any 
 
 ## Step 6 — Decide (hard gate, no Review pre-pass)
 
-1 × `Plan` agent reads `03-analysis.md` directly (no `04-review.md` exists in this shape) and produces `06-decision.md`:
+One writer worker reads `03-analysis.md` directly (no `04-review.md` exists in this shape) and produces `06-decision.md`:
 
 | # | Option | Pros | Cons | Risks | Effort | Reversibility |
 |---|--------|------|------|-------|--------|---------------|
@@ -62,7 +62,7 @@ User reviews and types `proceed`.
 
 ## Step 7 — Validate
 
-The recommendation rests on F1 (existing Kafka infra) and F2 (10k msg/s ordering). Orchestrator spawns 2 × `Explore` agents to re-verify those claims:
+The recommendation rests on F1 (existing Kafka infra) and F2 (10k msg/s ordering). The orchestrator delegates one sequential validation pass to re-verify those claims:
 
 - C1 (F1: Kafka in 2 other services): confirmed — found in `helm/charts/billing/values.yaml` and `helm/charts/notifications/values.yaml`.
 - C2 (F2: 10k msg/s ordering needed): unverifiable — found a design doc but the throughput number is from a slack thread not in the repo.
@@ -76,7 +76,7 @@ Orchestrator surfaces C2 (unverifiable) to user. User confirms the throughput nu
 ## Final state
 
 ```
-.claude/pipelines/event-bus-choice-3a8f51/
+.agent-pipelines/event-bus-choice-3a8f51/
 ├── manifest.json        # review status=skipped, all others=done
 ├── 01-plan.md
 ├── 02-evidence/q1.md ... q4.md

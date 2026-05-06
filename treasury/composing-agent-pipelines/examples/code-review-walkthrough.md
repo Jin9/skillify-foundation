@@ -17,12 +17,12 @@ A worked end-to-end run of the `code-review` phase shape — every phase runs:
 
 ```
 $ python3 scripts/init_pipeline.py --slug payment-retry-audit --domain code-review --prompt "Audit the new payment-retry handler..."
-created: <cwd>/.claude/pipelines/payment-retry-audit-9b1d3e
+created: <cwd>/.agent-pipelines/payment-retry-audit-9b1d3e
 ```
 
 ## Step 3 — Plan (hard gate)
 
-1 × `Plan` agent decomposes:
+One writer worker, or the orchestrator inline, decomposes:
 
 ```
 1. q1: What does retry.go do, and what state does it touch?
@@ -34,15 +34,15 @@ created: <cwd>/.claude/pipelines/payment-retry-audit-9b1d3e
 
 User confirms `proceed`.
 
-## Step 4 — Gather (5 parallel `Explore` agents in one message)
+## Step 4 — Gather (5 parallel writer workers)
 
-Each agent reads `retry.go` and adjacent files (e.g. `payment_test.go`, `internal/idempotency/`).
+Each worker reads `retry.go` and adjacent files (e.g. `payment_test.go`, `internal/idempotency/`).
 
 Results in `02-evidence/q1.md` through `q5.md`. Each finding cites file:line.
 
 ## Step 5 — Analyze
 
-1 × `general-purpose` agent produces `03-analysis.md`:
+One writer worker produces `03-analysis.md`:
 
 - F1 (P1): Retry uses a per-request mutex but the request-id is not the idempotency key — risk of double-charging on duplicate Kafka delivery. Cites `02-evidence/q3.md#F1`.
 - F2 (P1): Circuit breaker timeout (60s) exceeds the upstream gateway timeout (30s) — orphaned charges possible. Cites `02-evidence/q4.md#F2`.
@@ -51,16 +51,16 @@ Results in `02-evidence/q1.md` through `q5.md`. Each finding cites file:line.
 
 ## Step 6 — Review (one pass, hard cap)
 
-1 × `Plan` agent (adversarial) produces `04-review.md`:
+One writer worker with the adversarial prompt produces `04-review.md`:
 
 - I1 (P1) targets F1: "Analysis assumes Kafka at-least-once delivery — verify the consumer config." → suggested fix: gather config.
 - I2 (P2) targets F3: "Forensic gap is real but not unique to this PR — out of scope."
 
 Orchestrator surfaces I1/I2 to user. User accepts I2 as out-of-scope, asks to address I1 in Validate.
 
-## Step 7 — Validate (parallel `Explore` agents)
+## Step 7 — Validate (single writer worker)
 
-P1/P2 claims = 3. Orchestrator spawns 3 × `Explore` agents to fact-check, including a new check on the Kafka consumer config (per I1).
+P1/P2 claims = 3. The orchestrator delegates one sequential validation pass, including a new check on the Kafka consumer config (per I1).
 
 Result `05-validation.md`:
 - C1 (F1 idempotency): confirmed — Kafka consumer config does NOT dedupe.
@@ -69,7 +69,7 @@ Result `05-validation.md`:
 
 ## Step 8 — Decide (hard gate)
 
-1 × `Plan` agent reads analysis + review + validation, produces `06-decision.md`:
+One writer worker reads analysis + review + validation, then produces `06-decision.md`:
 
 | # | Option | Pros | Cons | Risks | Effort | Reversibility |
 |---|--------|------|------|-------|--------|---------------|
@@ -88,7 +88,7 @@ User reviews and types `proceed`.
 ## Final state
 
 ```
-.claude/pipelines/payment-retry-audit-9b1d3e/
+.agent-pipelines/payment-retry-audit-9b1d3e/
 ├── manifest.json        # all phases status=done
 ├── 01-plan.md
 ├── 02-evidence/q1.md ... q5.md

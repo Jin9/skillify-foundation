@@ -27,12 +27,12 @@ User replies `proceed`.
 
 ```
 $ python3 scripts/init_pipeline.py --slug auth-token-expiry --domain research --prompt "Research how the codebase handles auth token expiration..."
-created: <cwd>/.claude/pipelines/auth-token-expiry-7c4e2a
+created: <cwd>/.agent-pipelines/auth-token-expiry-7c4e2a
 ```
 
 ## Step 3 — Plan
 
-Orchestrator spawns 1 × `Plan` agent with the prompt skeleton from `references/mode-playbooks.md#mode-plan`.
+The orchestrator delegates to one writer worker, or runs inline, with the prompt skeleton from `references/mode-playbooks.md#mode-plan`.
 
 Result written to `01-plan.md`:
 
@@ -47,7 +47,7 @@ Orchestrator pauses at the hard gate. User reviews and types `proceed`.
 
 ## Step 4 — Gather (parallel)
 
-Orchestrator spawns 3 × `Explore` agents in **one message** (parallel). Each receives the prompt skeleton from `mode-playbooks.md#mode-gather` for its sub-question.
+The orchestrator delegates to 3 writer workers in one batch when the host supports parallelism. Each receives the prompt skeleton from `mode-playbooks.md#mode-gather` for its sub-question.
 
 Results: `02-evidence/q1.md`, `q2.md`, `q3.md`. Each cites file paths with line numbers.
 
@@ -55,19 +55,19 @@ Soft gate: orchestrator confirms each file has ≥1 cited finding or "No evidenc
 
 ## Step 5 — Analyze
 
-1 × `general-purpose` agent reads all evidence files and synthesizes `03-analysis.md` with findings tagged P1/P2/P3 and themes.
+One writer worker reads all evidence files and synthesizes `03-analysis.md` with findings tagged P1/P2/P3 and themes.
 
 Soft gate. Proceed.
 
 ## Step 6 — Review (one pass, hard cap)
 
-1 × `Plan` agent (devil's-advocate prompt) writes `04-review.md`. Suppose it surfaces 1 P1 issue: "Analysis claims tokens never expire on the WebSocket channel, but only quotes the HTTP middleware — needs WebSocket-side evidence."
+One writer worker with the devil's-advocate prompt writes `04-review.md`. Suppose it surfaces 1 P1 issue: "Analysis claims tokens never expire on the WebSocket channel, but only quotes the HTTP middleware — needs WebSocket-side evidence."
 
 Orchestrator surfaces this to the user. User chooses to accept and continue (or to halt and re-run Gather with an additional sub-question — that would be a new pipeline run since Review is capped at 1 pass).
 
 ## Step 7 — Validate
 
-The analysis has 4 P1/P2 claims. Orchestrator spawns 4 × `Explore` agents in one message, each fact-checking one claim against the cited source.
+The analysis has 4 P1/P2 claims. The orchestrator delegates one sequential validation pass, fact-checking each claim against the cited source.
 
 Result `05-validation.md`:
 - C1: confirmed
@@ -77,7 +77,7 @@ Result `05-validation.md`:
 
 C3 is unverifiable but not refuted, so the pipeline proceeds.
 
-## Step 8 — Compact (inline, no spawn)
+## Step 8 — Compact (inline)
 
 The orchestrator (main agent) reads everything and writes:
 - `07-final.md`: 1500-word memo with TL;DR, sub-question answers, findings, validation summary, sources.
@@ -86,7 +86,7 @@ The orchestrator (main agent) reads everything and writes:
 ## Final state
 
 ```
-.claude/pipelines/auth-token-expiry-7c4e2a/
+.agent-pipelines/auth-token-expiry-7c4e2a/
 ├── manifest.json        # all phases status=done, decide status=skipped
 ├── 01-plan.md
 ├── 02-evidence/

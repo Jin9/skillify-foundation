@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print the phase status of a pipeline run.
 
-Reads manifest.json from .claude/pipelines/<task-id>/ and prints a status
+Reads manifest.json from .agent-pipelines/<task-id>/ and prints a status
 table. Read-only.
 """
 
@@ -31,7 +31,7 @@ def fail(message: str) -> None:
 
 def find_task_dir(task_id: str) -> Path:
     cwd = Path.cwd()
-    task_dir = cwd / ".claude" / "pipelines" / task_id
+    task_dir = cwd / ".agent-pipelines" / task_id
     if not task_dir.is_dir():
         fail(f"task directory does not exist: {task_dir}")
     return task_dir
@@ -53,15 +53,15 @@ def render(manifest: dict) -> str:
     lines.append(f"domain:  {manifest['domain']}")
     lines.append(f"shape:   {' -> '.join(manifest['phase_shape'])}")
     lines.append("")
-    lines.append(f"{'phase':<10} {'status':<10} {'artifact':<22} agents")
+    lines.append(f"{'phase':<10} {'status':<10} {'artifact':<22} workers")
     lines.append("-" * 60)
     for key in PHASE_KEYS:
         phase = manifest["phases"][key]
         status = phase["status"]
         glyph = STATUS_GLYPHS.get(status, "?")
         artifact = phase["artifact"]
-        agent_count = len(phase["agent_calls"])
-        lines.append(f"{key:<10} {glyph} {status:<8} {artifact:<22} {agent_count}")
+        delegation_count = len(phase.get("delegations", []))
+        lines.append(f"{key:<10} {glyph} {status:<8} {artifact:<22} {delegation_count}")
     halted = manifest.get("halted_reason")
     if halted:
         lines.append("")

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Update phase status, timestamps, and agent calls in a pipeline manifest.
+"""Update phase status, timestamps, and delegated calls in a pipeline manifest.
 
 Called by the orchestrator at phase boundaries:
 
   python3 update_manifest.py --task-id audit-X --phase plan --status running \
-      --add-agent-call "general-purpose|Plan: decompose audit task"
+      --add-delegation "writer|Plan: decompose audit task"
   python3 update_manifest.py --task-id audit-X --phase plan --status done
 
-Read-only on the host: writes only to <cwd>/.claude/pipelines/<task-id>/manifest.json.
+Read-only on the host: writes only to <cwd>/.agent-pipelines/<task-id>/manifest.json.
 """
 
 from __future__ import annotations
@@ -43,16 +43,16 @@ def save(task_dir: Path, manifest: dict) -> None:
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
-def parse_agent_call(spec: str) -> dict:
+def parse_delegation(spec: str) -> dict:
     if "|" not in spec:
-        fail(f"--add-agent-call must be 'subagent_type|description', got: {spec!r}")
-    subagent_type, description = spec.split("|", 1)
-    subagent_type = subagent_type.strip()
+        fail(f"--add-delegation must be 'worker_type|description', got: {spec!r}")
+    worker_type, description = spec.split("|", 1)
+    worker_type = worker_type.strip()
     description = description.strip()
-    if not subagent_type or not description:
-        fail(f"--add-agent-call requires non-empty subagent_type and description, got: {spec!r}")
+    if not worker_type or not description:
+        fail(f"--add-delegation requires non-empty worker_type and description, got: {spec!r}")
     return {
-        "subagent_type": subagent_type,
+        "worker_type": worker_type,
         "description": description,
         "background_id": None,
     }
@@ -64,17 +64,17 @@ def main() -> int:
     parser.add_argument("--phase", required=True, choices=sorted(PHASE_KEYS))
     parser.add_argument("--status", required=True, choices=sorted(STATUS_VALUES))
     parser.add_argument(
-        "--add-agent-call",
+        "--add-delegation",
         action="append",
         default=[],
-        help="Format: 'subagent_type|description'. May repeat.",
+        help="Format: 'worker_type|description'. May repeat.",
     )
     parser.add_argument("--note", help="Set phases.<phase>.notes to this string.")
     parser.add_argument("--halt", help="Set top-level halted_reason and mark phase failed.")
     args = parser.parse_args()
 
     cwd = Path.cwd()
-    task_dir = cwd / ".claude" / "pipelines" / args.task_id
+    task_dir = cwd / ".agent-pipelines" / args.task_id
     if not task_dir.is_dir():
         fail(f"task directory does not exist: {task_dir}")
 
@@ -99,8 +99,8 @@ def main() -> int:
     elif args.status == "pending":
         phase["status"] = "pending"
 
-    for spec in args.add_agent_call:
-        phase.setdefault("agent_calls", []).append(parse_agent_call(spec))
+    for spec in args.add_delegation:
+        phase.setdefault("delegations", []).append(parse_delegation(spec))
 
     if args.note:
         phase["notes"] = args.note

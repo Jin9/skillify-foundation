@@ -1,22 +1,29 @@
 ---
 name: composing-agent-pipelines
 description: >
-  Composes a multi-agent pipeline (Plan, Gather, Analyze, Review, Validate, Decide, Compact)
-  for research, code review, implementation planning, or trade-off analysis. Use when the user
-  asks to "compose agent pipeline", "run multi-agent pipeline", "spawn agents for this task",
-  "audit with multiple agents", "plan and review with agents", "decide with agent help",
-  "research this with agents", or wants modular phase invocation (gather only, validate only).
-  Each phase emits a versioned artifact under .claude/pipelines/[task-id]/. Do NOT use for
-  single-agent tasks that need no decomposition, for editing repo-policy files, or for
-  multi-agent workflows requiring a strict human-in-the-loop approval gate (use
-  openclaw-orchestrator instead).
+  Composes a portable multi-agent pipeline (Plan, Gather, Analyze, Review,
+  Validate, Decide, Compact) for research, code review, implementation planning,
+  or trade-off analysis. Use when the user asks to "compose agent pipeline",
+  "run multi-agent pipeline", "spawn agents for this task", "audit with multiple
+  agents", "plan and review with agents", "decide with agent help", "research
+  this with agents", or wants modular phase invocation. Each phase emits a
+  versioned artifact under .agent-pipelines/[task-id]/. Do NOT use for
+  single-agent tasks, editing repo-policy files, or strict human-in-the-loop
+  approval workflows (use openclaw-orchestrator instead).
 ---
 
 # Composing Agent Pipelines
 
 ## Purpose
 
-Drive a structured, multi-phase agent pipeline that turns one task into evidence-backed deliverables. The skill decomposes a task into sub-questions (Plan), spawns parallel `Explore` agents to gather sources (Gather), synthesizes findings (Analyze), runs an adversarial critique (Review), fact-checks claims against source (Validate), produces recommendations (Decide), and compacts the result into a final report (Compact). A Compose mode runs the full pipeline end-to-end, adapting the phase set to the task domain. Each mode is also invocable standalone.
+Drive a structured, multi-phase agent pipeline that turns one task into
+evidence-backed deliverables. The skill decomposes a task into sub-questions
+(Plan), delegates bounded work to host-native worker agents when available
+(Gather and other write-required phases), synthesizes findings (Analyze), runs
+an adversarial critique (Review), fact-checks claims against source (Validate),
+produces recommendations (Decide), and compacts the result into a final report
+(Compact). A Compose mode runs the full pipeline end-to-end, adapting the phase
+set to the task domain. Each mode is also invocable standalone.
 
 ## When to use this skill
 
@@ -25,8 +32,8 @@ Drive a structured, multi-phase agent pipeline that turns one task into evidence
 - Use when the answer must survive an adversarial critique pass (Review) or be fact-checked against source (Validate).
 - Use after the user names a target domain — research, code review/audit, implementation planning, or decision/trade-off analysis.
 - Triggers on: "run the pipeline", "compose phases", "spawn pipeline", "gather then analyze", "decompose this task", "agent pipeline", "research with agents".
-- Do NOT use for trivial single-step questions, single-file edits, or one-shot lookups — invoke an `Explore` or `Plan` agent directly.
-- Do NOT use to spawn another instance of this skill (no recursive Compose).
+- Do NOT use for trivial single-step questions, single-file edits, or one-shot lookups — answer directly or use a single host-native helper.
+- Do NOT use to invoke another instance of this skill (no recursive Compose).
 - Do NOT use to edit `AGENTS.md`, `CLAUDE.md`, or repo-policy files.
 
 ## Modes
@@ -34,15 +41,18 @@ Drive a structured, multi-phase agent pipeline that turns one task into evidence
 The pipeline has eight modes, dispatched from user phrasing or chained by Compose:
 
 - **Plan** — "decompose this", "break into sub-questions". Hard approval gate. Writes `01-plan.md`.
-- **Gather** — "gather sources", "scout codebase". The only parallel phase (N agents in one message). Writes `02-evidence/qN.md` per sub-question.
+- **Gather** — "gather sources", "scout codebase". The only parallel phase (N workers when available). Writes `02-evidence/qN.md` per sub-question.
 - **Analyze** — "synthesize", "find patterns". Writes `03-analysis.md`.
 - **Review** — "critique this", "devil's advocate". One pass, no loop. Writes `04-review.md`.
 - **Validate** — "fact-check claims", "verify against source". One pass, no loop. Writes `05-validation.md`.
 - **Decide** — "recommend a path", "compare options". Hard approval gate. Writes `06-decision.md`.
-- **Compact** — "produce final report". Inline (no spawn). Writes `07-final.md` + `summary.md`.
+- **Compact** — "produce final report". Inline. Writes `07-final.md` + `summary.md`.
 - **Compose** — "run the full pipeline", "end-to-end". Dispatches per domain shape.
 
-Full per-mode prompt skeletons, input/output paths, exit gates, and `subagent_type` choices are in `references/mode-playbooks.md` — read that before running any mode beyond the universal preamble. Domain → phase shapes (which modes Compose runs for each domain) are in `references/domain-shapes.md`.
+Full per-mode prompt skeletons, input/output paths, exit gates, and delegation
+choices are in `references/mode-playbooks.md` — read that before running any
+mode beyond the universal preamble. Domain → phase shapes (which modes Compose
+runs for each domain) are in `references/domain-shapes.md`.
 
 ## Universal preamble
 
@@ -58,19 +68,19 @@ Run before every mode.
 3. **Establish input contract**:
    - Compose / Plan: collect the user's task prompt and target domain.
    - Standalone phase: ask for the path to the upstream artifact if not stated. Do not fabricate a path.
-4. **Initialize pipeline state**: run `scripts/init_pipeline.py --slug <short-slug>` to create `<cwd>/.claude/pipelines/<task-id>/` with a `manifest.json`. The script prints the absolute task directory; record it for subsequent phase calls. To resume an existing pipeline, pass `--resume <task-id>`.
+4. **Initialize pipeline state**: run `scripts/init_pipeline.py --slug <short-slug>` to create `<cwd>/.agent-pipelines/<task-id>/` with a `manifest.json`. The script prints the absolute task directory; record it for subsequent phase calls. To resume an existing pipeline, pass `--resume <task-id>`.
 5. **Announce output contract**: list the exact artifact paths the chosen mode will write. Wait for user confirmation when the mode includes a hard gate (Plan, Decide).
-6. **Mark phase running**: run `scripts/update_manifest.py --task-id <id> --phase <name> --status running` before spawning the agent. Record each agent call with `--add-agent-call "<subagent_type>|<description>"`.
-7. **Run the mode** following its playbook. Spawn agents using the `Agent` tool with the `subagent_type` specified in the Modes table. Only Gather is parallel (N agents in one message); all other phases spawn 1 agent.
+6. **Mark phase running**: run `scripts/update_manifest.py --task-id <id> --phase <name> --status running` before delegation or inline work. Record each delegated call with `--add-delegation "<worker_type>|<description>"`.
+7. **Run the mode** following its playbook. Use the host's delegation mechanism only when the user explicitly asked for multi-agent work and the host supports it; otherwise run the phase inline and record `inline|<description>`. Only Gather is parallel by default; all other phases are single-worker or inline.
 8. **Exit through the validation gate** below before proceeding. On success, run `scripts/update_manifest.py --task-id <id> --phase <name> --status done` to mark the phase complete; on gate failure, mark `--status failed` and surface the blocker.
 
 ## Output contract
 
-Every phase writes artifacts under `<cwd>/.claude/pipelines/<task-id>/`:
+Every phase writes artifacts under `<cwd>/.agent-pipelines/<task-id>/`:
 
 ```
-.claude/pipelines/<task-id>/
-├── manifest.json        # phase status, timestamps, agent prompts
+.agent-pipelines/<task-id>/
+├── manifest.json        # phase status, timestamps, delegated calls
 ├── 01-plan.md
 ├── 02-evidence/
 │   ├── q1.md
@@ -101,10 +111,10 @@ If a gate fails after one retry, stop and surface the blocker rather than guessi
 
 ## Constraints
 
-- DO NOT spawn the Compose mode from inside any phase (no recursion).
+- DO NOT invoke Compose from inside any phase (no recursion).
 - DO NOT loop Review or Validate beyond one pass — escalate remaining issues to the user.
 - DO NOT use `isolation: worktree` for any phase by default; only Gather or Validate may use it when explicitly requested by the user, and the worktree must be exited after the phase.
-- DO NOT use `run_in_background` for synchronous phases. Background mode is reserved for explicitly long-running Gather only, and the manifest must record the background agent id.
+- DO NOT use background execution for synchronous phases. Background mode is reserved for explicitly long-running Gather only, and the manifest must record the background worker id when the host exposes one.
 - DO NOT reuse a task-id without `--resume`. The init script refuses to overwrite existing state.
 - DO NOT include destructive shell commands in any artifact or example.
 - DO NOT duplicate phase mechanics here that live in `references/mode-playbooks.md`.
@@ -117,7 +127,7 @@ If a gate fails after one retry, stop and surface the blocker rather than guessi
 | Sub-questions exceed 8 in Plan output | Push back to the user — pipeline is over-decomposing. Suggest narrowing scope. |
 | Review surfaces > 0 P1 issues | Do not skip Validate. Wait for user to address P1 or explicitly accept. |
 | Validate marks a P1 claim as refuted | Loop back to Analyze with the validation report; do not proceed to Decide. |
-| Phase agent returned an empty artifact | Surface the failure, do not write a placeholder. Ask user how to proceed. |
+| Phase worker returned an empty artifact | Surface the failure, do not write a placeholder. Ask user how to proceed. |
 | Pipeline state directory already exists | Refuse and ask the user to either pass `--resume <task-id>` or pick a new slug. |
 
 ## References
@@ -127,7 +137,7 @@ If a gate fails after one retry, stop and surface the blocker rather than guessi
 | Per-mode prompt skeletons, parallelism, exit gates | `references/mode-playbooks.md` |
 | Domain → phase subset mapping | `references/domain-shapes.md` |
 | Pipeline directory layout and manifest schema | `references/state-convention.md` |
-| `subagent_type` selection rationale | `references/agent-spawning.md` |
+| Delegation and inline fallback rules | `references/delegation.md` |
 | Pipeline-specific failure modes | `references/anti-patterns.md` |
 
 ## Templates and scripts
@@ -139,9 +149,9 @@ If a gate fails after one retry, stop and surface the blocker rather than guessi
 - `templates/05-validation.md` – Validation artifact skeleton (claim verdicts).
 - `templates/06-decision.md` – Decision artifact skeleton (options table).
 - `templates/07-final.md` – Final compacted report skeleton.
-- `scripts/init_pipeline.py` – Create `.claude/pipelines/[task-id]/` with manifest.
+- `scripts/init_pipeline.py` – Create `.agent-pipelines/[task-id]/` with manifest.
 - `scripts/pipeline_status.py` – Read manifest.json and print phase status.
-- `scripts/update_manifest.py` – Mark phases running/done/failed and append agent calls.
+- `scripts/update_manifest.py` – Mark phases running/done/failed and append delegation records.
 
 ## Examples
 

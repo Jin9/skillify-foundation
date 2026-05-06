@@ -33,7 +33,7 @@ List the queries / paths you searched, even those that returned nothing. This ma
 
 - `grep -r "pattern" path/` → [N hits | 0 hits]
 - Read `path/to/file.ext` → [summary]
-- Web fetch `https://...` → [summary]
+- External doc fetch (only if the user explicitly enabled web research) → [summary]
 
 ## Gaps
 

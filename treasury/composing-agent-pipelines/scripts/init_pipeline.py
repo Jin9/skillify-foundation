@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Initialize a pipeline state directory under .claude/pipelines/<task-id>/.
+"""Initialize a pipeline state directory under .agent-pipelines/<task-id>/.
 
 Creates the directory tree, writes a skeleton manifest.json, and prints the
 absolute task directory so the orchestrator can record it. Refuses to overwrite
@@ -67,7 +67,7 @@ def empty_phase(artifact: str) -> dict:
         "started_at": None,
         "ended_at": None,
         "artifact": artifact,
-        "agent_calls": [],
+        "delegations": [],
     }
 
 
@@ -108,7 +108,7 @@ def init_new(args: argparse.Namespace) -> Path:
     task_id = make_task_id(args.slug)
 
     cwd = Path.cwd()
-    pipelines_root = cwd / ".claude" / "pipelines"
+    pipelines_root = cwd / ".agent-pipelines"
     pipelines_root.mkdir(parents=True, exist_ok=True)
 
     task_dir = pipelines_root / task_id
@@ -129,7 +129,7 @@ def resume_existing(args: argparse.Namespace) -> Path:
     if not TASK_ID_RE.fullmatch(args.resume):
         fail("--resume task-id must match <slug>-<6 hex chars>")
     cwd = Path.cwd()
-    task_dir = cwd / ".claude" / "pipelines" / args.resume
+    task_dir = cwd / ".agent-pipelines" / args.resume
     if not task_dir.is_dir():
         fail(f"task directory does not exist: {task_dir}")
     manifest_path = task_dir / "manifest.json"
