@@ -6,7 +6,7 @@ Use this file after `SKILL.md` mode detection. Create mode is defined in `SKILL.
 
 These rules apply to every mode in this file:
 
-- **Path elicitation.** If the user has not stated the path to the target skill folder, ask once before reading anything; do not assume the working directory.
+- **Path elicitation.** If the user pointed to a skill via path, `@`-mention, or current working directory, treat that as the target. Otherwise ask once before reading anything.
 - **Preserve the original.** For Refactor, Compress, Split, and Merge, write changes as a unified diff or into a sibling directory by default. Overwrite in place only when the user explicitly authorizes replacement.
 - **Iteration cap.** Run at most three improvement passes per mode. If gates still fail, stop and report the remaining blockers.
 - **Multi-mode requests.** When a user combines modes (for example, "create and immediately compress"), execute them in this order: Create → Refactor → Compress → Split → Merge → Adapt → Review → Audit. Skip steps the user did not ask for and confirm the chain before starting.
@@ -32,7 +32,7 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 2. Do not edit files unless the user changes the request from review to refactor.
 3. Score the skill against `validation-rubric.md`.
 4. Identify the top 3 risks, ordered by severity: trigger errors, scope bloat, workflow ambiguity, missing output contract, security, or portability.
-5. Use `templates/audit-report-template.md` as the report shape, but keep the tone narrative and concise.
+5. Borrow the section list from `templates/audit-report-template.md` (rubric scores, top findings, anti-pattern sweep, security sweep, recommendation), but write narratively rather than filling every table form.
 6. End with clear next actions: no changes needed, targeted refactor recommended, split recommended, or reject as not worth a skill.
 
 ## Audit
