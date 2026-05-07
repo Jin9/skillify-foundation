@@ -39,6 +39,12 @@ description: >
 
 [One sentence describing the reusable job this skill performs.]
 
+## When to use this skill
+
+- Use when: [specific trigger phrase or user intent]
+- Use when: [another specific trigger phrase or user intent]
+- Do NOT use when: [out-of-scope scenario]
+
 ## Workflow
 
 1. Read the user's request and identify the concrete input.
@@ -60,6 +66,10 @@ description: >
 - [ ] Frontmatter name matches the folder.
 - [ ] Description includes concrete trigger phrases.
 - [ ] Workflow and output contract are explicit.
+
+## References
+
+- For [topic]: see `references/[filename].md` (create as needed)
 """
 
 

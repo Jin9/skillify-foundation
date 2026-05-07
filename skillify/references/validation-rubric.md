@@ -76,5 +76,5 @@ Date: [YYYY-MM-DD]
 | 10. Progressive Disclosure |  /5   |       |
 | **TOTAL**                 |  /50  |       |
 
-Pass threshold: 40/50 (4.0 average)
+Pass threshold: every dimension at least 4/5 AND total at least 40/50.
 ```

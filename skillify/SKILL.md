@@ -11,6 +11,7 @@ description: >
   .github/copilot-instructions.md repo-policy files, or for one-off slash-command
   or system-prompt files; output MUST be a skill folder containing SKILL.md plus
   optional references, templates, scripts, assets, or examples.
+compatibility: claude-code, codex, copilot, gemini, antigravity
 ---
 
 # Skillify - Skill Creation Meta-Skill
@@ -55,7 +56,7 @@ Run this before every mode.
 3. If no mode matches, or an ambiguity remains after step 2, ask one disambiguating question instead of guessing.
 4. Establish the input:
    - Create: collect the intended task, target users, and at least 3 concrete user prompts that should trigger the skill. If the user provided fewer than 3, ask once before continuing; do not invent trigger phrases.
-   - All other modes: ask the user for the path to the existing skill folder if not stated, then read its `SKILL.md` and enumerate `references/`, `templates/`, `scripts/`, `assets/`, and `examples/`. Inspect only the files the requested mode needs.
+   - All other modes: if the user pointed to a skill (path, `@`-mention, or current working directory), treat that as the target. Otherwise ask once before reading anything. Then read the target's `SKILL.md` and enumerate `references/`, `templates/`, `scripts/`, `assets/`, and `examples/`. Inspect only the files the requested mode needs.
 5. State the output contract: list the exact files you will create, modify, or read-only review, and announce the detected mode so the user can correct it.
 6. For Refactor, Compress, Split, and Merge, preserve the original by writing changes either as a unified diff or into a sibling directory unless the user explicitly authorizes in-place overwrite. Review and Audit never edit files.
 
@@ -88,12 +89,7 @@ Run this before every mode.
    - State exact output files, paths, formats, and naming rules.
    - Move variant-specific, long, or optional material to one-level-deep reference files.
    - Point to references instead of duplicating their content.
-6. Validate and iterate.
-   - Run `scripts/quick_validate.py <skill-folder>` when available.
-   - Run `scripts/check_links.py <skill-folder>` when available.
-   - Apply `references/validation-rubric.md` and produce a filled score table.
-   - Sweep `references/anti-patterns.md` and `references/security-checklist.md`.
-   - Iterate up to three passes to clear failing gates. If a gate still fails after three passes, stop and surface the blocker rather than guessing further.
+6. Run the Validation gate below and apply its iteration rules.
 
 ## Validation gate
 
@@ -141,26 +137,19 @@ Every mode finishes by reporting to the user:
 ## Constraints
 
 - DO NOT generate the target artifact when the user asked for a skill that would generate it.
-- DO NOT edit `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, or repo-policy files unless the user explicitly asks for platform-policy adaptation.
+- DO NOT edit `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, or other repo-policy files unless the user explicitly asks for platform-policy adaptation.
 - DO NOT modify or delete files in Review or Audit modes.
 - DO NOT invent trigger phrases, target users, or output contracts when the user has not provided them; ask once first.
 - DO NOT place long reference material directly in `SKILL.md`; move anything over roughly 50 lines of supporting detail to `references/`.
 - DO NOT duplicate guidance between `SKILL.md` and reference files.
 - DO NOT create `README.md`, `CHANGELOG.md`, `INSTALLATION_GUIDE.md`, `QUICK_REFERENCE.md`, or `CONTRIBUTING.md` inside a skill folder.
-- DO NOT include `claude` or `anthropic` in skill names.
-- DO NOT use XML angle brackets in frontmatter.
+
+For frontmatter rules (kebab-case names, reserved-vendor-name ban, no XML angle brackets, character limits), see `references/frontmatter-guide.md`. `scripts/quick_validate.py` enforces them at gate 1.
 
 ## Troubleshooting
 
-| Signal | Action |
-|--------|--------|
-| Under-triggering | Add the missed user phrasing to `description`. |
-| Over-triggering | Add a negative trigger or narrow the positive triggers. |
-| Context bloat | Run Compress mode and migrate optional detail to Tier 3. |
-| Execution drift | Tighten the degree of freedom or replace prose with a script. |
-| Stuck after three iteration passes | Stop, surface the remaining blocker, and ask the user before continuing. |
-
-For post-ship maintenance, read `references/lifecycle-and-iteration.md`.
+- **Stuck after three iteration passes**: stop, surface the remaining blocker, and ask the user before continuing.
+- For under-triggering, over-triggering, scope creep, context bloat, execution drift, validation drift, platform drift, and staleness, see the Signal-to-Action map in `references/lifecycle-and-iteration.md`.
 
 ## References
 
