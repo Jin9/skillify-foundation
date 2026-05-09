@@ -10,6 +10,7 @@
 
 # Ignore pipeline state from composing-agent-pipelines runs
 .claude/pipelines/
+.gemini/
 
 # scripts
 /scripts

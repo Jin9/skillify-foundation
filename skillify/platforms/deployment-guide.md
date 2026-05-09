@@ -8,9 +8,9 @@ This directory contains platform-specific instructions for installing
 | Platform | Primary skill locations | Optional always-on file | Install method |
 |---|---|---|---|
 | Claude Code | `~/.claude/skills/skillify/`, `.claude/skills/skillify/` | `CLAUDE.md` | Copy full skill folder |
-| OpenAI Codex | `~/.agents/skills/skillify/`, `$CODEX_HOME/skills/skillify/`, `.agents/skills/skillify/` | `AGENTS.md` | Copy full skill folder |
+| OpenAI Codex | `~/.agents/skills/skillify/`, `.agents/skills/skillify/`; `$CODEX_HOME/skills/skillify/` only for legacy compatibility | `AGENTS.md` | Copy full skill folder |
 | GitHub Copilot | `~/.copilot/skills/skillify/`, `~/.agents/skills/skillify/`, `.github/skills/skillify/`, `.agents/skills/skillify/` | `.github/copilot-instructions.md` | Copy full skill folder |
-| Gemini CLI | `~/.gemini/skills/skillify/`, `~/.agents/skills/skillify/`, `.gemini/skills/skillify/`, `.agents/skills/skillify/` | `GEMINI.md`, `AGENTS.md` | Copy full skill folder |
+| Gemini CLI | `~/.agents/skills/skillify/`, `.agents/skills/skillify/` | `GEMINI.md`, `AGENTS.md` | Copy full skill folder |
 | Antigravity | `~/.gemini/antigravity/skills/skillify/`, `.agents/skills/skillify/` | `~/.gemini/GEMINI.md`, `.agents/rules/` | Copy full skill folder |
 
 ## Quick Install
@@ -26,10 +26,17 @@ supported hosts:
 
 1. Claude Code: `~/.claude/skills/skillify/`
 2. Shared Agent Skills: `~/.agents/skills/skillify/`
-3. Codex compatibility path: `$CODEX_HOME/skills/skillify/`
-4. Gemini native path: `~/.gemini/skills/skillify/`
-5. Copilot native path: `~/.copilot/skills/skillify/`
-6. Antigravity global path: `~/.gemini/antigravity/skills/skillify/`
+3. Copilot native path: `~/.copilot/skills/skillify/`
+4. Antigravity global path: `~/.gemini/antigravity/skills/skillify/`
+
+By default the script skips `$CODEX_HOME/skills/skillify/` because current
+Codex sessions also read `~/.agents/skills/skillify/`; installing both creates
+duplicate `skillify` entries. For legacy Codex clients that only read
+`$CODEX_HOME/skills`, run:
+
+```bash
+INSTALL_CODEX_COMPAT=1 bash install.sh
+```
 
 It does not edit project rule files automatically. Use the prebuilt
 wrappers only when you want always-on instructions:

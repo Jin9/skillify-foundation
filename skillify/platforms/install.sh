@@ -39,9 +39,9 @@ install_target() {
 SHARED_SKILLS="${AGENTS_SKILLS_HOME:-$HOME/.agents/skills}/${SKILL_NAME}"
 CODEX_SKILLS="${CODEX_HOME:-$HOME/.codex}/skills/${SKILL_NAME}"
 CLAUDE_SKILLS="$HOME/.claude/skills/${SKILL_NAME}"
-GEMINI_SKILLS="$HOME/.gemini/skills/${SKILL_NAME}"
 COPILOT_SKILLS="$HOME/.copilot/skills/${SKILL_NAME}"
 ANTIGRAVITY_SKILLS="$HOME/.gemini/antigravity/skills/${SKILL_NAME}"
+INSTALL_CODEX_COMPAT="${INSTALL_CODEX_COMPAT:-0}"
 
 echo ""
 echo "=== Installing ${SKILL_NAME} skill ==="
@@ -50,8 +50,13 @@ echo ""
 
 install_target "Claude Code" "${CLAUDE_SKILLS}"
 install_target "Shared Agent Skills (Codex/Gemini/Copilot)" "${SHARED_SKILLS}"
-install_target "Codex compatibility path" "${CODEX_SKILLS}"
-install_target "Gemini CLI native path" "${GEMINI_SKILLS}"
+if [ "${INSTALL_CODEX_COMPAT}" = "1" ]; then
+    install_target "Codex compatibility path" "${CODEX_SKILLS}"
+else
+    log_warn "Skipping Codex compatibility path to avoid duplicate skill discovery"
+    echo "  Set INSTALL_CODEX_COMPAT=1 to also install ${CODEX_SKILLS}"
+    echo ""
+fi
 install_target "GitHub Copilot native path" "${COPILOT_SKILLS}"
 install_target "Antigravity global path" "${ANTIGRAVITY_SKILLS}"
 
@@ -74,8 +79,11 @@ echo ""
 echo "Summary:"
 echo "  Claude Code        -> ${CLAUDE_SKILLS}"
 echo "  Shared agents      -> ${SHARED_SKILLS}"
-echo "  Codex compatibility -> ${CODEX_SKILLS}"
-echo "  Gemini CLI         -> ${GEMINI_SKILLS}"
+if [ "${INSTALL_CODEX_COMPAT}" = "1" ]; then
+    echo "  Codex compatibility -> ${CODEX_SKILLS}"
+else
+    echo "  Codex compatibility -> skipped; use INSTALL_CODEX_COMPAT=1 for legacy clients"
+fi
 echo "  GitHub Copilot     -> ${COPILOT_SKILLS}"
 echo "  Antigravity        -> ${ANTIGRAVITY_SKILLS}"
 echo ""
