@@ -1,0 +1,98 @@
+[
+  {
+    "id": "create_skill",
+    "prompt": "Create a skill for reviewing Terraform modules. It should trigger when I ask for Terraform security review, module audit, or IaC hardening.",
+    "expected_use": true,
+    "expected_mode": "Create",
+    "expected_contract": "skill folder",
+    "must_preserve": ["collect_3_prompts", "do_not_generate_target_artifact"]
+  },
+  {
+    "id": "write_skill_md",
+    "prompt": "Write a SKILL.md for a reusable CSV cleanup workflow.",
+    "expected_use": true,
+    "expected_mode": "Create",
+    "expected_contract": "skill folder",
+    "must_preserve": ["frontmatter_rules", "validation_gate"]
+  },
+  {
+    "id": "refactor_skill",
+    "prompt": "Refactor my skill at ./skills/pdf-tools because the SKILL.md is too vague.",
+    "expected_use": true,
+    "expected_mode": "Refactor",
+    "expected_contract": "modified skill folder or patch",
+    "must_preserve": ["preserve_original", "validation_gate"]
+  },
+  {
+    "id": "review_no_edit",
+    "prompt": "Review this SKILL.md and tell me whether it is good. Do not edit it.",
+    "expected_use": true,
+    "expected_mode": "Review",
+    "expected_contract": "findings report, no edits",
+    "must_preserve": ["review_audit_no_edit"]
+  },
+  {
+    "id": "audit_rubric",
+    "prompt": "Audit my skill against the rubric and give me a score.",
+    "expected_use": true,
+    "expected_mode": "Audit",
+    "expected_contract": "scored rubric and delta list",
+    "must_preserve": ["rubric_gate", "security_sweep"]
+  },
+  {
+    "id": "compress_skill",
+    "prompt": "Compress my SKILL.md and reduce token cost without changing behavior.",
+    "expected_use": true,
+    "expected_mode": "Compress",
+    "expected_contract": "leaner skill",
+    "must_preserve": ["progressive_disclosure", "preserve_original"]
+  },
+  {
+    "id": "split_skill",
+    "prompt": "This skill does too much. Split this skill into smaller focused skills.",
+    "expected_use": true,
+    "expected_mode": "Split",
+    "expected_contract": "two or more focused skill",
+    "must_preserve": ["preserve_original", "mode_playbooks"]
+  },
+  {
+    "id": "merge_skills",
+    "prompt": "Merge these skills because they overlap by about 90 percent.",
+    "expected_use": true,
+    "expected_mode": "Merge",
+    "expected_contract": "one merged skill or rejection rationale",
+    "must_preserve": ["preserve_original", "negative_triggers"]
+  },
+  {
+    "id": "adapt_codex",
+    "prompt": "Adapt this skill for Codex and make sure it still works in Copilot.",
+    "expected_use": true,
+    "expected_mode": "Adapt",
+    "expected_contract": "platform-adapted skill",
+    "must_preserve": ["platform_compatibility", "repo_policy_boundary"]
+  },
+  {
+    "id": "target_artifact_reject",
+    "prompt": "Build me the React dashboard app now, not a skill for building dashboards.",
+    "expected_use": false,
+    "expected_mode": null,
+    "expected_contract": "do not use Skillify",
+    "must_preserve": ["do_not_generate_target_artifact"]
+  },
+  {
+    "id": "repo_policy_reject",
+    "prompt": "Edit AGENTS.md and CLAUDE.md with our repository branching policy.",
+    "expected_use": false,
+    "expected_mode": null,
+    "expected_contract": "do not use Skillify unless platform-policy adaptation is explicit",
+    "must_preserve": ["repo_policy_boundary"]
+  },
+  {
+    "id": "one_off_prompt_reject",
+    "prompt": "Write a one-off system prompt for today's debugging session.",
+    "expected_use": false,
+    "expected_mode": null,
+    "expected_contract": "do not use Skillify",
+    "must_preserve": ["one_off_prompt_boundary"]
+  }
+]

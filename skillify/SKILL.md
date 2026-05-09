@@ -18,13 +18,14 @@ compatibility: claude-code, codex, copilot, gemini, antigravity
 
 ## Purpose
 
-Create, improve, and validate focused `SKILL.md` files plus the minimum supporting resources an agent needs to perform a reusable workflow.
+Create, improve, and validate focused `SKILL.md` files plus the minimum supporting resources an agent needs for a reusable workflow.
 
-## When to use this skill
+## Scope Boundary
 
-- Use for skill creation, refactoring, review, audit, compression, splitting, merging, or platform adaptation.
-- Use when the output should be a skill folder, a `SKILL.md`, skill references, skill templates, skill scripts, or a skill review report.
-- Do NOT use when the user wants the target code itself, repository policy files, or a one-off prompt that does not need a reusable skill.
+- Produce skill folders, `SKILL.md` files, references, templates, scripts, assets, examples, or skill review reports.
+- Do not generate the downstream artifact that a requested skill would later produce.
+- Do not edit repo-policy files such as `AGENTS.md`, `CLAUDE.md`, or `.github/copilot-instructions.md` unless the user explicitly asks for platform-policy adaptation.
+- Do not handle one-off prompts that do not need a reusable skill.
 
 ## Modes
 
@@ -39,7 +40,7 @@ Create, improve, and validate focused `SKILL.md` files plus the minimum supporti
 | Merge | "merge these skills", "combine X and Y skills" | One merged skill or rejection rationale |
 | Adapt | "adapt this for Codex", "make this work in Copilot/Gemini" | Platform-adapted skill |
 
-Run Create mode from this file. For Refactor, Review, Audit, Compress, Split, Merge, and Adapt, read `references/mode-playbooks.md` before changing or reporting on the skill.
+All modes other than Create run from `references/mode-playbooks.md`; combined-mode chains follow the order in that file.
 
 ## Universal preamble
 
@@ -47,24 +48,26 @@ Run this before every mode.
 
 1. Detect the mode from the user's phrasing and the Modes table.
 2. If multiple modes match, pick by the required output rather than the verb:
-   - prose feedback only → Review.
-   - scored report against the rubric → Audit.
-   - edits applied to the existing skill → Refactor (or Compress when the only complaint is token size).
-   - two skills out of one → Split.
-   - one skill out of two → Merge.
-   - same skill on a different platform → Adapt.
+   - prose feedback only: Review.
+   - scored report against the rubric: Audit.
+   - edits applied to an existing skill: Refactor, or Compress when the only complaint is token size.
+   - two skills out of one: Split.
+   - one skill out of two: Merge.
+   - same skill on a different platform: Adapt.
 3. If no mode matches, or an ambiguity remains after step 2, ask one disambiguating question instead of guessing.
 4. Establish the input:
-   - Create: collect the intended task, target users, and at least 3 concrete user prompts that should trigger the skill. If the user provided fewer than 3, ask once before continuing; do not invent trigger phrases.
-   - All other modes: if the user pointed to a skill (path, `@`-mention, or current working directory), treat that as the target. Otherwise ask once before reading anything. Then read the target's `SKILL.md` and enumerate `references/`, `templates/`, `scripts/`, `assets/`, and `examples/`. Inspect only the files the requested mode needs.
+   - If the user pointed to a skill by path, mention, or current directory, treat that as the target.
+   - Otherwise ask once for the missing target or creation inputs before reading or writing.
+   - Then read `SKILL.md`, enumerate one-level `references/`, `templates/`, `scripts/`, `assets/`, and `examples/`, and inspect only the files needed for the mode.
 5. State the output contract: list the exact files you will create, modify, or read-only review, and announce the detected mode so the user can correct it.
-6. For Refactor, Compress, Split, and Merge, preserve the original by writing changes either as a unified diff or into a sibling directory unless the user explicitly authorizes in-place overwrite. Review and Audit never edit files.
+6. For Refactor, Compress, Split, and Merge, preserve the original by writing a unified diff or sibling directory unless the user authorizes in-place overwrite or supplies an explicit target path/output contract. Review and Audit never edit files.
 
 ## Core workflow: Create
 
 1. Analyze the target workflow.
+   - Collect the intended task, target users, and at least 3 concrete user prompts that should trigger the skill. If the user provided fewer than 3, ask once; do not invent trigger phrases.
    - Identify the specific job the skill must perform and write a one-sentence responsibility statement.
-   - Reuse the trigger prompts collected in the universal preamble; do not collect them a second time and do not invent new ones.
+   - Reuse the collected trigger prompts; do not collect them a second time and do not invent new ones.
    - Classify the skill type: Document/Asset Creation, Workflow Automation, MCP Enhancement, Domain Expertise, Code Review, or Planning.
    - Choose the degree of freedom and apply its consequence in later steps:
      - High → step descriptions in prose with explicit checklists.
@@ -75,6 +78,7 @@ Run this before every mode.
    - Identify adjacent tasks it must not handle.
    - Split the design if the description needs more than two unrelated "and" clauses.
 3. Plan reusable contents.
+   - Run `scripts/init_skill.py <skill-name>` to scaffold the folder when a target folder does not already exist.
    - Use `scripts/` for deterministic or frequently repeated operations.
    - Use `references/` for deep guidance that is not always needed.
    - Use `templates/` for reusable skeletons.
@@ -89,18 +93,18 @@ Run this before every mode.
    - State exact output files, paths, formats, and naming rules.
    - Move variant-specific, long, or optional material to one-level-deep reference files.
    - Point to references instead of duplicating their content.
-6. Run the Validation gate below and apply its iteration rules.
+6. Run the Validation gate and apply its iteration rules.
 
 ## Validation gate
 
-Every mode exits through these gates.
+Every mode exits through these gates, in order.
 
-1. Deterministic checks pass: frontmatter parses, `name` matches folder, `description` is under 1024 characters, no XML angle brackets appear in frontmatter, banned human-facing docs are absent, and local links resolve.
-2. Rubric score passes: all 10 dimensions in `references/validation-rubric.md` score at least 4/5 and the total is at least 40/50.
-3. Anti-pattern sweep passes: every applicable item in `references/anti-patterns.md` is absent or explicitly mitigated.
-4. Security sweep passes: `references/security-checklist.md` finds no unreviewed external HTTP, secret access, destructive command, broad permission, or vendor-bias risk.
+1. Run deterministic checks when scripts are available: `scripts/quick_validate.py` and `scripts/check_links.py`. If either exits non-zero, surface the error verbatim and stop.
+2. Score `references/validation-rubric.md`: every dimension must be at least 4/5 and total at least 40/50.
+3. Sweep `references/anti-patterns.md`: every applicable item must be absent or explicitly mitigated.
+4. Sweep `references/security-checklist.md`: no unreviewed external HTTP, secret access, destructive command, broad permission, or vendor-bias risk.
 
-If gate 1 (deterministic) fails, stop, surface the script error verbatim, and do not write target files. For gates 2-4, behavior depends on the mode: in Create, Refactor, Compress, Split, Merge, and Adapt, iterate up to three passes to clear failures; in Review and Audit, report the failures and do not edit unless the user explicitly upgrades the request.
+If gate 1 fails, do not write target files. For gates 2-4, iterate per the cap in `references/mode-playbooks.md`. In Review and Audit, report failures and do not edit unless the user upgrades the request.
 
 ## Output format
 
@@ -112,16 +116,15 @@ skill-name/
 ├── references/
 ├── templates/
 ├── scripts/
-├── platforms/
 ├── assets/
 └── examples/
 ```
 
-Use optional directories only when they reduce context load or improve reliability. Do not create auxiliary human docs inside the skill folder.
+Use optional directories only when they reduce context load or improve reliability. `platforms/` is a skillify-internal directory for cross-host install assets and is not part of generated skill output. Do not create auxiliary human docs inside the skill folder.
 
 ### Completion report
 
-Every mode finishes by reporting to the user:
+Finish with the mode-specific report fields:
 
 | Mode | Required report fields |
 |------|------------------------|
@@ -140,7 +143,7 @@ Every mode finishes by reporting to the user:
 - DO NOT edit `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, or other repo-policy files unless the user explicitly asks for platform-policy adaptation.
 - DO NOT modify or delete files in Review or Audit modes.
 - DO NOT invent trigger phrases, target users, or output contracts when the user has not provided them; ask once first.
-- DO NOT place long reference material directly in `SKILL.md`; move anything over roughly 50 lines of supporting detail to `references/`.
+- DO NOT place long or mode-specific reference material directly in `SKILL.md`; move it according to `references/progressive-disclosure.md`.
 - DO NOT duplicate guidance between `SKILL.md` and reference files.
 - DO NOT create `README.md`, `CHANGELOG.md`, `INSTALLATION_GUIDE.md`, `QUICK_REFERENCE.md`, or `CONTRIBUTING.md` inside a skill folder.
 
@@ -164,7 +167,6 @@ For frontmatter rules (kebab-case names, reserved-vendor-name ban, no XML angle 
 | Workflow structure patterns | `references/workflow-patterns.md` |
 | Platform adaptation | `references/platform-compatibility.md` |
 | Safety review before enabling a skill | `references/security-checklist.md` |
-| Cross-platform deployment | `platforms/deployment-guide.md` |
 
 ## Templates and scripts
 

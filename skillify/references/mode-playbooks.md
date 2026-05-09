@@ -23,7 +23,7 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 3. Score each rubric dimension and mark every dimension below 4/5.
 4. Apply targeted fixes only to failing or requested areas; preserve passing sections and existing useful references. Write changes as a diff or into a sibling folder per the Cross-mode rules.
 5. Remove duplicated cross-tier content by keeping the authoritative version in one file and replacing copies with pointers.
-6. Run `scripts/quick_validate.py` and `scripts/check_links.py` when available.
+6. Run the Validation gate from `SKILL.md` and preserve script output.
 7. Produce a before/after summary with changed files, remaining risks, and final rubric scores.
 
 ## Review
@@ -37,13 +37,9 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 
 ## Audit
 
-1. Run `scripts/quick_validate.py <skill-folder>` if available and preserve its output.
-2. Run `scripts/check_links.py <skill-folder>` if available and preserve its output.
-3. Score all 10 rubric dimensions from `validation-rubric.md`.
-4. Walk all entries in `anti-patterns.md` and record pass/fail/mitigated.
-5. Walk `security-checklist.md` and record pass/fail/needs review.
-6. Produce a structured report from `templates/audit-report-template.md`.
-7. Do not modify files during Audit mode unless the user explicitly changes the task to Refactor mode.
+1. Run the Validation gate from `SKILL.md` and preserve deterministic script output.
+2. Produce a structured report from `templates/audit-report-template.md`.
+3. Do not modify files during Audit mode unless the user explicitly changes the task to Refactor mode.
 
 ## Compress
 
