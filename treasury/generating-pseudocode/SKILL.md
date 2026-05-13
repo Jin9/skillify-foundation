@@ -1,6 +1,20 @@
 ---
 name: generating-pseudocode
-description: Analyzes requirements or existing code to generate clean, language-agnostic pseudocode. Use when planning algorithms, breaking down complex logic, or designing systems before actual implementation. Do NOT use for writing production-ready code in specific languages.
+description: >
+  Analyzes requirements or existing code to generate clean, language-agnostic
+  pseudocode that bridges high-level intent and implementation, readable by a
+  Python, Go, or TypeScript developer without translation. Use when the user
+  says "write pseudocode for X", "plan the algorithm for X", "language-agnostic
+  logic for X", "break this logic into steps before I code it", "draft the
+  flow before implementation", "logic breakdown for X", or "design the
+  algorithm first". Also use when stakeholders need to agree on business
+  logic before a language is chosen, or when an existing function is too
+  dense to review and needs to be re-expressed as steps. Outputs a
+  problem-framing block (Inputs, Outputs, Constraints / edge cases), a
+  pseudocode block in a fenced text segment, and a short verification note.
+  Do NOT use for writing production-ready code in specific languages, for
+  translating pseudocode back into a specific language, or for high-level
+  system architecture.
 ---
 
 # Pseudocode Generation
@@ -33,7 +47,16 @@ Review generated pseudocode against edge cases and constraints to ensure robustn
 
 ## Output format
 
-Produce language-agnostic pseudocode wrapped in `text` code blocks. Precede the pseudocode with a brief problem framing statement.
+Produce three sections in this order:
+
+1. **Problem framing** — three labeled lines:
+   - `Inputs:` data types and shapes the logic consumes.
+   - `Outputs:` what the logic returns or emits.
+   - `Constraints / edge cases:` empty collections, nulls, timeouts, concurrent access, ordering, or any failure mode that must be handled.
+2. **Pseudocode** — a fenced code block tagged as `text`, following the keyword and formatting rules in `references/pseudocode-rules.md`. Use capitalized control-flow keywords (FUNCTION, IF/THEN, FOR EACH, TRY/CATCH). No language-specific syntax.
+3. **Verification note** — one or two sentences naming the constraints from step 1 that were checked against the pseudocode, and any constraint deliberately deferred.
+
+Do not surround the response with explanatory prose beyond what is needed to label these three sections.
 
 ## Constraints
 
