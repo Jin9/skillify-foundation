@@ -10,7 +10,7 @@ description: >
   implement plan", "is this safe to approve", "evaluate the gate", "five
   questions check", "ready to approve". Does NOT run just approve or just
   reject — only the user types those. Do NOT use for stages other than
-  implement, for kicking off a workflow (use agent-scaffold-orchestrator),
+  implement, for kicking off a workflow (use orchestrating-agent-scaffold),
   or for skills outside the agent-scaffold ecosystem.
 ---
 
@@ -36,7 +36,7 @@ Do NOT use this skill to:
   all beyond reads.
 - Re-evaluate a gate that has already been approved. Once approved, this
   skill is a no-op.
-- Run a generic security review. Hand off to `expert-software-security-reviewer`
+- Run a generic security review. Hand off to `reviewing-software-security`
   for that. This skill consumes the critique that the security reviewer (or
   the scaffold's critique stage) already produced.
 

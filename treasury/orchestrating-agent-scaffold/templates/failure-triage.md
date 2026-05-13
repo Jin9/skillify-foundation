@@ -29,4 +29,4 @@ Source: stages/<stage>.log, runlog.md (last 30 lines)
   …") trick the user into auto-piloting through the failure.
 - Postmortem trigger is `yes` if any of: cost > $1, gate rejected, cap
   exceeded, sandbox egress test failed. Hand off to
-  `agent-workflow-postmortem` when triggered.
+  `authoring-workflow-postmortem` when triggered.

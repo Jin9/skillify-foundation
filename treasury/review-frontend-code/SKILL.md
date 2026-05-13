@@ -11,7 +11,7 @@ description: >
   security_review, pii_fields_handled) are actually implemented in the
   emitted code. Use when scoring a React/TS feature for banking-grade
   readiness before a Validate stage. Do NOT use for full defensive
-  security review across infra (use expert-software-security-reviewer).
+  security review across infra (use reviewing-software-security).
   Do NOT use for visual regression review (use a visual-diff stage skill).
   Do NOT use for backend code (use review-backend-code). Do NOT use for
   Lighthouse / Web Vitals optimization (use analyze-frontend-performance).
@@ -47,7 +47,7 @@ Section 8 Review Pattern. Read-only — emits no code, no remediation patches.
 - Use when: a Generate stage emits `uncertainty_flags` of kind `token_gap` /
   `bundle_overrun` / `convention_conflict` that need triage.
 - Do NOT use when: the task is a full security audit across infra / gateways
-  / K8s — defer to `expert-software-security-reviewer`.
+  / K8s — defer to `reviewing-software-security`.
 - Do NOT use when: the task is visual regression — a separate visual-diff
   stage owns pixel comparison.
 - Do NOT use when: the target is backend (use `review-backend-code`).

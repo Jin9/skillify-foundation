@@ -1,5 +1,5 @@
 ---
-name: agent-workflow-postmortem
+name: authoring-workflow-postmortem
 description: >
   Author a postmortem for an agent-scaffold workflow within 48h of a trigger
   event: failed stage with more than $1 spent, rejected implement gate, cap

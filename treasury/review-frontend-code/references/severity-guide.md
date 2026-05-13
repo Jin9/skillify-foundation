@@ -82,7 +82,7 @@ Categories typically `P3`:
 
 ## Confidence
 
-Discipline borrowed from `expert-software-security-reviewer`:
+Discipline borrowed from `reviewing-software-security`:
 
 - **High** — file:line cited, behavior reproducible from the code alone.
 - **Medium** — pattern is present but exploit / failure requires context

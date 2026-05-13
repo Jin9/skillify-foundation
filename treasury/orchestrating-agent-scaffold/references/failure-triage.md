@@ -29,7 +29,7 @@ recovery action.
 4. Suggest **one** next step. Do not chain "try X then Y then Z".
 5. If the failure spent > $1 (check `cost_usd` for the failed stage),
    surface the postmortem trigger and offer to hand off to
-   `agent-workflow-postmortem`.
+   `authoring-workflow-postmortem`.
 
 ## Forbidden recovery actions
 

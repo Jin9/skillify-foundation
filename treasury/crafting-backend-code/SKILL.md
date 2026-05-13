@@ -1,6 +1,6 @@
 ---
 name: crafting-backend-code
-description: Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing, optimizing, fixing, analyzing, or planning backend services, microservice scaffolds, APIs, Go/Node/Python/Java services, database access, SQL migrations, transactions, queues, consumers, auth, idempotency, observability, performance, tests, or backend migrations. Do NOT use for frontend components, browser rendering, pure infrastructure provisioning, or high-altitude fintech domain modeling and lending workflow design (use `fintech-systems-architect` for L1–L3 fintech architecture and hand back here for L4 implementation).
+description: Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing, optimizing, fixing, analyzing, or planning backend services, microservice scaffolds, APIs, Go/Node/Python/Java services, database access, SQL migrations, transactions, queues, consumers, auth, idempotency, observability, performance, tests, or backend migrations. Do NOT use for frontend components, browser rendering, pure infrastructure provisioning, or high-altitude fintech domain modeling and lending workflow design (use `architecting-fintech-systems` for L1–L3 fintech architecture and hand back here for L4 implementation).
 ---
 
 # Crafting Backend Code
@@ -26,7 +26,7 @@ Guide agents through low-risk backend architecture, review, implementation, and 
 - Pure infrastructure / Terraform / Kubernetes work unless it changes backend runtime contracts.
 - Data science, ML pipelines, or offline analytics unless part of a backend service boundary.
 - Trivial copy edits or isolated typo fixes — answer directly without the full framework.
-- High-altitude fintech domain modeling, lending workflow design, regulated event-flow architecture, or DDD/CQRS/event-driven domain decisions — defer L1–L3 to `fintech-systems-architect` and handle L4 implementation here.
+- High-altitude fintech domain modeling, lending workflow design, regulated event-flow architecture, or DDD/CQRS/event-driven domain decisions — defer L1–L3 to `architecting-fintech-systems` and handle L4 implementation here.
 
 ## Operating posture
 

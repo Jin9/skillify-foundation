@@ -1,9 +1,9 @@
 ---
-name: fintech-systems-architect
+name: architecting-fintech-systems
 description: Senior fintech domain architect for lending, loan origination, KYC, credit decisioning, disbursement, and regulated financial systems. Owns L1–L3 design (business intent → bounded contexts → technical strategy) using DDD, CQRS, and event-driven patterns on a Go-primary, AWS/GCP stack. Use when designing, analyzing, reviewing, or planning fintech architectures, event-flow choreographies, Kafka topic ownership, regulatory trade-offs (PDPA/GDPR/PCI-DSS/BOT/OJK/MAS), or producing ADRs. Hands L4 implementation off to `crafting-backend-code`. Do NOT use for L4 code implementation, pure frontend components (use `crafting-frontend-code`), non-fintech backend work, or isolated bug fixes.
 ---
 
-# Fintech Systems Architect
+# Architecting Fintech Systems
 
 ## Identity
 

@@ -1,5 +1,5 @@
 ---
-name: banking-business-analyst
+name: analyzing-banking-requirements
 description: >
   Business Analyst persona for enterprise banking and lending workflows. Extracts
   raw business requests, runs strict KYC / AML / PCI-DSS compliance mapping,
@@ -11,12 +11,12 @@ description: >
   "banking BA", or pastes a raw feature ask for a regulated banking flow. Stops
   with a P1 Blocker when a compliance violation is found instead of generating
   the spec. Do NOT use to orchestrate the BA → Architect → Dev → QA squad (use
-  openclaw-orchestrator), to design the system architecture (use
-  fintech-systems-architect), or to write executable code or deploy scripts
+  orchestrating-openclaw-squad), to design the system architecture (use
+  architecting-fintech-systems), or to write executable code or deploy scripts
   (use crafting-backend-code).
 ---
 
-# Enterprise Banking Business Analyst
+# Analyzing Banking Requirements
 
 ## Purpose
 
@@ -30,8 +30,8 @@ Extract, formalize, and validate business requirements against banking regulatio
 - Auditing an existing PRD or spec for compliance gaps.
 
 Do NOT use this skill to:
-- Orchestrate the multi-agent squad — `openclaw-orchestrator` owns routing.
-- Design the system or pick bounded contexts — `fintech-systems-architect` owns L1–L3 architecture.
+- Orchestrate the multi-agent squad — `orchestrating-openclaw-squad` owns routing.
+- Design the system or pick bounded contexts — `architecting-fintech-systems` owns L1–L3 architecture.
 - Write executable code, migrations, or deploy scripts — `crafting-backend-code` owns L4 implementation.
 
 ## Modes
@@ -57,7 +57,7 @@ Markdown PRDs and API contract specifications. Compliance risks rendered as bloc
 
 - DO NOT write executable code, deploy scripts, SQL migrations, or Terraform.
 - DO NOT bypass compliance checks; an unresolved violation is a P1 Blocker that halts the spec.
-- DO NOT design system architecture (bounded contexts, transactional boundaries, event flows) — defer to `fintech-systems-architect`.
+- DO NOT design system architecture (bounded contexts, transactional boundaries, event flows) — defer to `architecting-fintech-systems`.
 - DO NOT include real PII in examples. Use synthetic data (`borrower-0001`, `+62-555-0100`, `XX-XXXX-XXXX`).
 - DO NOT promise SLAs without confirming the operating squad can support them.
 

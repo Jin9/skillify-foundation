@@ -1,9 +1,9 @@
 ---
-name: local-file-organizer
+name: organizing-local-files
 description: Plans and applies safe, offline organization of local files and folders. Use when the user says "organize this folder", "clean up my files", "classify my documents", "make folder taxonomy", "generate a safe move plan", "create rollback.sh", or asks for an offline/local file organizer. Produces an inventory, a JSON move plan, an organization-report.md, an apply.sh, and a rollback.sh; never deletes or overwrites user files, and applies moves only after explicit user approval. Do NOT use for cloud storage sync, code refactoring, repository housekeeping, or content-hash deduplication.
 ---
 
-# Local File Organizer
+# Organizing Local Files
 
 Plan and apply safe, offline organization of local files. Always plan first, get explicit approval, then apply with safe move operations only.
 

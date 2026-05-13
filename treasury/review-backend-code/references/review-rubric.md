@@ -61,8 +61,8 @@ because the workflow exists.
 
 This skill does NOT cover:
 
-- Full OWASP Top 10 walk per artifact — that is `banking-qa-engineer` or
-  `expert-software-security-reviewer` scope. The Review stage spot-checks
+- Full OWASP Top 10 walk per artifact — that is `validating-banking-implementation` or
+  `reviewing-software-security` scope. The Review stage spot-checks
   security via B10 + A4 only.
 - Chaos test planning — separate stage.
 - Performance / load testing — separate stage.

@@ -5,8 +5,8 @@
 >
 > **Source skills consulted** (mono-skills, all multi-mode):
 > - `treasury/crafting-backend-code/` (mode `review`)
-> - `treasury/banking-qa-engineer/`
-> - `treasury/expert-software-security-reviewer/`
+> - `treasury/validating-banking-implementation/`
+> - `treasury/reviewing-software-security/`
 > - `treasury/implement-backend-feature/` (the upstream Generate stage whose
 >   output this skill verifies — co-evolved, not extracted from)
 
@@ -24,10 +24,10 @@ The closest sources are all mono-skills:
 - `crafting-backend-code` has a `review` mode but mixed in with five other
   modes (`design`, `optimize`, `fix`, `analyze`, `plan`) and produces
   free-form markdown, not a machine-routable verdict.
-- `banking-qa-engineer` is the right *posture* (adversarial, Approve/Reject)
+- `validating-banking-implementation` is the right *posture* (adversarial, Approve/Reject)
   but its scope spans full OWASP + concurrency + chaos planning — too
   heavy for the workflow's per-feature Review stage.
-- `expert-software-security-reviewer` is exhaustive security review across
+- `reviewing-software-security` is exhaustive security review across
   infra, gateways, K8s — comprehensive but out of scope for the per-feature
   Review (it belongs in its own workflow).
 
@@ -42,10 +42,10 @@ stage applies, run adversarially from the opposite end.
 | `crafting-backend-code/references/decision-rules.md` (11 rules) | `references/review-rubric.md` § Base rule questions (B1–B11) | Re-cast each rule as an adversarial scan question. Same 11 rules. |
 | `implement-backend-feature/references/implementation-rules.md` v2 augmentations (A1–A7) | `references/review-rubric.md` § v2 augmentation questions (A1–A7) | Re-cast each augmentation as an adversarial scan question. Same 7 augmentations. |
 | `implement-backend-feature/references/self-review-checklist.md` sections A–J | `references/review-checklist.md` sections A–J | Lifted the structure 1:1 so generate-side and review-side cover identical ground. Wording shifted from first-person ("Did I...?") to third-person ("Cite the line...") |
-| `banking-qa-engineer/SKILL.md` auto-reject criteria (P1 vulns, missing transaction, unverifiable code) | `references/severity-guide.md` § P1 categories + verdict matrix | The auto-reject list became the P1 category list. |
-| `banking-qa-engineer/SKILL.md` validation gate items | `SKILL.md` Failure Modes + audit_metadata `rules_evaluated` field | The gate's "every category walked" check became a numeric floor in the audit metadata. |
-| `expert-software-security-reviewer/SKILL.md` severity-and-confidence discipline | `references/severity-guide.md` § Confidence + the hard rule against fabrication | The confidence rules and "never publish at Low without [needs verification]" rule transferred verbatim. Standards-identifier shapes (CWE/ASVS/OWASP/NIST/CIS/SLSA) preserved. |
-| `expert-software-security-reviewer/SKILL.md` Finding Format philosophy | `schemas/output.json` finding object | Compressed from 16-field template to 8 required fields; standards_ref optional. |
+| `validating-banking-implementation/SKILL.md` auto-reject criteria (P1 vulns, missing transaction, unverifiable code) | `references/severity-guide.md` § P1 categories + verdict matrix | The auto-reject list became the P1 category list. |
+| `validating-banking-implementation/SKILL.md` validation gate items | `SKILL.md` Failure Modes + audit_metadata `rules_evaluated` field | The gate's "every category walked" check became a numeric floor in the audit metadata. |
+| `reviewing-software-security/SKILL.md` severity-and-confidence discipline | `references/severity-guide.md` § Confidence + the hard rule against fabrication | The confidence rules and "never publish at Low without [needs verification]" rule transferred verbatim. Standards-identifier shapes (CWE/ASVS/OWASP/NIST/CIS/SLSA) preserved. |
+| `reviewing-software-security/SKILL.md` Finding Format philosophy | `schemas/output.json` finding object | Compressed from 16-field template to 8 required fields; standards_ref optional. |
 
 ## 3. What was added (v2-specific augmentations)
 
@@ -64,10 +64,10 @@ stage applies, run adversarially from the opposite end.
 
 | Dropped from sources | Reason |
 |----------------------|--------|
-| `banking-qa-engineer` chaos planning mode | Separate stage in v2 (`chaos-plan-stage` — to be built). |
-| `banking-qa-engineer` full OWASP A01–A10 walk per artifact | Too heavy for per-feature review. Spot-checked via B10 + A4 only. The full walk belongs in `expert-software-security-reviewer` as its own workflow. |
-| `expert-software-security-reviewer` 11-area taxonomy + 12 worked examples | Out of scope. That skill remains the comprehensive security review; this stage spot-checks against the workflow's own rule set. |
-| `expert-software-security-reviewer` STRIDE Depth 2/3 + abuse-case catalog | Same — belongs in the comprehensive review skill. Review stage uses inline (Depth 1) STRIDE only when judging a security finding. |
+| `validating-banking-implementation` chaos planning mode | Separate stage in v2 (`chaos-plan-stage` — to be built). |
+| `validating-banking-implementation` full OWASP A01–A10 walk per artifact | Too heavy for per-feature review. Spot-checked via B10 + A4 only. The full walk belongs in `reviewing-software-security` as its own workflow. |
+| `reviewing-software-security` 11-area taxonomy + 12 worked examples | Out of scope. That skill remains the comprehensive security review; this stage spot-checks against the workflow's own rule set. |
+| `reviewing-software-security` STRIDE Depth 2/3 + abuse-case catalog | Same — belongs in the comprehensive review skill. Review stage uses inline (Depth 1) STRIDE only when judging a security finding. |
 | `crafting-backend-code` other 5 modes (`design`, `optimize`, `fix`, `analyze`, `plan`) | Each is a separate atomic skill in v2. |
 | Mode-selection logic | Workflow engine picks the skill. |
 

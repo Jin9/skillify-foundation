@@ -6,8 +6,8 @@ verdict is a function of the findings, not the other way around.
 
 Source: extracted from
 `treasury/crafting-backend-code/SKILL.md` (review-mode P1/P2/P3),
-`treasury/banking-qa-engineer/SKILL.md` (auto-reject criteria), and
-`treasury/expert-software-security-reviewer/SKILL.md` (severity + confidence
+`treasury/validating-banking-implementation/SKILL.md` (auto-reject criteria), and
+`treasury/reviewing-software-security/SKILL.md` (severity + confidence
 discipline). Re-cast as a single matrix the Review stage applies.
 
 ## Severity definitions
@@ -74,7 +74,7 @@ Categories typically `P3`:
 
 ## Confidence
 
-Borrow the discipline from `expert-software-security-reviewer`:
+Borrow the discipline from `reviewing-software-security`:
 
 - **High** — file:line cited, behavior reproducible from the code alone.
 - **Medium** — pattern is present but the exploit / failure path requires

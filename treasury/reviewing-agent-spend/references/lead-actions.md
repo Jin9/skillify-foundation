@@ -9,7 +9,7 @@ the readout.
 | Outlier | Possible action |
 |---|---|
 | User > 2σ above median | 5-minute walkthrough with the user at the Monday meeting. Likely cause: tight cap thrash (multiple aborts) or one expensive workflow. Not necessarily a problem. |
-| Workflow > $10 | Postmortem within 48h (PLAYBOOK §4 trigger). Hand off to `agent-workflow-postmortem`. |
+| Workflow > $10 | Postmortem within 48h (PLAYBOOK §4 trigger). Hand off to `authoring-workflow-postmortem`. |
 | Model 3× squad median per-request | Spot-check whether the model assignment in profiles is still appropriate. Hand off to `authoring-scaffold-profile` if a different model is warranted. |
 | Drift > 25% | Spot-check `cost_source: estimate` stages. Possibly rotate `LITELLM_MASTER_KEY` if the proxy was unreachable repeatedly. |
 | LiteLLM total far above expected | Audit recent prompt-library entries for prompts that explode token use under longer goals. Hand off to `drafting-stage-prompt` to update or anti-pattern. |

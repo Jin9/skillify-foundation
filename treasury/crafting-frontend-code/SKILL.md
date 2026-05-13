@@ -21,7 +21,7 @@ Guide AI coding agents through low-risk frontend architecture, review, and imple
 
 ## When NOT To Use
 
-- Backend services, business logic, or domain modeling — use `fintech-systems-architect`.
+- Backend services, business logic, or domain modeling — use `architecting-fintech-systems`.
 - Infrastructure / Terraform / generic CI work (unless it's frontend build / deploy specific).
 - Node-only or CLI-only tasks with no UI surface.
 - One-line CSS tweaks, copy edits, or trivial typo fixes — use the fast path; do not invoke the full L1→L4 framework.

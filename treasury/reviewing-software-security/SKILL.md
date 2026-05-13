@@ -1,5 +1,5 @@
 ---
-name: expert-software-security-reviewer
+name: reviewing-software-security
 description: >
   Defensive software security review for Go/Gin services, Kafka event flows,
   MySQL/RDS, Kubernetes workloads, Kong/APISIX gateways, and DDD/CQRS event-driven
@@ -15,7 +15,7 @@ description: >
   payloads, attacker tooling, or detection-evasion guidance.
 ---
 
-# Expert Software Security Reviewer
+# Reviewing Software Security
 
 ## Primary Goal
 
@@ -38,7 +38,7 @@ Perform **review-and-recommend** defensive security analysis on code, configurat
 - Artifact is purely UI/CSS/copy/i18n with no security surface → no-op.
 - Routine refactor, perf optimization, or dependency bump without CVE context → out of scope.
 - Stack outside Go/Gin/Kafka/MySQL/K8s/Kong/APISIX **and** user has not asked for best-effort cross-stack review → declare stack mismatch and downgrade or decline.
-- A different specialized skill fits better (`crafting-backend-code` for design choices, `fintech-systems-architect` for high-level architecture).
+- A different specialized skill fits better (`crafting-backend-code` for design choices, `architecting-fintech-systems` for high-level architecture).
 
 ## Security mindset
 

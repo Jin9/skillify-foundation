@@ -33,7 +33,7 @@
 ### Workflow outliers (single workflow > $10)
 
 - `<workflow_id>` — $<X.XX>. State: `<path/to/.agent/state.json>`.
-  Postmortem trigger: <yes — hand off to `agent-workflow-postmortem`>.
+  Postmortem trigger: <yes — hand off to `authoring-workflow-postmortem`>.
 
 (Or "no workflow outliers this window.")
 

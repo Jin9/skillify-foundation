@@ -1,9 +1,9 @@
 ---
-name: openclaw-orchestrator
+name: orchestrating-openclaw-squad
 description: Orchestrates a multi-agent squad (Business Analyst, Architect, Developer, QA Engineer) with strict human-in-the-loop validation, sandbox isolation, and explicit approval gates for enterprise and regulated workflows. Use when the user says "OpenClaw squad", "orchestrate agents", "route to QA", "human approval gate", "multi-agent enterprise workflow", "god-pm", or asks to manage a Requirements → Architecture → Implementation → Validation lifecycle with a human tech-lead gate. Do NOT use for generic multi-agent decomposition without a strict human approval gate (use `composing-agent-pipelines`), single-agent trivial tasks, or direct production deployment commands.
 ---
 
-# Multi-Agent Orchestrator with Human-in-the-Loop
+# Orchestrating the OpenClaw Squad
 
 ## Purpose
 

@@ -7,7 +7,7 @@ does that at step 7.
 
 Source: extracted from
 `treasury/crafting-backend-code/SKILL.md` "Validation gate" +
-`treasury/banking-qa-engineer/SKILL.md` review-mode checks, re-organized to
+`treasury/validating-banking-implementation/SKILL.md` review-mode checks, re-organized to
 match `implement-backend-feature/references/self-review-checklist.md` so the
 generate-side and review-side cover the same ground from opposite ends.
 

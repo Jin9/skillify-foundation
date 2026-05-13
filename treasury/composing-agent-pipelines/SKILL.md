@@ -9,7 +9,7 @@ description: >
   this with agents", or wants modular phase invocation. Each phase emits a
   versioned artifact under .agent-pipelines/[task-id]/. Do NOT use for
   single-agent tasks, editing repo-policy files, or strict human-in-the-loop
-  approval workflows (use openclaw-orchestrator instead).
+  approval workflows (use orchestrating-openclaw-squad instead).
 ---
 
 # Composing Agent Pipelines

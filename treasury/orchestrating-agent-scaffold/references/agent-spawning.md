@@ -25,7 +25,7 @@ spend or *between* stages when the user asks for a richer summary.
 | Find a file, symbol, or wiring point | `Explore` | "Where is auth wired?", "Which configs reference Kong?" |
 | Draft a high-level plan to seed the scaffold | `Plan` | The goal is a refactor or feature spanning multiple modules. |
 | Open-ended investigation (>3 tool calls) | `general-purpose` | "What's the simplest way to migrate from X to Y here?" |
-| Hand-off to a security-focused review | invoke `expert-software-security-reviewer` skill | The goal touches auth, KYC, disbursement, secrets, or PII. |
+| Hand-off to a security-focused review | invoke `reviewing-software-security` skill | The goal touches auth, KYC, disbursement, secrets, or PII. |
 | Hand-off to backend code review | invoke `crafting-backend-code` skill | The goal is a backend refactor or API design choice. |
 | Hand-off to a Claude-native multi-phase pipeline | invoke `composing-agent-pipelines` skill | The user explicitly asked for the Claude pipeline, not the scaffold. |
 | Read changed-code review | (no scaffold equivalent) — use Claude's `/review` slash if installed | Post-implement readout of the diff. |

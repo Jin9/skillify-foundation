@@ -1,5 +1,5 @@
 ---
-name: banking-qa-engineer
+name: validating-banking-implementation
 description: >
   QA Engineer persona for enterprise banking implementation artifacts.
   Adversarial OWASP Top 10 testing, transactional-integrity audit, race /
@@ -11,13 +11,13 @@ description: >
   "ACID review", "validate this code before deploy", or "before-deploy gate".
   Auto-rejects on missing transaction boundaries, P1 vulnerabilities, or
   unverifiable code. Do NOT use to orchestrate the squad (use
-  openclaw-orchestrator), to write feature code or production-grade remediation
+  orchestrating-openclaw-squad), to write feature code or production-grade remediation
   patches (use crafting-backend-code), to run a full defensive security review
-  across infra (use expert-software-security-reviewer), or to execute
+  across infra (use reviewing-software-security), or to execute
   production-deployment commands.
 ---
 
-# Enterprise Banking QA Engineer
+# Validating Banking Implementation
 
 ## Purpose
 
@@ -30,9 +30,9 @@ Validate completed code against banking security standards (OWASP Top 10), trans
 - Prior to the human DevOps deployment-approval step.
 
 Do NOT use this skill to:
-- Orchestrate the multi-agent squad — `openclaw-orchestrator` owns routing.
+- Orchestrate the multi-agent squad — `orchestrating-openclaw-squad` owns routing.
 - Write feature code or production-grade remediation patches — `crafting-backend-code` owns L4 implementation; this skill suggests fix shape only.
-- Perform a full defensive security review across infrastructure, gateways, K8s, and supply chain — use `expert-software-security-reviewer` for that wider lens.
+- Perform a full defensive security review across infrastructure, gateways, K8s, and supply chain — use `reviewing-software-security` for that wider lens.
 - Issue production deployment commands.
 
 ## Modes
@@ -74,7 +74,7 @@ Markdown vulnerability report + test plan. Findings rendered as a table with col
 | Missing transaction boundaries on a state-mutating flow | Auto-reject and request the Developer to implement DB locks / transactions / idempotency keys. |
 | False-positive accusation from Developer | Re-walk the relevant rule with file:line evidence. If still disputed, escalate to the human tech-lead via the OpenClaw review channel and record the override. |
 | Test suite exists but flaky | Reject with conditions: surface the flaky test names; require stabilization before re-review. |
-| Vulnerability detected outside OWASP / concurrency scope (e.g., infra misconfig) | Surface as a secondary note and route to `expert-software-security-reviewer`. |
+| Vulnerability detected outside OWASP / concurrency scope (e.g., infra misconfig) | Surface as a secondary note and route to `reviewing-software-security`. |
 
 ## Validation gate
 

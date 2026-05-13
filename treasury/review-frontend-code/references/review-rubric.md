@@ -65,7 +65,7 @@ contract-level claims. These exist because the workflow exists.
 
 This skill does NOT cover:
 
-- Full OWASP Top 10 walk — `expert-software-security-reviewer` scope.
+- Full OWASP Top 10 walk — `reviewing-software-security` scope.
 - Visual / pixel regression — separate visual-diff stage.
 - Web Vitals / Lighthouse performance optimization — `analyze-frontend-performance`.
 - Architectural / boundary critique — the design stage's job; this stage

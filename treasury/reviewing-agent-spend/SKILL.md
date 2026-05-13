@@ -1,5 +1,5 @@
 ---
-name: agent-spend-review
+name: reviewing-agent-spend
 description: >
   Run the Monday cost-review ritual for an agent-scaffold squad. Wraps
   just llm-spend, segments by user and model, flags greater-than-2-sigma
@@ -15,7 +15,7 @@ description: >
   bills, RDS, K8s) or for predicting next-week spend.
 ---
 
-# Squad spend review
+# Reviewing agent spend
 
 ## Purpose
 
@@ -35,7 +35,7 @@ the skill does not act.
 
 Do NOT use this skill to:
 - Raise or lower a spend cap. Caps are per-workflow and require explicit
-  user instruction (handled by `agent-scaffold-orchestrator`).
+  user instruction (handled by `orchestrating-agent-scaffold`).
 - Rotate `LITELLM_MASTER_KEY`. That is a quarterly or off-boarding
   action, taken by the team-lead outside this skill.
 - Predict next-week spend. Forecasting requires modeling beyond this

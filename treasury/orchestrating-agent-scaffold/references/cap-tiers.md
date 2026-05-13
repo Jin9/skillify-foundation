@@ -41,4 +41,4 @@ When the dispatcher exits with rc=2 and ntfy says spend cap reached:
 3. Offer two paths: raise the cap (user must request explicitly) or accept
    the partial result.
 4. If `> $1` was spent on a failed stage, surface the postmortem trigger
-   from PLAYBOOK §4 and hand off to `agent-workflow-postmortem`.
+   from PLAYBOOK §4 and hand off to `authoring-workflow-postmortem`.

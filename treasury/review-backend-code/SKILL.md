@@ -10,7 +10,7 @@ description: >
   audit, compensation) are actually implemented in the emitted code. Use when
   scoring a Go feature for banking-grade readiness before a Validate stage.
   Do NOT use for full defensive security review across infra, gateways, K8s
-  (use expert-software-security-reviewer). Do NOT use for chaos test planning
+  (use reviewing-software-security). Do NOT use for chaos test planning
   (use a separate chaos-plan skill). Do NOT use for frontend, infra, or
   greenfield architecture review.
 stage_type: review
@@ -41,7 +41,7 @@ routes per Section 8 Review Pattern. Read-only — emits no code.
 - Use when: a Generate stage emits `uncertainty_flags` that need triage before
   the workflow proceeds.
 - Do NOT use when: the task is a full security audit across infra / gateways
-  — defer to `expert-software-security-reviewer`.
+  — defer to `reviewing-software-security`.
 - Do NOT use when: the task is chaos test planning — separate skill.
 - Do NOT use when: the target is frontend, infra, or greenfield architecture.
 - Do NOT use when: the task is writing remediation code — this skill suggests

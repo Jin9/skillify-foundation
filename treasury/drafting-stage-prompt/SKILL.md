@@ -11,7 +11,7 @@ description: >
   preserve a prompt that surprised them. Refuses to overwrite without
   confirmation. Do NOT use for editing AGENTS.md / CLAUDE.md, for writing
   prompts outside prompts/library/, or for retroactively rewriting historic
-  workflow runs (use agent-workflow-postmortem for that).
+  workflow runs (use authoring-workflow-postmortem for that).
 ---
 
 # Drafting a stage prompt

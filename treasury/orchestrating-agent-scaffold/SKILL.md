@@ -1,5 +1,5 @@
 ---
-name: agent-scaffold-orchestrator
+name: orchestrating-agent-scaffold
 description: >
   Orchestrates a multi-stage research-squad workflow on top of the agent-scaffold
   (just / state.json / zellij / LiteLLM / ntfy / sandbox). Plans the run, picks
@@ -12,11 +12,11 @@ description: >
   implement → review → test. Honors AGENTS.md: never auto-approves, never edits
   .agent/, never runs production commands. Do NOT use for the Claude-native
   pipeline (use composing-agent-pipelines), the BA/Architect/Dev/QA squad (use
-  openclaw-orchestrator), or for deciding to approve implement (use
+  orchestrating-openclaw-squad), or for deciding to approve implement (use
   reviewing-implement-gate).
 ---
 
-# agent-scaffold orchestrator
+# Orchestrating the agent-scaffold
 
 ## Purpose
 
@@ -104,7 +104,7 @@ becomes non-null, surface the gate; for `implement`, hand off to
 When a stage flips to `failed`: read the redacted log tail, surface the
 failing command verbatim (no paraphrased stack traces), suggest **one** fix
 path, and stop. Do not auto-retry. Hand off to `drafting-stage-prompt` for
-prompt fixes or `agent-workflow-postmortem` when the trigger conditions
+prompt fixes or `authoring-workflow-postmortem` when the trigger conditions
 fire (see `references/failure-triage.md` for the classification table).
 
 ## Output format

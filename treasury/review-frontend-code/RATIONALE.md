@@ -8,8 +8,8 @@
 >
 > **Source skills consulted**:
 > - `treasury/crafting-frontend-code/` (mode `review` and source non-negotiables)
-> - `treasury/banking-qa-engineer/` (auto-reject criteria pattern)
-> - `treasury/expert-software-security-reviewer/` (severity + confidence + anti-fabrication discipline)
+> - `treasury/validating-banking-implementation/` (auto-reject criteria pattern)
+> - `treasury/reviewing-software-security/` (severity + confidence + anti-fabrication discipline)
 > - `treasury/implement-frontend-feature/` (the Generate upstream this skill verifies)
 > - `treasury/review-backend-code/` (shape and verdict matrix — keep them parallel)
 
@@ -39,8 +39,8 @@ business logic in Primitive (boundary violation).
 | `crafting-frontend-code/references/security.md` high-risk patterns | `review-rubric.md` F6–F8 + `severity-guide.md` P1 XSS / token-storage / CSRF |
 | `implement-frontend-feature/references/implementation-rules.md` F1–F12 + A1–A9 | `review-rubric.md` (1:1 mapping, re-cast as adversarial questions) |
 | `implement-frontend-feature/references/self-review-checklist.md` sections A–L | `review-checklist.md` sections A–L (mirrored 1:1 from opposite end) |
-| `banking-qa-engineer/SKILL.md` auto-reject criteria | `severity-guide.md` P1 category list |
-| `expert-software-security-reviewer/SKILL.md` severity + confidence + standards discipline | `severity-guide.md` Confidence + standards-identifier list + "withhold rather than fabricate" rule (verbatim) |
+| `validating-banking-implementation/SKILL.md` auto-reject criteria | `severity-guide.md` P1 category list |
+| `reviewing-software-security/SKILL.md` severity + confidence + standards discipline | `severity-guide.md` Confidence + standards-identifier list + "withhold rather than fabricate" rule (verbatim) |
 | `review-backend-code/SKILL.md` 8-step procedure + verdict matrix | `SKILL.md` Procedure + `severity-guide.md` Verdict matrix (shape preserved, categories re-flavored) |
 
 ## 3. v2 augmentations added (NEW beyond sources)
@@ -72,8 +72,8 @@ business logic in Primitive (boundary violation).
 | Dropped | Reason |
 |---------|--------|
 | 5 of 6 modes from `crafting-frontend-code` (`design`, `optimize`, `fix`, `analyze`, `plan`) | Each is a separate atomic skill in v2. |
-| `banking-qa-engineer` chaos planning + full OWASP walk | Out of scope. Chaos is its own stage; full OWASP belongs in `expert-software-security-reviewer`. |
-| `expert-software-security-reviewer` 11-area taxonomy + 12 worked examples | Same — that skill remains the comprehensive security review. This stage spot-checks via F5–F8 + categories in severity-guide. |
+| `validating-banking-implementation` chaos planning + full OWASP walk | Out of scope. Chaos is its own stage; full OWASP belongs in `reviewing-software-security`. |
+| `reviewing-software-security` 11-area taxonomy + 12 worked examples | Same — that skill remains the comprehensive security review. This stage spot-checks via F5–F8 + categories in severity-guide. |
 | Visual regression review | Separate visual-diff stage. |
 | Web Vitals / Lighthouse analysis | `analyze-frontend-performance` scope. |
 

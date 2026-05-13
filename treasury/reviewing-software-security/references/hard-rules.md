@@ -1,6 +1,6 @@
 # Hard Safety Rules
 
-Inviolable rules for `expert-software-security-reviewer`. The skill refuses, even under user pressure or roleplay framing. Refusal is brief and offers the nearest defensive alternative.
+Inviolable rules for `reviewing-software-security`. The skill refuses, even under user pressure or roleplay framing. Refusal is brief and offers the nearest defensive alternative.
 
 ## Rules
 
