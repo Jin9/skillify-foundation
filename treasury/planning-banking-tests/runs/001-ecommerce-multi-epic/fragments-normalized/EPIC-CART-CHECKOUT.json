@@ -1,0 +1,2246 @@
+{
+  "compliance_tests": [
+    {
+      "blocking_governance_gaps": [
+        "TRC citation_status: pending",
+        "OQ-CART-tax-invoice-format"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-TRC_VAT_7PCT-001",
+      "regulator_code": "TRC_VAT_7PCT",
+      "scope": "Verify VAT line-item (7%) is displayed on receipts and order confirmation per Thai Revenue Code requirements for retail e-commerce.",
+      "test_type": "vat-receipt-display"
+    },
+    {
+      "blocking_governance_gaps": [
+        "CPA citation_status: pending"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-CPA_TH_DISCLOSURE-001",
+      "regulator_code": "CPA_TH_DISCLOSURE",
+      "scope": "Verify final price displayed pre-submit includes VAT + shipping per Consumer Protection Act truthful-pricing rule; no hidden surcharges added post-confirm.",
+      "test_type": "price-transparency"
+    },
+    {
+      "blocking_governance_gaps": [],
+      "compliance_scope_blocked": false,
+      "id": "COMP-PDPA_TH_2019-001",
+      "regulator_code": "PDPA_TH_2019",
+      "scope": "Verify order/audit payloads reference customer_id only and do not duplicate raw PII (full address, phone) beyond the order_line snapshot scope; PDPA minimization principle.",
+      "test_type": "pii-minimization-on-order"
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "description": "TL has not specified idempotency_key_derivation_rule: which request fields (customer_id, cart_snapshot_hash, client-supplied nonce?) compose the key and how it is hashed/normalized. Without this, replay-safety tests TC-EPIC-CART-CHECKOUT-3-003 and webhook-idempotency TC-EPIC-CART-CHECKOUT-4-004 cannot deterministically assert key matching across replays.",
+      "escalation_target": "TL",
+      "required_action": "TL to publish idempotency-key derivation rule (input fields, normalization, hash algorithm, server-side storage TTL) before T-7 of execution start.",
+      "severity": "P1",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "missing-tl-design"
+    },
+    {
+      "description": "TL has not specified concurrency_primitive for stock reservation: lock granularity (per-SKU row lock vs reservation-table advisory lock vs optimistic CAS), isolation level, and timeout. Race-resolution tests TC-EPIC-CART-CHECKOUT-3-002 and TC-EPIC-CART-CHECKOUT-3-008 need this to wire deterministic harness probes.",
+      "escalation_target": "TL",
+      "required_action": "TL to publish reservation-concurrency design (primitive, granularity, isolation, deadlock policy) before T-7.",
+      "severity": "P1",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "missing-tl-design"
+    },
+    {
+      "description": "TL has not specified error_envelope shape for payment/checkout failures: error code namespace, reason field, message-vs-code split, structured details, localization key. Error tests TC-EPIC-CART-CHECKOUT-3-002, TC-EPIC-CART-CHECKOUT-3-009, TC-EPIC-CART-CHECKOUT-4-005 currently assert on prose strings ('out_of_stock_at_confirm', 'coupon_expired') which are brittle.",
+      "escalation_target": "TL",
+      "required_action": "TL to publish standard error-envelope schema (JSON Schema or proto) and stable error-code registry before T-7.",
+      "severity": "P2",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "missing-tl-design"
+    },
+    {
+      "description": "Checkout-submit p95 latency target unresolved; AP-Q9 forbids inventing the number. NFR-EPIC-CART-CHECKOUT-perf-001 currently marked TBD.",
+      "escalation_target": "BA",
+      "required_action": "BA to resolve OQ-CART-checkout-p95-target with Payment-Lead and Ops.",
+      "severity": "P2",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "missing-nfr-target"
+    },
+    {
+      "description": "Reservation TTL duration unresolved; FX-TIME-T0-T+10min assumes 10 min but actual TTL is TBD.",
+      "escalation_target": "BA",
+      "required_action": "BA to resolve OQ-CART-reservation-ttl with Payment-Lead.",
+      "severity": "P2",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "missing-nfr-target"
+    },
+    {
+      "description": "Concurrent-submit load level N for race test (NFR-EPIC-CART-CHECKOUT-perf-002) unresolved.",
+      "escalation_target": "BA",
+      "required_action": "BA to resolve OQ-CART-concurrent-load-target.",
+      "severity": "P2",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "missing-nfr-target"
+    },
+    {
+      "description": "Payment retry policy (max retries, backoff) for NFR-EPIC-CART-CHECKOUT-reliab-001 unresolved.",
+      "escalation_target": "BA",
+      "required_action": "BA to resolve OQ-CART-payment-retry-policy.",
+      "severity": "P3",
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "type": "missing-nfr-target"
+    },
+    {
+      "description": "Thai Revenue Code (TRC) and Consumer Protection Act (CPA) regulators have citation_status=pending in the BA brief. Compliance tests COMP-TRC-001 and COMP-CPA-001 are scope-blocked.",
+      "escalation_target": "Legal",
+      "required_action": "Legal/Compliance to finalize regulator citations (TRC VAT receipt format, CPA price-transparency clause) before COMP tests can be designated mandatory.",
+      "severity": "P1",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "missing-compliance"
+    },
+    {
+      "description": "Audit-event SLA (write latency, durability guarantee) unresolved (NFR-EPIC-CART-CHECKOUT-obs-001). TC-EPIC-CART-CHECKOUT-3-004 asserts write-before-respond but exact SLA is TBD.",
+      "escalation_target": "BA",
+      "required_action": "BA + TL to resolve OQ-CART-audit-sla.",
+      "severity": "P2",
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "type": "qa_blocking_governance_gap"
+    }
+  ],
+  "environments": [
+    {
+      "id": "ENV-CART-integration",
+      "purpose": "Integration env for cart CRUD: real DB, real cart service; auth stubbed to mint session for synthetic customers.",
+      "real_services": [
+        "cart-service",
+        "product-stock-read-api",
+        "postgres"
+      ],
+      "required_mocks": [
+        "auth-token-mint",
+        "product-catalog-readonly-mirror"
+      ]
+    },
+    {
+      "id": "ENV-CHK-e2e",
+      "purpose": "End-to-end env for checkout submit and payment callback flows: real order service, real stock reservation, real audit sink, mock PSP.",
+      "real_services": [
+        "order-service",
+        "cart-service",
+        "stock-reservation-service",
+        "postgres"
+      ],
+      "required_mocks": [
+        "mock-PSP-webhook-server",
+        "notification-log-sink",
+        "audit-sink"
+      ]
+    },
+    {
+      "id": "ENV-CHK-race-deterministic",
+      "purpose": "Deterministic concurrency env for race-condition and TTL-sweep tests; provides clock-control API, lock instrumentation, and barrier-synced parallel submit harness. Required for TC-3-002, TC-3-007, TC-3-008, TC-4-003.",
+      "real_services": [
+        "order-service",
+        "stock-reservation-service",
+        "postgres-with-isolation-level-instrumented"
+      ],
+      "required_mocks": [
+        "mock-PSP-webhook-server",
+        "frozen-clock",
+        "lock-instrumentation-probe",
+        "concurrency-harness"
+      ]
+    }
+  ],
+  "epic": {
+    "critical_paths": [
+      "checkout-submit-happy",
+      "payment-success",
+      "race-resolution",
+      "payment-timeout-reversibility",
+      "duplicate-webhook-idempotency"
+    ],
+    "epic_id": "EPIC-CART-CHECKOUT",
+    "stakeholder_owners": [
+      "Payment-Lead",
+      "QA-Lead"
+    ],
+    "test_tier": "T2"
+  },
+  "execution_dag_edges": [
+    {
+      "from": "n-tc-1-001",
+      "kind": "ordering",
+      "to": "n-tc-1-002"
+    },
+    {
+      "from": "n-tc-1-001",
+      "kind": "fixture",
+      "to": "n-tc-1-003"
+    },
+    {
+      "from": "n-tc-1-001",
+      "kind": "ordering",
+      "to": "n-tc-1-005"
+    },
+    {
+      "from": "n-tc-2-001",
+      "kind": "ordering",
+      "to": "n-tc-2-005"
+    },
+    {
+      "from": "n-tc-2-001",
+      "kind": "data",
+      "to": "n-tc-2-006"
+    },
+    {
+      "from": "n-tc-2-001",
+      "kind": "data",
+      "to": "n-tc-2-007"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "fixture",
+      "to": "n-tc-3-002"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "ordering",
+      "to": "n-tc-3-003"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-tc-3-004"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "fixture",
+      "to": "n-tc-3-005"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-tc-3-006"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-tc-3-007"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "fixture",
+      "to": "n-tc-3-009"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "fixture",
+      "to": "n-tc-3-010"
+    },
+    {
+      "from": "n-tc-3-002",
+      "kind": "env",
+      "to": "n-tc-3-008"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-tc-4-001"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-tc-4-002"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-tc-4-003"
+    },
+    {
+      "from": "n-tc-4-001",
+      "kind": "data",
+      "to": "n-tc-4-004"
+    },
+    {
+      "from": "n-tc-4-002",
+      "kind": "data",
+      "to": "n-tc-4-007"
+    },
+    {
+      "from": "n-tc-4-001",
+      "kind": "ordering",
+      "to": "n-tc-4-006"
+    },
+    {
+      "from": "n-tc-4-002",
+      "kind": "ordering",
+      "to": "n-tc-4-006"
+    },
+    {
+      "from": "n-tc-4-003",
+      "kind": "ordering",
+      "to": "n-tc-4-006"
+    },
+    {
+      "from": "n-tc-4-001",
+      "kind": "fixture",
+      "to": "n-tc-4-005"
+    },
+    {
+      "from": "n-tc-4-001",
+      "kind": "fixture",
+      "to": "n-tc-4-008"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "ordering",
+      "to": "n-nfr-perf-001"
+    },
+    {
+      "from": "n-tc-3-002",
+      "kind": "env",
+      "to": "n-nfr-perf-002"
+    },
+    {
+      "from": "n-tc-4-001",
+      "kind": "data",
+      "to": "n-nfr-reliab-001"
+    },
+    {
+      "from": "n-tc-3-004",
+      "kind": "data",
+      "to": "n-nfr-obs-001"
+    },
+    {
+      "from": "n-tc-4-006",
+      "kind": "data",
+      "to": "n-nfr-sec-001"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-comp-trc-001"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-comp-cpa-001"
+    },
+    {
+      "from": "n-tc-3-001",
+      "kind": "data",
+      "to": "n-comp-pdpa-001"
+    }
+  ],
+  "execution_dag_nodes": [
+    {
+      "id": "n-tc-1-001",
+      "label": "cart-add-happy",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-1-001"
+    },
+    {
+      "id": "n-tc-1-002",
+      "label": "cart-merge",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-1-002"
+    },
+    {
+      "id": "n-tc-1-003",
+      "label": "cart-reject-overstock",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-1-003"
+    },
+    {
+      "id": "n-tc-1-004",
+      "label": "cart-stale-warning",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-1-004"
+    },
+    {
+      "id": "n-tc-1-005",
+      "label": "cart-idem",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-1-005"
+    },
+    {
+      "id": "n-tc-1-006",
+      "label": "cart-authz",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-1-006"
+    },
+    {
+      "id": "n-tc-2-001",
+      "label": "coupon-fixed-happy",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-2-001"
+    },
+    {
+      "id": "n-tc-2-002",
+      "label": "coupon-percent-cap",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-2-002"
+    },
+    {
+      "id": "n-tc-2-003",
+      "label": "coupon-expired",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-2-003"
+    },
+    {
+      "id": "n-tc-2-004",
+      "label": "coupon-clamp",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-2-004"
+    },
+    {
+      "id": "n-tc-2-005",
+      "label": "coupon-idem",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-2-005"
+    },
+    {
+      "id": "n-tc-2-006",
+      "label": "coupon-audit",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-2-006"
+    },
+    {
+      "id": "n-tc-2-007",
+      "label": "coupon-quota-reversal",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-2-007"
+    },
+    {
+      "id": "n-tc-3-001",
+      "label": "checkout-submit-happy",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-001"
+    },
+    {
+      "id": "n-tc-3-002",
+      "label": "checkout-race-last-unit",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-002"
+    },
+    {
+      "id": "n-tc-3-003",
+      "label": "checkout-idem",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-003"
+    },
+    {
+      "id": "n-tc-3-004",
+      "label": "checkout-audit",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-004"
+    },
+    {
+      "id": "n-tc-3-005",
+      "label": "checkout-authz-address",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-005"
+    },
+    {
+      "id": "n-tc-3-006",
+      "label": "checkout-reversibility",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-006"
+    },
+    {
+      "id": "n-tc-3-007",
+      "label": "checkout-ttl-sweep",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-007"
+    },
+    {
+      "id": "n-tc-3-008",
+      "label": "checkout-multi-race",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-008"
+    },
+    {
+      "id": "n-tc-3-009",
+      "label": "checkout-coupon-revalidate",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-009"
+    },
+    {
+      "id": "n-tc-3-010",
+      "label": "order-number-uniqueness",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-3-010"
+    },
+    {
+      "id": "n-tc-4-001",
+      "label": "payment-success",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-001"
+    },
+    {
+      "id": "n-tc-4-002",
+      "label": "payment-failure",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-002"
+    },
+    {
+      "id": "n-tc-4-003",
+      "label": "payment-timeout",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-003"
+    },
+    {
+      "id": "n-tc-4-004",
+      "label": "webhook-idem",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-004"
+    },
+    {
+      "id": "n-tc-4-005",
+      "label": "payment-mismatch",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-005"
+    },
+    {
+      "id": "n-tc-4-006",
+      "label": "payment-audit-fields",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-006"
+    },
+    {
+      "id": "n-tc-4-007",
+      "label": "payment-reversibility",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-007"
+    },
+    {
+      "id": "n-tc-4-008",
+      "label": "webhook-authz",
+      "test_case_ref": "TC-EPIC-CART-CHECKOUT-4-008"
+    },
+    {
+      "id": "n-nfr-perf-001",
+      "label": "perf-p95",
+      "test_case_ref": "NFR-EPIC-CART-CHECKOUT-perf-001"
+    },
+    {
+      "id": "n-nfr-reliab-001",
+      "label": "payment-retry",
+      "test_case_ref": "NFR-EPIC-CART-CHECKOUT-reliab-001"
+    },
+    {
+      "id": "n-nfr-perf-002",
+      "label": "perf-concurrent-race",
+      "test_case_ref": "NFR-EPIC-CART-CHECKOUT-perf-002"
+    },
+    {
+      "id": "n-nfr-obs-001",
+      "label": "audit-sla",
+      "test_case_ref": "NFR-EPIC-CART-CHECKOUT-obs-001"
+    },
+    {
+      "id": "n-nfr-sec-001",
+      "label": "pci-scope",
+      "test_case_ref": "NFR-EPIC-CART-CHECKOUT-sec-001"
+    },
+    {
+      "id": "n-comp-trc-001",
+      "label": "vat-receipt",
+      "test_case_ref": "COMP-TRC-001"
+    },
+    {
+      "id": "n-comp-cpa-001",
+      "label": "price-transparency",
+      "test_case_ref": "COMP-CPA-001"
+    },
+    {
+      "id": "n-comp-pdpa-001",
+      "label": "pii-minimization",
+      "test_case_ref": "COMP-PDPA-001"
+    }
+  ],
+  "nfr_tests": [
+    {
+      "blocking_oqs": [
+        "OQ-CART-checkout-p95-target"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-perf-001",
+      "metric": "checkout_submit_p95_latency_ms",
+      "nfr_type": "performance",
+      "target": "TBD pending OQ-CART-checkout-p95-target"
+    },
+    {
+      "blocking_oqs": [
+        "OQ-CART-payment-retry-policy"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-reliab-001",
+      "metric": "payment_retry_under_timeout_idempotency_preservation",
+      "nfr_type": "resilience",
+      "target": "TBD pending OQ-CART-payment-retry-policy"
+    },
+    {
+      "blocking_oqs": [
+        "OQ-CART-concurrent-load-target"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-perf-002",
+      "metric": "concurrent_checkout_race_resolution_no_oversell_under_N_concurrent",
+      "nfr_type": "performance",
+      "target": "TBD pending OQ-CART-concurrent-load-target"
+    },
+    {
+      "blocking_oqs": [
+        "OQ-CART-audit-sla"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-obs-001",
+      "metric": "audit_event_emission_rate_per_payment_outcome",
+      "nfr_type": "observability",
+      "target": "TBD pending OQ-CART-audit-sla"
+    },
+    {
+      "blocking_oqs": [],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-sec-001",
+      "metric": "pan_scope_isolation_no_card_data_in_app_logs_or_audit",
+      "nfr_type": "security",
+      "target": "0 occurrences of PAN/CVV across audit-sink and app-log scans (PCI out-of-scope invariant)"
+    }
+  ],
+  "stories": [
+    {
+      "blocking_oqs": [],
+      "coverage_status": "complete",
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "qa_effort_estimate": {
+        "compliance_hours": 1,
+        "manual_hours": 3,
+        "perf_hours": 0,
+        "sdet_hours": 10
+      },
+      "story_id": "EPIC-CART-CHECKOUT-1",
+      "test_case_ids": [
+        "TC-EPIC-CART-CHECKOUT-1-001",
+        "TC-EPIC-CART-CHECKOUT-1-002",
+        "TC-EPIC-CART-CHECKOUT-1-003",
+        "TC-EPIC-CART-CHECKOUT-1-004",
+        "TC-EPIC-CART-CHECKOUT-1-005",
+        "TC-EPIC-CART-CHECKOUT-1-006"
+      ]
+    },
+    {
+      "blocking_oqs": [],
+      "coverage_status": "complete",
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "qa_effort_estimate": {
+        "compliance_hours": 2,
+        "manual_hours": 4,
+        "perf_hours": 0,
+        "sdet_hours": 12
+      },
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "test_case_ids": [
+        "TC-EPIC-CART-CHECKOUT-2-001",
+        "TC-EPIC-CART-CHECKOUT-2-002",
+        "TC-EPIC-CART-CHECKOUT-2-003",
+        "TC-EPIC-CART-CHECKOUT-2-004",
+        "TC-EPIC-CART-CHECKOUT-2-005",
+        "TC-EPIC-CART-CHECKOUT-2-006",
+        "TC-EPIC-CART-CHECKOUT-2-007"
+      ]
+    },
+    {
+      "blocking_oqs": [
+        "OQ-CART-checkout-p95-target",
+        "OQ-CART-reservation-ttl"
+      ],
+      "coverage_status": "partial",
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "qa_effort_estimate": {
+        "compliance_hours": 3,
+        "manual_hours": 6,
+        "perf_hours": 8,
+        "sdet_hours": 28
+      },
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "test_case_ids": [
+        "TC-EPIC-CART-CHECKOUT-3-001",
+        "TC-EPIC-CART-CHECKOUT-3-002",
+        "TC-EPIC-CART-CHECKOUT-3-003",
+        "TC-EPIC-CART-CHECKOUT-3-004",
+        "TC-EPIC-CART-CHECKOUT-3-005",
+        "TC-EPIC-CART-CHECKOUT-3-006",
+        "TC-EPIC-CART-CHECKOUT-3-007",
+        "TC-EPIC-CART-CHECKOUT-3-008",
+        "TC-EPIC-CART-CHECKOUT-3-009",
+        "TC-EPIC-CART-CHECKOUT-3-010"
+      ]
+    },
+    {
+      "blocking_oqs": [],
+      "coverage_status": "complete",
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "qa_effort_estimate": {
+        "compliance_hours": 2,
+        "manual_hours": 4,
+        "perf_hours": 2,
+        "sdet_hours": 18
+      },
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "test_case_ids": [
+        "TC-EPIC-CART-CHECKOUT-4-001",
+        "TC-EPIC-CART-CHECKOUT-4-002",
+        "TC-EPIC-CART-CHECKOUT-4-003",
+        "TC-EPIC-CART-CHECKOUT-4-004",
+        "TC-EPIC-CART-CHECKOUT-4-005",
+        "TC-EPIC-CART-CHECKOUT-4-006",
+        "TC-EPIC-CART-CHECKOUT-4-007",
+        "TC-EPIC-CART-CHECKOUT-4-008"
+      ]
+    }
+  ],
+  "test_cases": [
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "cart contains exactly one line: product=P1, quantity=2",
+          "type": "state"
+        },
+        {
+          "description": "cart.subtotal == 2 * P1.price (exact, no rounding drift)",
+          "type": "computation"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-1-001",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "medium",
+      "scenario_ref": "Add active product to empty cart",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-1",
+      "tags": [
+        "happy",
+        "cart-add"
+      ],
+      "test_data_refs": [
+        "FX-CART-active-product",
+        "FX-CART-customer-empty"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "cart has exactly one line for P1 with quantity=5",
+          "type": "state"
+        },
+        {
+          "description": "no second cart line for P1 is created (cart.lines.length == 1)",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-1-002",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "medium",
+      "scenario_ref": "Re-adding same SKU merges quantities",
+      "scenario_type": "happy",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-1",
+      "tags": [
+        "happy",
+        "cart-merge"
+      ],
+      "test_data_refs": [
+        "FX-CART-customer-with-line"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "response.reason == 'quantity_exceeds_stock'",
+          "type": "error_response"
+        },
+        {
+          "description": "cart line for P1 is unchanged from pre-call snapshot",
+          "type": "state"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-1-003",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Reject quantity that exceeds available stock",
+      "scenario_type": "error",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-1",
+      "tags": [
+        "error",
+        "stock-validation"
+      ],
+      "test_data_refs": [
+        "FX-CART-low-stock-product"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "cart page renders a warning row referencing P1 with availability='unavailable'",
+          "type": "ui_state"
+        },
+        {
+          "description": "proceed-to-checkout button is disabled or returns error when P1 is in cart",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-1-004",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Stale-cart warning when product becomes paused",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-1",
+      "tags": [
+        "edge_case",
+        "stale-cart"
+      ],
+      "test_data_refs": [
+        "FX-CART-paused-product-mid-session"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "P1 cart quantity remains 2 after replay (no increment to 4)",
+          "type": "state"
+        },
+        {
+          "description": "replay response body byte-equals original add response (modulo timestamps)",
+          "type": "response_equality"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-1-005",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Idempotent add-to-cart against double-click",
+      "scenario_type": "banking_grade_idempotency",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-1",
+      "tags": [
+        "banking_grade_idempotency",
+        "replay-safety"
+      ],
+      "test_data_refs": [
+        "FX-CART-idem-key-001"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "C2 GET /cart returns C2's cart only; C1's cart contents not leaked in any field",
+          "type": "authz"
+        },
+        {
+          "description": "C2 attempting to read C1's cart by id returns 403 (no 404 vs 403 oracle distinction)",
+          "type": "authz"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-1-006",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Cart owner authorization",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-1",
+      "tags": [
+        "banking_grade_authz",
+        "ownership"
+      ],
+      "test_data_refs": [
+        "FX-CART-two-customers"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "discount line == -100 THB exactly",
+          "type": "computation"
+        },
+        {
+          "description": "grand_total == 560 (subtotal 600 - discount 100 + shipping 60 per shipping rule at subtotal<1500)",
+          "type": "computation"
+        },
+        {
+          "description": "server-side total computation is the authoritative value; client-supplied total is ignored",
+          "type": "server_recompute"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-2-001",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Valid fixed-THB coupon applies to subtotal",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "tags": [
+        "happy",
+        "coupon-fixed"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-WELCOME100",
+        "FX-CART-subtotal-600"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "raw 10% would be 400 but cap clamps discount to exactly 300",
+          "type": "computation"
+        },
+        {
+          "description": "grand_total == 3700 with shipping=0 (subtotal>=1500 free-shipping threshold)",
+          "type": "computation"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-2-002",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Percent coupon with cap applied correctly",
+      "scenario_type": "happy",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "tags": [
+        "happy",
+        "coupon-percent",
+        "cap"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-SAVE10",
+        "FX-CART-subtotal-4000"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "response.reason == 'coupon_expired'",
+          "type": "error_response"
+        },
+        {
+          "description": "no order row is created in DB",
+          "type": "negative"
+        },
+        {
+          "description": "cart re-renders with coupon row removed",
+          "type": "ui_state"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-2-003",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Expired coupon rejected at submit",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "tags": [
+        "error",
+        "coupon-revalidation"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-EXPIRED50",
+        "FX-TIME-anchor-T0-T+1h"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "discount is clamped to subtotal value (80), not the coupon face value (100)",
+          "type": "computation"
+        },
+        {
+          "description": "grand_total == 0 + shipping; never negative",
+          "type": "computation"
+        },
+        {
+          "description": "no refund/credit obligation row is created",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-2-004",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Discount cannot make total negative",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "tags": [
+        "edge_case",
+        "clamp",
+        "non-negative-total"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-WELCOME100-lowered-min",
+        "FX-CART-subtotal-80"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "cart has exactly one coupon row after replay (not two)",
+          "type": "state"
+        },
+        {
+          "description": "coupon.quota_remaining decremented by 1 (not 2) across the two requests",
+          "type": "state"
+        },
+        {
+          "description": "replay returns the original cart-state body",
+          "type": "response_equality"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-2-005",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Idempotent coupon-apply against double-click",
+      "scenario_type": "banking_grade_idempotency",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "tags": [
+        "banking_grade_idempotency",
+        "coupon",
+        "replay-safety"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-WELCOME100",
+        "FX-IDEM-key-coup-001"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "audit_sink contains exactly one event with event='coupon.applied', actor='customer:C1', ts present in ISO-8601, coupon_code='WELCOME100', amount_applied=100, before=null, after.coupon_code='WELCOME100', reason='coupon_apply'",
+          "type": "audit_event"
+        },
+        {
+          "description": "audit payload does NOT include any password, token, card_number, or cvv field (asserted by allow-list)",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-2-006",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Compliance",
+      "risk_level": "high",
+      "scenario_ref": "Coupon redemption audit event",
+      "scenario_type": "banking_grade_audit",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "tags": [
+        "banking_grade_audit",
+        "coupon"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-WELCOME100",
+        "FX-AUDIT-sink"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CART-integration",
+      "expected_assertions": [
+        {
+          "description": "after order cancel pre-payment, coupon.quota_remaining is restored to pre-apply value",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'coupon.quota_reversed' emitted with reason='order_cancelled_pre_payment'",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-2-007",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Coupon quota reversibility on order cancel pre-payment",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-2",
+      "tags": [
+        "banking_grade_reversibility",
+        "coupon-quota"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-WELCOME100",
+        "FX-ORDER-cancelled-pre-payment"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "P1.stock_available transitions 5 -> 3 (delta -2)",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_reserved increases by 2",
+          "type": "state"
+        },
+        {
+          "description": "order row created with status='awaiting-payment' and grand_total matching server recompute",
+          "type": "state"
+        },
+        {
+          "description": "order.number matches /^ORD-\\d{8}-\\d{6}$/ and is unique across DB",
+          "type": "format"
+        },
+        {
+          "description": "order_line snapshot captures price, name, sku at submit time (frozen vs current product fields)",
+          "type": "snapshot"
+        },
+        {
+          "description": "audit_sink contains 'order.created' event with the 7 audit fields (event,actor,ts,before,after,reason,idem_key)",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-001",
+      "owner": "SDET",
+      "pyramid_level": "e2e",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Successful checkout reserves stock and creates order in awaiting-payment",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "happy",
+        "checkout-submit"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-CHK-address-C1",
+        "FX-TIME-T0"
+      ],
+      "test_type": "e2e"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-3-001"
+      ],
+      "environment_ref": "ENV-CHK-race-deterministic",
+      "expected_assertions": [
+        {
+          "description": "exactly one of {O_C1, O_C2} exists with status='awaiting-payment'; the other does not exist",
+          "type": "state"
+        },
+        {
+          "description": "the losing customer receives a structured error referencing P1 by id; no PII of the winning customer is leaked",
+          "type": "error_response"
+        },
+        {
+          "description": "P1.stock_available >= 0 at every observed step (no negative reading)",
+          "type": "invariant"
+        },
+        {
+          "description": "P1.stock_reserved + P1.stock_available + P1.stock_sold == initial total across the race window",
+          "type": "invariant"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-002",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Race-resolution on last unit — only one customer wins",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "edge_case",
+        "race",
+        "last-unit",
+        "concurrency"
+      ],
+      "test_data_refs": [
+        "FX-CHK-last-unit-P1",
+        "FX-CHK-two-customers",
+        "FX-CONCURRENCY-harness"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "exactly one order row exists for idempotency_key='ik-chk-001'; second submit returns existing order_id without DB insert",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_reserved equals the single-reservation value (not doubled) after replay",
+          "type": "state"
+        },
+        {
+          "description": "second submit response body equals first response (order_id, grand_total, status all identical)",
+          "type": "response_equality"
+        },
+        {
+          "description": "only one 'order.created' audit event is emitted across the two calls (no duplicate)",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-003",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Idempotent submit against double-click produces one order",
+      "scenario_type": "banking_grade_idempotency",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_idempotency",
+        "checkout",
+        "replay-safety"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-IDEM-key-chk-001"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "audit_sink contains exactly one event with 7 fields enumerated: (1) event=='order.created', (2) actor=='customer:C1', (3) ts is valid ISO-8601 within +/-2s of submit time, (4) before==null, (5) after=={order_id:<uuid>, grand_total:<int>}, (6) reason=='checkout_submit', (7) idem_key matches request header (AP-Q12)",
+          "type": "audit_event"
+        },
+        {
+          "description": "audit payload does NOT contain any of: password, token, card_number, pan, cvv, full_address_line, phone_number (allow-list assertion)",
+          "type": "negative"
+        },
+        {
+          "description": "audit event is durably written before the API response is returned (write-before-respond invariant)",
+          "type": "ordering"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-004",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Compliance",
+      "risk_level": "critical",
+      "scenario_ref": "Order creation emits audit event with required payload",
+      "scenario_type": "banking_grade_audit",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_audit",
+        "order-created"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-AUDIT-sink"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "HTTP 403 (or domain error 'address_not_owned') returned when C1 references address A owned by C2",
+          "type": "authz"
+        },
+        {
+          "description": "no order row created; no stock reservation taken; no notification sent",
+          "type": "negative"
+        },
+        {
+          "description": "audit event 'authz_denied' emitted with actor='customer:C1', resource='address:A', reason='cross_owner_access'",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-005",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Address from another customer is rejected",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_authz",
+        "ownership",
+        "checkout"
+      ],
+      "test_data_refs": [
+        "FX-CHK-address-C2",
+        "FX-CHK-customer-C1",
+        "FX-AUDIT-sink"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-3-001"
+      ],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "on payment failure signal, stock_reserved decremented and stock_available restored to pre-checkout value (no leak)",
+          "type": "state"
+        },
+        {
+          "description": "order transitions awaiting-payment -> payment-failed; no order row leaks in awaiting-payment indefinitely",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'order.payment_failed' emitted with before.status='awaiting-payment', after.status='payment-failed'",
+          "type": "audit_event"
+        },
+        {
+          "description": "stock_available + stock_reserved + stock_sold conservation holds across the reversal",
+          "type": "invariant"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-006",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Payment failure releases reservation (reversibility on checkout-side)",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_reversibility",
+        "release-on-fail"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-PSP-mock-failure",
+        "FX-TIME-T0-T+5min"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-3-001"
+      ],
+      "environment_ref": "ENV-CHK-race-deterministic",
+      "expected_assertions": [
+        {
+          "description": "after advancing frozen clock past reservation TTL and running sweep, order moves to 'payment-timeout' and stock_reserved decrements by 2",
+          "type": "state"
+        },
+        {
+          "description": "stock_available restored to original value",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'order.payment_timeout' emitted with reason='reservation_ttl_expired'",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-007",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Expired reservation TTL sweep releases stock",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "edge_case",
+        "ttl-expiry",
+        "reservation"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-TIME-T0-T+10min",
+        "FX-CLOCK-control"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-race-deterministic",
+      "expected_assertions": [
+        {
+          "description": "exactly 3 orders created in awaiting-payment; remaining 2 customers receive structured 'out_of_stock_at_confirm' error",
+          "type": "invariant"
+        },
+        {
+          "description": "P1.stock_available reaches 0 (not negative) at end of race",
+          "type": "invariant"
+        },
+        {
+          "description": "no customer-PII fields leak across error responses",
+          "type": "invariant"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-008",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Concurrent reservation on multi-unit (5 customers vs stock=3)",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "edge_case",
+        "race",
+        "multi-unit"
+      ],
+      "test_data_refs": [
+        "FX-CHK-stock-3",
+        "FX-CHK-five-customers",
+        "FX-CONCURRENCY-harness"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "submit fails with reason='coupon_expired' or 'coupon_invalid_at_confirm'",
+          "type": "error_response"
+        },
+        {
+          "description": "no order row created; no stock reservation taken",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-009",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Server re-validates coupon at submit (consistency with story-2)",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "error",
+        "server-revalidate",
+        "coupon"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-EXPIRED50",
+        "FX-CHK-cart-with-stale-coupon"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "100 sequential order_numbers all match /^ORD-\\d{8}-\\d{6}$/ and are pairwise distinct",
+          "type": "format"
+        },
+        {
+          "description": "order_numbers are NOT a tight sequential counter visible to client (gaps allowed; not trivially guessable - assert that consecutive order_numbers differ by >1 in at least 5% of samples, or are random within the 6-digit suffix space)",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-010",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "medium",
+      "scenario_ref": "Order number uniqueness and unguessability",
+      "scenario_type": "boundary",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "boundary",
+        "id-generation"
+      ],
+      "test_data_refs": [
+        "FX-CHK-bulk-100-orders"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "O1.status transitions awaiting-payment -> paid",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_reserved -2, P1.stock_sold +2",
+          "type": "state"
+        },
+        {
+          "description": "shipment_record created with order_id=O1, status='to-pack'",
+          "type": "state"
+        },
+        {
+          "description": "notification_log row 'payment.succeeded' inserted",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'order.payment_succeeded' emitted with 7 fields including before.status='awaiting-payment', after.status='paid'",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-001",
+      "owner": "SDET",
+      "pyramid_level": "e2e",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Successful payment moves order to paid and converts stock to sold",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "happy",
+        "payment-success"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-success",
+        "FX-ORDER-awaiting-payment-O1"
+      ],
+      "test_type": "e2e"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "O1.status transitions awaiting-payment -> payment-failed",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_reserved -2, P1.stock_available +2",
+          "type": "state"
+        },
+        {
+          "description": "no shipment_record exists for O1",
+          "type": "negative"
+        },
+        {
+          "description": "audit event 'order.payment_failed' emitted",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-002",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Failed payment releases stock and moves order to payment-failed",
+      "scenario_type": "error",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "error",
+        "payment-failed"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-failure",
+        "FX-ORDER-awaiting-payment-O1"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-race-deterministic",
+      "expected_assertions": [
+        {
+          "description": "O1.status transitions awaiting-payment -> payment-timeout after sweep runs past TTL",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_reserved -2, P1.stock_available +2",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'order.payment_timeout' emitted",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-003",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Timed-out payment releases stock and moves order to payment-timeout",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "edge_case",
+        "payment-timeout"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-no-signal",
+        "FX-ORDER-awaiting-payment-O1",
+        "FX-TIME-T0-T+10min",
+        "FX-CLOCK-control"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "after replay of provider_event_id='evt-001', O1.status remains 'paid' (no extra transition)",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_sold unchanged by replay (no second +2)",
+          "type": "state"
+        },
+        {
+          "description": "audit_sink contains exactly one 'order.payment_succeeded' event for O1 (not two)",
+          "type": "audit_event"
+        },
+        {
+          "description": "second webhook response equals first (same outcome body)",
+          "type": "response_equality"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-004",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Duplicate webhook callback does NOT double-effect",
+      "scenario_type": "banking_grade_idempotency",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "banking_grade_idempotency",
+        "webhook",
+        "replay-safety"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-success",
+        "FX-ORDER-paid-O1",
+        "FX-PSP-evt-001"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "O1 does NOT transition to 'paid'; remains in 'awaiting-payment' or moves to 'mismatch' sub-state",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'order.payment_mismatch_rejected' emitted with payload {expected:560, received:500}",
+          "type": "audit_event"
+        },
+        {
+          "description": "stock_sold not incremented; shipment_record not created",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-005",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Price-mismatch payment is rejected",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "error",
+        "price-mismatch"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-success-wrong-amount",
+        "FX-ORDER-awaiting-payment-560"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "for each outcome in {success, failure, timeout}, audit_sink emits one event whose payload contains exactly the 7 fields per AP-Q12: (1) event, (2) actor, (3) ts (ISO-8601), (4) before (prior status), (5) after (new status), (6) reason ('payment_signal'|'reservation_ttl_expired'), (7) idem_key (provider_event_id)",
+          "type": "audit_event"
+        },
+        {
+          "description": "no audit payload contains PAN, CVV, full card number, or password (PCI-out-of-scope allow-list)",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-006",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Compliance",
+      "risk_level": "critical",
+      "scenario_ref": "Payment audit event field enumeration (cross-outcome)",
+      "scenario_type": "banking_grade_audit",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "banking_grade_audit",
+        "payment"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-all-outcomes",
+        "FX-AUDIT-sink"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-4-002"
+      ],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "stock_available + stock_reserved + stock_sold equals pre-checkout total after reversal",
+          "type": "invariant"
+        },
+        {
+          "description": "no order leaks: every order whose latest payment outcome is 'failure' is in terminal 'payment-failed' (not stuck in awaiting-payment)",
+          "type": "state"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-007",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Payment reversibility — failure reverses reservation fully",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "banking_grade_reversibility",
+        "payment-failure"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-failure",
+        "FX-ORDER-awaiting-payment-O1"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "callback from an origin other than the configured mock PSP is rejected with HTTP 401 or 403",
+          "type": "authz"
+        },
+        {
+          "description": "no order state change occurs on rejected callback",
+          "type": "negative"
+        },
+        {
+          "description": "audit event 'webhook_authz_denied' emitted with caller_origin field",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-4-008",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Webhook origin authorization (mock provider signature)",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-4",
+      "tags": [
+        "banking_grade_authz",
+        "webhook-origin"
+      ],
+      "test_data_refs": [
+        "FX-PSP-mock-success",
+        "FX-PSP-rogue-signature"
+      ],
+      "test_type": "security"
+    }
+  ],
+  "test_data_specs": [
+    {
+      "fixture_set_id": "FX-CART-active-product",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Generate P1 with status=active, price=300 THB, stock_available=10; customer C1 with synthetic email animate90+c1@example.test (no real PII).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-customer-empty",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Customer C1 authenticated, cart empty, no prior orders.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-low-stock-product",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Product P1 with stock_available=5, status=active.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-paused-product-mid-session",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Product P1 starts active with cart line; admin action flips P1.status to paused at T0+30s. Frozen clock.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+30s"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-two-customers",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Customers C1 and C2 with separate carts and addresses; never share session.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-COUPON-WELCOME100",
+      "pii_field_refs": [],
+      "synthesis_rules": "Coupon code 'WELCOME100', fixed-THB=100, min-order=500, quota_remaining=1000, valid_from=T0-1d, valid_until=T0+30d.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-COUPON-SAVE10",
+      "pii_field_refs": [],
+      "synthesis_rules": "Coupon code 'SAVE10', percent=10, cap=300, min-order=0.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-COUPON-EXPIRED50",
+      "pii_field_refs": [],
+      "synthesis_rules": "Coupon 'EXPIRED50' with valid_until=T0-1h (already expired at submit).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0-1h"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-COUPON-WELCOME100-lowered-min",
+      "pii_field_refs": [],
+      "synthesis_rules": "Variant of WELCOME100 with min-order=50 to test clamp on subtotal=80.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-subtotal-600",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Cart configured so subtotal == 600 exactly (e.g. P1 price=300 qty=2).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-subtotal-4000",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Cart configured so subtotal == 4000 exactly.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-subtotal-80",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Cart with subtotal == 80 to exercise discount clamp.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-IDEM-key-coup-001",
+      "pii_field_refs": [],
+      "synthesis_rules": "Idempotency key 'ik-coup-001' derived from sha256(customer_id+coupon_code+frozen_seed='SEED-2026-05-12').",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-IDEM-key-chk-001",
+      "pii_field_refs": [],
+      "synthesis_rules": "Idempotency key 'ik-chk-001' derived from sha256(customer_id+cart_snapshot_hash+frozen_seed='SEED-2026-05-12'); reused across two submit calls.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-idem-key-001",
+      "pii_field_refs": [],
+      "synthesis_rules": "Idempotency key 'ik-cart-001' replayed twice on add-to-cart request.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-AUDIT-sink",
+      "pii_field_refs": [],
+      "synthesis_rules": "In-memory append-only audit sink with assert helpers for field-by-field event inspection and allow-list scans for forbidden fields (password, token, PAN, CVV).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-TIME-anchor-T0-T+1h",
+      "pii_field_refs": [],
+      "synthesis_rules": "Frozen clock harness; T0 fixed; advance to T0+1h for expiry tests.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+1h"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-TIME-T0",
+      "pii_field_refs": [],
+      "synthesis_rules": "Static T0 anchor for non-time-dependent tests.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-TIME-T0-T+5min",
+      "pii_field_refs": [],
+      "synthesis_rules": "Two-anchor frozen clock for short-window failure tests.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+5min"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-TIME-T0-T+10min",
+      "pii_field_refs": [],
+      "synthesis_rules": "Two-anchor frozen clock; T+10min crosses reservation TTL (assumed; TBD pending OQ-CART-reservation-ttl).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+10min"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CLOCK-control",
+      "pii_field_refs": [],
+      "synthesis_rules": "Programmatic clock-advance API used by sweep tests; supports advance(seconds) and reset().",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CONCURRENCY-harness",
+      "pii_field_refs": [],
+      "synthesis_rules": "Deterministic concurrency harness with controllable thread/coroutine scheduling and lock instrumentation; supports barrier-synced parallel submits.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-cart-P1q2",
+      "pii_field_refs": [
+        "customer_id",
+        "shipping_address"
+      ],
+      "synthesis_rules": "Customer C1 with valid cart of P1 qty=2, address A1 owned by C1, optional coupon WELCOME100.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-address-C1",
+      "pii_field_refs": [
+        "customer_id",
+        "shipping_address",
+        "phone"
+      ],
+      "synthesis_rules": "Synthetic address owned by C1 with non-real phone and address strings; address_id='addr-c1-001'.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-address-C2",
+      "pii_field_refs": [
+        "customer_id",
+        "shipping_address"
+      ],
+      "synthesis_rules": "Synthetic address owned by C2; used to attempt cross-owner reference from C1.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-customer-C1",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Authenticated session for customer C1 with bearer token.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-last-unit-P1",
+      "pii_field_refs": [],
+      "synthesis_rules": "Product P1 with stock_available=1 to drive race-resolution test.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-two-customers",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Customers C1 and C2 with identical cart state {P1 qty=1}.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-stock-3",
+      "pii_field_refs": [],
+      "synthesis_rules": "Product P1 stock_available=3.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-five-customers",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Five distinct synthetic customers C1..C5, each with P1 qty=1 in cart.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-cart-with-stale-coupon",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Cart with EXPIRED50 coupon applied at preview; clock advanced past coupon expiry before submit.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+1h"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-bulk-100-orders",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "100 sequential checkout submissions to inspect order_number generation distribution.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-ORDER-cancelled-pre-payment",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Order with WELCOME100 coupon applied, then cancelled before payment to drive quota-reversal test.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-ORDER-awaiting-payment-O1",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Order O1 in status='awaiting-payment' with P1 stock_reserved=2.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-ORDER-awaiting-payment-560",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Order O1 with grand_total=560, status='awaiting-payment'.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-ORDER-paid-O1",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Order O1 already transitioned to 'paid' via prior webhook for duplicate-callback test.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-mock-success",
+      "pii_field_refs": [],
+      "synthesis_rules": "Mock PSP webhook payload with outcome='success', amount matches order, provider_event_id='evt-001'. Synthetic credit-card payload (card_holder='TEST USER', card_last4='4242', no PAN/CVV captured by app per PCI-out-of-scope rule).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-mock-failure",
+      "pii_field_refs": [],
+      "synthesis_rules": "Mock PSP webhook with outcome='failure', reason_code='declined'.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-mock-no-signal",
+      "pii_field_refs": [],
+      "synthesis_rules": "Mock PSP that never delivers callback; used with FX-CLOCK-control to drive timeout sweep.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+10min"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-mock-success-wrong-amount",
+      "pii_field_refs": [],
+      "synthesis_rules": "Mock PSP webhook with outcome='success' but amount=500 vs order grand_total=560.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-mock-all-outcomes",
+      "pii_field_refs": [],
+      "synthesis_rules": "Three sibling payloads covering success/failure/timeout for parameterized audit-event test.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-evt-001",
+      "pii_field_refs": [],
+      "synthesis_rules": "Replay of provider_event_id='evt-001' for webhook idempotency test.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-rogue-signature",
+      "pii_field_refs": [],
+      "synthesis_rules": "Webhook call from a non-configured origin or with invalid signature header.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CART-customer-with-line",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Customer C1 with existing cart line P1 qty=2 and P1 stock_available=10.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    }
+  ],
+  "tl_design_dependencies": [
+    {
+      "description": "How idempotency keys are computed from request fields (customer_id, cart_snapshot_hash, client-supplied nonce or provider_event_id), the normalization rule, hash algorithm, and server-side storage TTL. Required so replay-safety tests can deterministically derive expected keys and assert correct matching across replays.",
+      "needed_by_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-1-005",
+        "TC-EPIC-CART-CHECKOUT-2-005",
+        "TC-EPIC-CART-CHECKOUT-3-003",
+        "TC-EPIC-CART-CHECKOUT-4-004"
+      ],
+      "type": "idempotency_key_derivation_rule"
+    },
+    {
+      "description": "Lock granularity for stock reservation: per-SKU row lock vs reservation-table advisory lock vs optimistic CAS; isolation level; deadlock policy; timeout. Required so the deterministic concurrency harness (ENV-CHK-race-deterministic) can wire lock-instrumentation probes and the race tests can assert lock acquisition order and resolution invariants.",
+      "needed_by_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-3-002",
+        "TC-EPIC-CART-CHECKOUT-3-007",
+        "TC-EPIC-CART-CHECKOUT-3-008"
+      ],
+      "type": "concurrency_primitive"
+    },
+    {
+      "description": "Standard error shape for payment/checkout failures: error code namespace, reason field, message-vs-code split, structured details, localization key. Required so error-path assertions reference stable codes (not prose strings) and so cross-test consistency can be verified.",
+      "needed_by_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-1-003",
+        "TC-EPIC-CART-CHECKOUT-2-003",
+        "TC-EPIC-CART-CHECKOUT-3-002",
+        "TC-EPIC-CART-CHECKOUT-3-005",
+        "TC-EPIC-CART-CHECKOUT-3-009",
+        "TC-EPIC-CART-CHECKOUT-4-005",
+        "TC-EPIC-CART-CHECKOUT-4-008"
+      ],
+      "type": "error_envelope"
+    }
+  ]
+}

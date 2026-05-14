@@ -1,0 +1,768 @@
+{
+  "compliance_tests": [
+    {
+      "blocking_governance_gaps": [
+        "CPA citation_status: pending"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-CPA_TH_DISCLOSURE-001",
+      "regulator_code": "CPA_TH_DISCLOSURE",
+      "scope": "Verify final price displayed pre-submit includes VAT + shipping per Consumer Protection Act truthful-pricing rule; no hidden surcharges added post-confirm.",
+      "test_type": "price-transparency"
+    },
+    {
+      "blocking_governance_gaps": [
+        "BA-citation-status-pending-CPA"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-CPA_TH_DISCLOSURE-001",
+      "regulator_code": "CPA_TH_DISCLOSURE",
+      "scope": "Consumer Protection Act: refund-timeline disclosure on cancellation (manual OOB) - customer-facing copy and notification must state expected refund window; OOB workflow documented.",
+      "test_type": "refund-disclosure"
+    },
+    {
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "pii_inventory_missing",
+        "regulatory_citation_unresolved"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-PDPA_TH_2019-101",
+      "regulator_code": "PDPA_TH_2019",
+      "scope": "Verify PII-redaction rule applied to all log surfaces per pii_inventory[*].masking_rule. Sample-based scan across audit log and notification log; zero leaks for always-masked fields (password, session_token); partial-mask pattern verified for phone/email in non-fulfilment surfaces; address scrubbed from authz_denied payloads.",
+      "test_type": "pii_redaction_in_logs"
+    },
+    {
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "pii_inventory_missing",
+        "regulatory_citation_unresolved"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-PDPA_TH_2019-102",
+      "regulator_code": "PDPA_TH_2019",
+      "scope": "Verify cross-border-transfer controls when mock-shipping or mock-payment endpoints route through non-Thailand regions. Residency-rule per pii_inventory enforced; transfer events audit-emitted with destination region recorded.",
+      "test_type": "cross_border_transfer"
+    },
+    {
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "regulatory_citation_unresolved"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-PDPA_TH_2019-103",
+      "regulator_code": "PDPA_TH_2019",
+      "scope": "Verify each processing activity (signup, order, review-submit, audit-read, notification-send, review-moderation) is annotated with a lawful basis (consent / contract / legitimate-interest / legal-obligation) and that the record-of-processing-activities export contains all activities.",
+      "test_type": "lawful_basis_record_per_processing_activity"
+    },
+    {
+      "blocking_governance_gaps": [
+        "TRC citation_status: pending",
+        "OQ-CART-tax-invoice-format"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-TRC_VAT_7PCT-001",
+      "regulator_code": "TRC_VAT_7PCT",
+      "scope": "Verify VAT line-item (7%) is displayed on receipts and order confirmation per Thai Revenue Code requirements for retail e-commerce.",
+      "test_type": "vat-receipt-display"
+    },
+    {
+      "blocking_governance_gaps": [
+        "BA-citation-status-pending-TRC"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-TRC_VAT_7PCT-001",
+      "regulator_code": "TRC_VAT_7PCT",
+      "scope": "Thai Revenue Code: 5-year accounting record retention for order, payment, audit-log artefacts; verify retention policy on audit rows for order state transitions and admin-cancel reasons.",
+      "test_type": "record-retention"
+    }
+  ],
+  "environments": [
+    {
+      "id": "ENV-CHK-e2e",
+      "purpose": "End-to-end env for checkout submit and payment callback flows: real order service, real stock reservation, real audit sink, mock PSP.",
+      "real_services": [
+        "order-service",
+        "cart-service",
+        "stock-reservation-service",
+        "postgres"
+      ],
+      "required_mocks": [
+        "mock-PSP-webhook-server",
+        "notification-log-sink",
+        "audit-sink"
+      ]
+    },
+    {
+      "id": "ENV-CHK-race-deterministic",
+      "purpose": "Deterministic concurrency env for race-condition and TTL-sweep tests; provides clock-control API, lock instrumentation, and barrier-synced parallel submit harness. Required for TC-3-002, TC-3-007, TC-3-008, TC-4-003.",
+      "real_services": [
+        "order-service",
+        "stock-reservation-service",
+        "postgres-with-isolation-level-instrumented"
+      ],
+      "required_mocks": [
+        "mock-PSP-webhook-server",
+        "frozen-clock",
+        "lock-instrumentation-probe",
+        "concurrency-harness"
+      ]
+    }
+  ],
+  "nfr_tests": [
+    {
+      "blocking_oqs": [
+        "OQ-CART-audit-sla"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-obs-001",
+      "metric": "audit_event_emission_rate_per_payment_outcome",
+      "nfr_type": "observability",
+      "target": "TBD pending OQ-CART-audit-sla"
+    },
+    {
+      "blocking_oqs": [
+        "OQ-CART-checkout-p95-target"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-perf-001",
+      "metric": "checkout_submit_p95_latency_ms",
+      "nfr_type": "performance",
+      "target": "TBD pending OQ-CART-checkout-p95-target"
+    },
+    {
+      "blocking_oqs": [
+        "OQ-CART-concurrent-load-target"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-perf-002",
+      "metric": "concurrent_checkout_race_resolution_no_oversell_under_N_concurrent",
+      "nfr_type": "performance",
+      "target": "TBD pending OQ-CART-concurrent-load-target"
+    },
+    {
+      "blocking_oqs": [
+        "OQ-CART-payment-retry-policy"
+      ],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-reliab-001",
+      "metric": "payment_retry_under_timeout_idempotency_preservation",
+      "nfr_type": "resilience",
+      "target": "TBD pending OQ-CART-payment-retry-policy"
+    },
+    {
+      "blocking_oqs": [],
+      "epic_id": "EPIC-CART-CHECKOUT",
+      "id": "NFR-EPIC-CART-CHECKOUT-sec-001",
+      "metric": "pan_scope_isolation_no_card_data_in_app_logs_or_audit",
+      "nfr_type": "security",
+      "target": "0 occurrences of PAN/CVV across audit-sink and app-log scans (PCI out-of-scope invariant)"
+    }
+  ],
+  "source": "re-extracted from output-normalized.json with STORY-3-scoped fixtures + epic-level COMP",
+  "story": {
+    "blocking_oqs": [
+      "OQ-CART-checkout-p95-target",
+      "OQ-CART-reservation-ttl"
+    ],
+    "coverage_status": "partial",
+    "epic_id": "EPIC-CART-CHECKOUT",
+    "qa_effort_estimate": {
+      "compliance_hours": 3,
+      "manual_hours": 6,
+      "perf_hours": 8,
+      "sdet_hours": 28
+    },
+    "story_id": "EPIC-CART-CHECKOUT-3",
+    "test_case_ids": [
+      "TC-EPIC-CART-CHECKOUT-3-001",
+      "TC-EPIC-CART-CHECKOUT-3-002",
+      "TC-EPIC-CART-CHECKOUT-3-003",
+      "TC-EPIC-CART-CHECKOUT-3-004",
+      "TC-EPIC-CART-CHECKOUT-3-005",
+      "TC-EPIC-CART-CHECKOUT-3-006",
+      "TC-EPIC-CART-CHECKOUT-3-007",
+      "TC-EPIC-CART-CHECKOUT-3-008",
+      "TC-EPIC-CART-CHECKOUT-3-009",
+      "TC-EPIC-CART-CHECKOUT-3-010"
+    ]
+  },
+  "story_id": "EPIC-CART-CHECKOUT-3",
+  "test_cases": [
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "P1.stock_available transitions 5 -> 3 (delta -2)",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_reserved increases by 2",
+          "type": "state"
+        },
+        {
+          "description": "order row created with status='awaiting-payment' and grand_total matching server recompute",
+          "type": "state"
+        },
+        {
+          "description": "order.number matches /^ORD-\\d{8}-\\d{6}$/ and is unique across DB",
+          "type": "format"
+        },
+        {
+          "description": "order_line snapshot captures price, name, sku at submit time (frozen vs current product fields)",
+          "type": "snapshot"
+        },
+        {
+          "description": "audit_sink contains 'order.created' event with the 7 audit fields (event,actor,ts,before,after,reason,idem_key)",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-001",
+      "owner": "SDET",
+      "pyramid_level": "e2e",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Successful checkout reserves stock and creates order in awaiting-payment",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "happy",
+        "checkout-submit"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-CHK-address-C1",
+        "FX-TIME-T0"
+      ],
+      "test_type": "e2e"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-3-001"
+      ],
+      "environment_ref": "ENV-CHK-race-deterministic",
+      "expected_assertions": [
+        {
+          "description": "exactly one of {O_C1, O_C2} exists with status='awaiting-payment'; the other does not exist",
+          "type": "state"
+        },
+        {
+          "description": "the losing customer receives a structured error referencing P1 by id; no PII of the winning customer is leaked",
+          "type": "error_response"
+        },
+        {
+          "description": "P1.stock_available >= 0 at every observed step (no negative reading)",
+          "type": "invariant"
+        },
+        {
+          "description": "P1.stock_reserved + P1.stock_available + P1.stock_sold == initial total across the race window",
+          "type": "invariant"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-002",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Race-resolution on last unit — only one customer wins",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "edge_case",
+        "race",
+        "last-unit",
+        "concurrency"
+      ],
+      "test_data_refs": [
+        "FX-CHK-last-unit-P1",
+        "FX-CHK-two-customers",
+        "FX-CONCURRENCY-harness"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "exactly one order row exists for idempotency_key='ik-chk-001'; second submit returns existing order_id without DB insert",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_reserved equals the single-reservation value (not doubled) after replay",
+          "type": "state"
+        },
+        {
+          "description": "second submit response body equals first response (order_id, grand_total, status all identical)",
+          "type": "response_equality"
+        },
+        {
+          "description": "only one 'order.created' audit event is emitted across the two calls (no duplicate)",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-003",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Idempotent submit against double-click produces one order",
+      "scenario_type": "banking_grade_idempotency",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_idempotency",
+        "checkout",
+        "replay-safety"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-IDEM-key-chk-001"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "audit_sink contains exactly one event with 7 fields enumerated: (1) event=='order.created', (2) actor=='customer:C1', (3) ts is valid ISO-8601 within +/-2s of submit time, (4) before==null, (5) after=={order_id:<uuid>, grand_total:<int>}, (6) reason=='checkout_submit', (7) idem_key matches request header (AP-Q12)",
+          "type": "audit_event"
+        },
+        {
+          "description": "audit payload does NOT contain any of: password, token, card_number, pan, cvv, full_address_line, phone_number (allow-list assertion)",
+          "type": "negative"
+        },
+        {
+          "description": "audit event is durably written before the API response is returned (write-before-respond invariant)",
+          "type": "ordering"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-004",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Compliance",
+      "risk_level": "critical",
+      "scenario_ref": "Order creation emits audit event with required payload",
+      "scenario_type": "banking_grade_audit",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_audit",
+        "order-created"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-AUDIT-sink"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "HTTP 403 (or domain error 'address_not_owned') returned when C1 references address A owned by C2",
+          "type": "authz"
+        },
+        {
+          "description": "no order row created; no stock reservation taken; no notification sent",
+          "type": "negative"
+        },
+        {
+          "description": "audit event 'authz_denied' emitted with actor='customer:C1', resource='address:A', reason='cross_owner_access'",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-005",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Address from another customer is rejected",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_authz",
+        "ownership",
+        "checkout"
+      ],
+      "test_data_refs": [
+        "FX-CHK-address-C2",
+        "FX-CHK-customer-C1",
+        "FX-AUDIT-sink"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-3-001"
+      ],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "on payment failure signal, stock_reserved decremented and stock_available restored to pre-checkout value (no leak)",
+          "type": "state"
+        },
+        {
+          "description": "order transitions awaiting-payment -> payment-failed; no order row leaks in awaiting-payment indefinitely",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'order.payment_failed' emitted with before.status='awaiting-payment', after.status='payment-failed'",
+          "type": "audit_event"
+        },
+        {
+          "description": "stock_available + stock_reserved + stock_sold conservation holds across the reversal",
+          "type": "invariant"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-006",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "critical",
+      "scenario_ref": "Payment failure releases reservation (reversibility on checkout-side)",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "banking_grade_reversibility",
+        "release-on-fail"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-PSP-mock-failure",
+        "FX-TIME-T0-T+5min"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-CART-CHECKOUT-3-001"
+      ],
+      "environment_ref": "ENV-CHK-race-deterministic",
+      "expected_assertions": [
+        {
+          "description": "after advancing frozen clock past reservation TTL and running sweep, order moves to 'payment-timeout' and stock_reserved decrements by 2",
+          "type": "state"
+        },
+        {
+          "description": "stock_available restored to original value",
+          "type": "state"
+        },
+        {
+          "description": "audit event 'order.payment_timeout' emitted with reason='reservation_ttl_expired'",
+          "type": "audit_event"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-007",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Expired reservation TTL sweep releases stock",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "edge_case",
+        "ttl-expiry",
+        "reservation"
+      ],
+      "test_data_refs": [
+        "FX-CHK-cart-P1q2",
+        "FX-TIME-T0-T+10min",
+        "FX-CLOCK-control"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-race-deterministic",
+      "expected_assertions": [
+        {
+          "description": "exactly 3 orders created in awaiting-payment; remaining 2 customers receive structured 'out_of_stock_at_confirm' error",
+          "type": "invariant"
+        },
+        {
+          "description": "P1.stock_available reaches 0 (not negative) at end of race",
+          "type": "invariant"
+        },
+        {
+          "description": "no customer-PII fields leak across error responses",
+          "type": "invariant"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-008",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "Payment-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Concurrent reservation on multi-unit (5 customers vs stock=3)",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "edge_case",
+        "race",
+        "multi-unit"
+      ],
+      "test_data_refs": [
+        "FX-CHK-stock-3",
+        "FX-CHK-five-customers",
+        "FX-CONCURRENCY-harness"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "submit fails with reason='coupon_expired' or 'coupon_invalid_at_confirm'",
+          "type": "error_response"
+        },
+        {
+          "description": "no order row created; no stock reservation taken",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-009",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "high",
+      "scenario_ref": "Server re-validates coupon at submit (consistency with story-2)",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "error",
+        "server-revalidate",
+        "coupon"
+      ],
+      "test_data_refs": [
+        "FX-COUPON-EXPIRED50",
+        "FX-CHK-cart-with-stale-coupon"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "environment_ref": "ENV-CHK-e2e",
+      "expected_assertions": [
+        {
+          "description": "100 sequential order_numbers all match /^ORD-\\d{8}-\\d{6}$/ and are pairwise distinct",
+          "type": "format"
+        },
+        {
+          "description": "order_numbers are NOT a tight sequential counter visible to client (gaps allowed; not trivially guessable - assert that consecutive order_numbers differ by >1 in at least 5% of samples, or are random within the 6-digit suffix space)",
+          "type": "negative"
+        }
+      ],
+      "id": "TC-EPIC-CART-CHECKOUT-3-010",
+      "owner": "SDET",
+      "pyramid_level": "integration",
+      "reviewer_role": "QA-Lead",
+      "risk_level": "medium",
+      "scenario_ref": "Order number uniqueness and unguessability",
+      "scenario_type": "boundary",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-CART-CHECKOUT-3",
+      "tags": [
+        "boundary",
+        "id-generation"
+      ],
+      "test_data_refs": [
+        "FX-CHK-bulk-100-orders"
+      ],
+      "test_type": "functional"
+    }
+  ],
+  "test_data_specs": [
+    {
+      "fixture_set_id": "FX-AUDIT-sink",
+      "pii_field_refs": [],
+      "synthesis_rules": "In-memory append-only audit sink with assert helpers for field-by-field event inspection and allow-list scans for forbidden fields (password, token, PAN, CVV).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-address-C1",
+      "pii_field_refs": [
+        "customer_id",
+        "shipping_address",
+        "phone"
+      ],
+      "synthesis_rules": "Synthetic address owned by C1 with non-real phone and address strings; address_id='addr-c1-001'.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-address-C2",
+      "pii_field_refs": [
+        "customer_id",
+        "shipping_address"
+      ],
+      "synthesis_rules": "Synthetic address owned by C2; used to attempt cross-owner reference from C1.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-bulk-100-orders",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "100 sequential checkout submissions to inspect order_number generation distribution.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-cart-P1q2",
+      "pii_field_refs": [
+        "customer_id",
+        "shipping_address"
+      ],
+      "synthesis_rules": "Customer C1 with valid cart of P1 qty=2, address A1 owned by C1, optional coupon WELCOME100.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-cart-with-stale-coupon",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Cart with EXPIRED50 coupon applied at preview; clock advanced past coupon expiry before submit.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+1h"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-customer-C1",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Authenticated session for customer C1 with bearer token.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-five-customers",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Five distinct synthetic customers C1..C5, each with P1 qty=1 in cart.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-last-unit-P1",
+      "pii_field_refs": [],
+      "synthesis_rules": "Product P1 with stock_available=1 to drive race-resolution test.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-stock-3",
+      "pii_field_refs": [],
+      "synthesis_rules": "Product P1 stock_available=3.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CHK-two-customers",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Customers C1 and C2 with identical cart state {P1 qty=1}.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CLOCK-control",
+      "pii_field_refs": [],
+      "synthesis_rules": "Programmatic clock-advance API used by sweep tests; supports advance(seconds) and reset().",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-CONCURRENCY-harness",
+      "pii_field_refs": [],
+      "synthesis_rules": "Deterministic concurrency harness with controllable thread/coroutine scheduling and lock instrumentation; supports barrier-synced parallel submits.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-COUPON-EXPIRED50",
+      "pii_field_refs": [],
+      "synthesis_rules": "Coupon 'EXPIRED50' with valid_until=T0-1h (already expired at submit).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0-1h"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-IDEM-key-chk-001",
+      "pii_field_refs": [],
+      "synthesis_rules": "Idempotency key 'ik-chk-001' derived from sha256(customer_id+cart_snapshot_hash+frozen_seed='SEED-2026-05-12'); reused across two submit calls.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-PSP-mock-failure",
+      "pii_field_refs": [],
+      "synthesis_rules": "Mock PSP webhook with outcome='failure', reason_code='declined'.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-TIME-T0",
+      "pii_field_refs": [],
+      "synthesis_rules": "Static T0 anchor for non-time-dependent tests.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-TIME-T0-T+10min",
+      "pii_field_refs": [],
+      "synthesis_rules": "Two-anchor frozen clock; T+10min crosses reservation TTL (assumed; TBD pending OQ-CART-reservation-ttl).",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+10min"
+      ]
+    },
+    {
+      "fixture_set_id": "FX-TIME-T0-T+5min",
+      "pii_field_refs": [],
+      "synthesis_rules": "Two-anchor frozen clock for short-window failure tests.",
+      "time_anchors": [
+        "T0=2026-05-12T09:00:00+07:00",
+        "T0+5min"
+      ]
+    }
+  ]
+}

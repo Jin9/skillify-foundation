@@ -1,0 +1,1436 @@
+{
+  "compliance_tests": [
+    {
+      "blocking_governance_gaps": [
+        "BA-citation-status-pending-TRC"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-TRC_VAT_7PCT-001",
+      "regulator_code": "TRC_VAT_7PCT",
+      "scope": "Thai Revenue Code: 5-year accounting record retention for order, payment, audit-log artefacts; verify retention policy on audit rows for order state transitions and admin-cancel reasons.",
+      "test_type": "record-retention"
+    },
+    {
+      "blocking_governance_gaps": [
+        "BA-citation-status-pending-CPA"
+      ],
+      "compliance_scope_blocked": true,
+      "id": "COMP-CPA_TH_DISCLOSURE-001",
+      "regulator_code": "CPA_TH_DISCLOSURE",
+      "scope": "Consumer Protection Act: refund-timeline disclosure on cancellation (manual OOB) - customer-facing copy and notification must state expected refund window; OOB workflow documented.",
+      "test_type": "refund-disclosure"
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "description": "State-machine model not yet committed by TL: allowed transition matrix (awaiting_payment, paid, packing, shipped, delivered, cancelled), terminal states, and compensation-hook spec required to finalise invalid-transition test matrix.",
+      "escalation_target": "TL",
+      "required_action": "TL to publish state-machine spec (transition table + terminal-set + compensation hooks) and link to story EPIC-ORDER-FULFILL-1.",
+      "severity": "P1",
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "type": "missing-tl-design"
+    },
+    {
+      "description": "Compensation-hook specification (stock-restore semantics, OOB notification contract, manual-refund operator endpoint shape) not yet committed by TL.",
+      "escalation_target": "TL",
+      "required_action": "TL to publish compensation-hook spec covering stock-restore atomicity and OOB-refund notification payload contract.",
+      "severity": "P1",
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "type": "missing-tl-design"
+    },
+    {
+      "description": "Order-tracking p95 latency target not specified (AP-Q9: no invented thresholds).",
+      "escalation_target": "BA",
+      "required_action": "BA to specify p95 latency target for order-detail GET; default placeholder 'TBD pending OQ-NFR-perf-fulfil'.",
+      "severity": "P2",
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "type": "missing-nfr-target"
+    },
+    {
+      "description": "State-machine reliability target (acceptable retry-storm error rate, skipped-state tolerance) not specified.",
+      "escalation_target": "BA",
+      "required_action": "BA / TL to specify retry-storm tolerance and zero-skipped-state acceptance criterion.",
+      "severity": "P2",
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "type": "missing-nfr-target"
+    },
+    {
+      "description": "BA citation_status: pending for TRC (5-year accounting retention) and CPA (refund-timeline disclosure). Compliance tests are scope-blocked until citations land.",
+      "escalation_target": "Compliance",
+      "required_action": "BA / Compliance to confirm regulator citations (TRC section reference, CPA section reference) before COMP-TRC-001 and COMP-CPA-001 can be unblocked.",
+      "severity": "P1",
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "type": "missing-compliance"
+    },
+    {
+      "description": "BA notes customer self-reads 'typically logged but not as audit (decision noted as P2 OQ)'. Renderer treats as info-log not audit; requires BA confirmation.",
+      "escalation_target": "BA",
+      "required_action": "BA to confirm whether customer self-read on own order requires audit row.",
+      "severity": "P2",
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "type": "ambiguous-requirement"
+    }
+  ],
+  "environments": [
+    {
+      "id": "env-integration-fulfil",
+      "purpose": "Integration tests for order state machine, audit emission, authz, idempotency - in-process service with mocked payment gateway and real audit-log DB.",
+      "real_services": [
+        "order-service",
+        "stock-service",
+        "audit-log-store",
+        "rbac-service"
+      ],
+      "required_mocks": [
+        "payment-gateway-mock",
+        "notification-channel-mock"
+      ]
+    },
+    {
+      "id": "env-e2e-fulfil",
+      "purpose": "End-to-end browser tests for customer order-detail page, status timeline render, OOB refund operator workflow.",
+      "real_services": [
+        "order-service",
+        "stock-service",
+        "audit-log-store",
+        "rbac-service",
+        "web-frontend",
+        "notification-service"
+      ],
+      "required_mocks": [
+        "payment-gateway-mock"
+      ]
+    }
+  ],
+  "epic": {
+    "critical_paths": [
+      "Order state machine: paid -> packing -> shipped -> delivered (forward-only, irreversible)",
+      "Admin-cancel before packing with stock restoration and manual-refund OOB notification",
+      "Shipped transition mandatory tracking_number capture and customer-facing tracking display",
+      "Customer order-detail snapshot integrity (price/address immutability per 6.8)",
+      "Cross-tenant authz: customer A cannot read customer B's order",
+      "Audit emission on every status flip with 7 mandatory fields (actor, action, before, after, ts, idem_key, subject_id)"
+    ],
+    "epic_id": "EPIC-ORDER-FULFILL",
+    "stakeholder_owners": [
+      "qa-lead@merchant",
+      "ops-admin@merchant",
+      "compliance@merchant",
+      "tl-fulfilment@merchant"
+    ],
+    "test_tier": "T2"
+  },
+  "execution_dag_edges": [
+    {
+      "from": "n-1-001",
+      "kind": "ordering",
+      "to": "n-1-002"
+    },
+    {
+      "from": "n-1-001",
+      "kind": "ordering",
+      "to": "n-1-003"
+    },
+    {
+      "from": "n-1-003",
+      "kind": "ordering",
+      "to": "n-1-005"
+    },
+    {
+      "from": "n-1-003",
+      "kind": "ordering",
+      "to": "n-1-007"
+    },
+    {
+      "from": "n-1-005",
+      "kind": "ordering",
+      "to": "n-1-008"
+    },
+    {
+      "from": "n-1-001",
+      "kind": "ordering",
+      "to": "n-1-009"
+    },
+    {
+      "from": "n-1-001",
+      "kind": "data",
+      "to": "n-1-012"
+    },
+    {
+      "from": "n-1-003",
+      "kind": "data",
+      "to": "n-1-012"
+    },
+    {
+      "from": "n-1-005",
+      "kind": "data",
+      "to": "n-1-012"
+    },
+    {
+      "from": "n-2-001",
+      "kind": "ordering",
+      "to": "n-2-004"
+    },
+    {
+      "from": "n-2-004",
+      "kind": "ordering",
+      "to": "n-2-005"
+    },
+    {
+      "from": "n-2-001",
+      "kind": "data",
+      "to": "n-2-006"
+    },
+    {
+      "from": "n-2-001",
+      "kind": "ordering",
+      "to": "n-2-008"
+    },
+    {
+      "from": "n-3-001",
+      "kind": "ordering",
+      "to": "n-3-005"
+    },
+    {
+      "from": "n-3-001",
+      "kind": "ordering",
+      "to": "n-3-006"
+    }
+  ],
+  "execution_dag_nodes": [
+    {
+      "id": "n-1-001",
+      "label": "paid->packing happy",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-001"
+    },
+    {
+      "id": "n-1-002",
+      "label": "audit 7-field on packing",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-002"
+    },
+    {
+      "id": "n-1-003",
+      "label": "packing->shipped happy",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-003"
+    },
+    {
+      "id": "n-1-004",
+      "label": "shipped without tracking rejected",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-004"
+    },
+    {
+      "id": "n-1-005",
+      "label": "shipped->delivered happy",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-005"
+    },
+    {
+      "id": "n-1-006",
+      "label": "backward shipped->packing rejected",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-006"
+    },
+    {
+      "id": "n-1-007",
+      "label": "paid->shipping irreversible",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-007"
+    },
+    {
+      "id": "n-1-008",
+      "label": "delivered terminal",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-008"
+    },
+    {
+      "id": "n-1-009",
+      "label": "idempotent replay",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-009"
+    },
+    {
+      "id": "n-1-010",
+      "label": "admin-only authz",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-010"
+    },
+    {
+      "id": "n-1-011",
+      "label": "AP-Q11 copy review",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-011"
+    },
+    {
+      "id": "n-1-012",
+      "label": "audit contract",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-1-012"
+    },
+    {
+      "id": "n-2-001",
+      "label": "admin-cancel happy + stock restore",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-001"
+    },
+    {
+      "id": "n-2-002",
+      "label": "cancel no reason rejected",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-002"
+    },
+    {
+      "id": "n-2-003",
+      "label": "cancel after packing rejected",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-003"
+    },
+    {
+      "id": "n-2-004",
+      "label": "OOB refund expectation captured",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-004"
+    },
+    {
+      "id": "n-2-005",
+      "label": "OOB refund operator workflow",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-005"
+    },
+    {
+      "id": "n-2-006",
+      "label": "audit on admin-cancel",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-006"
+    },
+    {
+      "id": "n-2-007",
+      "label": "admin-only cancel authz",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-007"
+    },
+    {
+      "id": "n-2-008",
+      "label": "idempotent admin-cancel",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-2-008"
+    },
+    {
+      "id": "n-3-001",
+      "label": "customer self-read happy",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-3-001"
+    },
+    {
+      "id": "n-3-002",
+      "label": "snapshot immutability",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-3-002"
+    },
+    {
+      "id": "n-3-003",
+      "label": "cross-customer denied",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-3-003"
+    },
+    {
+      "id": "n-3-004",
+      "label": "customer cannot advance state",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-3-004"
+    },
+    {
+      "id": "n-3-005",
+      "label": "PII owner-only render",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-3-005"
+    },
+    {
+      "id": "n-3-006",
+      "label": "status timeline truthful",
+      "test_case_ref": "TC-EPIC-ORDER-FULFILL-3-006"
+    }
+  ],
+  "nfr_tests": [
+    {
+      "blocking_oqs": [
+        "OQ-NFR-perf-fulfil"
+      ],
+      "epic_id": "EPIC-ORDER-FULFILL",
+      "id": "NFR-EPIC-ORDER-FULFILL-perf-001",
+      "metric": "order tracking / order-detail page p95 latency (customer-facing GET)",
+      "nfr_type": "performance",
+      "target": "TBD pending OQ-NFR-perf-fulfil"
+    },
+    {
+      "blocking_oqs": [
+        "OQ-NFR-reliab-fulfil"
+      ],
+      "epic_id": "EPIC-ORDER-FULFILL",
+      "id": "NFR-EPIC-ORDER-FULFILL-reliab-001",
+      "metric": "state-machine consistency under client retry / network partition; no skipped intermediate states observed across 1000 simulated retries",
+      "nfr_type": "resilience",
+      "target": "TBD pending OQ-NFR-reliab-fulfil (acceptance: zero skipped-state events; zero out-of-order audit rows)"
+    },
+    {
+      "blocking_oqs": [],
+      "epic_id": "EPIC-ORDER-FULFILL",
+      "id": "NFR-EPIC-ORDER-FULFILL-a11y-001",
+      "metric": "order tracking page WCAG 2.1 AA conformance (customer-facing)",
+      "nfr_type": "accessibility",
+      "target": "WCAG 2.1 AA - zero Critical, zero Serious axe-core violations; status timeline screen-reader announces transitions in order"
+    }
+  ],
+  "stories": [
+    {
+      "blocking_oqs": [
+        "BA-OQ-citation-status-pending",
+        "TL-state-machine-model-pending"
+      ],
+      "coverage_status": "partial",
+      "epic_id": "EPIC-ORDER-FULFILL",
+      "qa_effort_estimate": {
+        "compliance_hours": 3,
+        "manual_hours": 6,
+        "perf_hours": 4,
+        "sdet_hours": 22
+      },
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "test_case_ids": [
+        "TC-EPIC-ORDER-FULFILL-1-001",
+        "TC-EPIC-ORDER-FULFILL-1-002",
+        "TC-EPIC-ORDER-FULFILL-1-003",
+        "TC-EPIC-ORDER-FULFILL-1-004",
+        "TC-EPIC-ORDER-FULFILL-1-005",
+        "TC-EPIC-ORDER-FULFILL-1-006",
+        "TC-EPIC-ORDER-FULFILL-1-007",
+        "TC-EPIC-ORDER-FULFILL-1-008",
+        "TC-EPIC-ORDER-FULFILL-1-009",
+        "TC-EPIC-ORDER-FULFILL-1-010",
+        "TC-EPIC-ORDER-FULFILL-1-011",
+        "TC-EPIC-ORDER-FULFILL-1-012"
+      ]
+    },
+    {
+      "blocking_oqs": [
+        "BA-OQ-citation-status-pending",
+        "TL-compensation-hook-spec-pending"
+      ],
+      "coverage_status": "partial",
+      "epic_id": "EPIC-ORDER-FULFILL",
+      "qa_effort_estimate": {
+        "compliance_hours": 4,
+        "manual_hours": 4,
+        "perf_hours": 0,
+        "sdet_hours": 16
+      },
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "test_case_ids": [
+        "TC-EPIC-ORDER-FULFILL-2-001",
+        "TC-EPIC-ORDER-FULFILL-2-002",
+        "TC-EPIC-ORDER-FULFILL-2-003",
+        "TC-EPIC-ORDER-FULFILL-2-004",
+        "TC-EPIC-ORDER-FULFILL-2-005",
+        "TC-EPIC-ORDER-FULFILL-2-006",
+        "TC-EPIC-ORDER-FULFILL-2-007",
+        "TC-EPIC-ORDER-FULFILL-2-008"
+      ]
+    },
+    {
+      "blocking_oqs": [],
+      "coverage_status": "complete",
+      "epic_id": "EPIC-ORDER-FULFILL",
+      "qa_effort_estimate": {
+        "compliance_hours": 1,
+        "manual_hours": 3,
+        "perf_hours": 2,
+        "sdet_hours": 10
+      },
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "test_case_ids": [
+        "TC-EPIC-ORDER-FULFILL-3-001",
+        "TC-EPIC-ORDER-FULFILL-3-002",
+        "TC-EPIC-ORDER-FULFILL-3-003",
+        "TC-EPIC-ORDER-FULFILL-3-004",
+        "TC-EPIC-ORDER-FULFILL-3-005",
+        "TC-EPIC-ORDER-FULFILL-3-006"
+      ]
+    }
+  ],
+  "test_cases": [
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "order O1.status transitions from 'paid' to 'packing' atomically",
+          "type": "state"
+        },
+        {
+          "description": "audit row 'order.status_changed' written with before='paid', after='packing', actor='admin:aoy'",
+          "type": "audit"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-001",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Advance paid order to packing",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "state-machine",
+        "transition-paid-to-packing"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [
+        "PDPA-art-39",
+        "TRC-record-keeping"
+      ],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-1-001"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "audit event contains all 7 mandatory fields: actor, action, subject_id, before_state, after_state, ts (ISO-8601 UTC), idem_key",
+          "type": "audit-fields"
+        },
+        {
+          "description": "audit row insert-only; no UPDATE/DELETE permitted on audit table",
+          "type": "audit-immutability"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-002",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Advance paid order to packing",
+      "scenario_type": "banking_grade_audit",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "banking_grade_audit",
+        "AP-Q12"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-1-001"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "order O1.status='shipped' and O1.tracking_number='TH123456789' persisted",
+          "type": "state"
+        },
+        {
+          "description": "audit row 'order.status_changed' before='packing', after='shipped' with tracking_number captured",
+          "type": "audit"
+        },
+        {
+          "description": "customer order-detail page renders tracking_number after transition",
+          "type": "ui"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-003",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Shipped transition requires tracking number",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "state-machine",
+        "transition-packing-to-shipped"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-tracking-numbers"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "response returns field-level error code 'tracking_number_required'",
+          "type": "error"
+        },
+        {
+          "description": "O1 remains in 'packing' (no transition persisted)",
+          "type": "state"
+        },
+        {
+          "description": "no 'order.status_changed' audit row created; only optional authz_denied/validation log",
+          "type": "audit"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-004",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "unit",
+      "reviewer_role": "qa-lead",
+      "risk_level": "medium",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Shipped transition without tracking number is rejected",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "state-machine",
+        "validation",
+        "field-required"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-1-003"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "order O1 transitions from 'shipped' to 'delivered'; delivered is terminal",
+          "type": "state"
+        },
+        {
+          "description": "audit row before='shipped', after='delivered' with all 7 fields",
+          "type": "audit"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-005",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Shipped transition happy::packing->shipped",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "state-machine",
+        "transition-shipped-to-delivered"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-tracking-numbers"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "attempt to move O1 from 'shipped' back to 'packing' rejected with reason='invalid_transition'",
+          "type": "error"
+        },
+        {
+          "description": "O1 remains in 'shipped'",
+          "type": "state"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-006",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "unit",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Backward transition is rejected",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "state-machine",
+        "invalid-transition",
+        "irreversible"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-1-003"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "no API endpoint exists to move status from 'shipped' back to 'packing' or 'paid'; attempt returns 'invalid_transition'",
+          "type": "no-api-reverse"
+        },
+        {
+          "description": "system documents that post-shipped corrections are OOB manual (no auto-compensation)",
+          "type": "compensating-action"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-007",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Irreversibility - paid->shipping cannot be reversed",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "banking_grade_reversibility",
+        "irreversible",
+        "no-api-reverse"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-1-005"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "cancel request on delivered order rejected with reason='order_terminal'",
+          "type": "error"
+        },
+        {
+          "description": "O1 remains in 'delivered' (terminal)",
+          "type": "state"
+        },
+        {
+          "description": "this transition cannot be reversed via API - documented and tested",
+          "type": "explicit-doc"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-008",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "unit",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Delivered terminal - re-cancel rejected",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "banking_grade_reversibility",
+        "terminal-state",
+        "no-api-reverse"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-1-001"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "after replay with same idem_key='ik-fulfil-001', O1 remains in 'packing'",
+          "type": "state"
+        },
+        {
+          "description": "exactly one audit row exists for the transition; replay does NOT emit duplicate",
+          "type": "audit-dedup"
+        },
+        {
+          "description": "replay returns the original stored response payload (same body, same idempotent outcome)",
+          "type": "response"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-009",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "qa-lead",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Idempotent transition replay produces no duplicate audit",
+      "scenario_type": "banking_grade_idempotency",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "banking_grade_idempotency",
+        "replay-safe"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-idem-keys"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [
+        "PDPA-art-37"
+      ],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "customer-role attempt to call state-advance endpoint returns HTTP 403",
+          "type": "authz"
+        },
+        {
+          "description": "O1 state unchanged after customer attempt",
+          "type": "state"
+        },
+        {
+          "description": "authz_denied audit row emitted with actor (customer), attempted action, subject",
+          "type": "audit"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-010",
+      "owner": "security-tester",
+      "pyramid_level": "integration",
+      "reviewer_role": "security-tester",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Admin-only state advancement",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "banking_grade_authz",
+        "rbac",
+        "admin-only"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-users-roles"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "invalid_transition and order_terminal error copy contains no regulatory state hints (status copy is operational only per BA tipping_off=not_applicable)",
+          "type": "copy-review"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-011",
+      "owner": "security-tester",
+      "pyramid_level": "integration",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "medium",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::AP-Q11 no tipping-off in transition errors",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "AP-Q11",
+        "no-tipping-off",
+        "error-copy-review"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [
+        "TRC-record-keeping"
+      ],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-1-001",
+        "TC-EPIC-ORDER-FULFILL-1-003",
+        "TC-EPIC-ORDER-FULFILL-1-005"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "for each transition (paid->packing, packing->shipped, shipped->delivered) audit JSON validates against the 7-field schema (actor, action, subject_id, before_state, after_state, ts, idem_key)",
+          "type": "schema"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-1-012",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "contract",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-1::Audit field contract on every flip",
+      "scenario_type": "banking_grade_audit",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-1",
+      "tags": [
+        "banking_grade_audit",
+        "contract",
+        "AP-Q12"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "contract"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "O1 transitions from 'paid' to 'cancelled'",
+          "type": "state"
+        },
+        {
+          "description": "P1.stock_sold decreased by 2; P1.stock_available increased by 2 (compensation hook executed)",
+          "type": "stock"
+        },
+        {
+          "description": "audit row 'order.admin_cancelled' before='paid', after='cancelled', reason='customer_phone_request' captured",
+          "type": "audit"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-001",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::Admin cancels paid order with reason and stock restores",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "state-machine",
+        "admin-cancel",
+        "stock-restore"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-stock-ledger"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "request rejected with reason='cancel_reason_required'",
+          "type": "error"
+        },
+        {
+          "description": "O1 remains in 'paid'",
+          "type": "state"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-002",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "unit",
+      "reviewer_role": "qa-lead",
+      "risk_level": "medium",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::Admin cancel without reason is rejected",
+      "scenario_type": "error",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "validation",
+        "field-required"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "request rejected with reason='cannot_cancel_after_packing'",
+          "type": "error"
+        },
+        {
+          "description": "O1 remains in 'packing'",
+          "type": "state"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-003",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "unit",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::Cannot cancel after packing has started",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "state-machine",
+        "invalid-transition",
+        "boundary"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "functional"
+    },
+    {
+      "compliance_tags": [
+        "CPA-refund-disclosure"
+      ],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-2-001"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "audit row records prior payment captured (money taken) - compensation required OOB",
+          "type": "audit"
+        },
+        {
+          "description": "no payment gateway refund API is invoked by the system on cancellation",
+          "type": "no-auto-refund"
+        },
+        {
+          "description": "notification log row 'order.cancelled' created for Finance team to disburse manually",
+          "type": "notification"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-004",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::Manual refund expectation captured but NOT auto-disbursed",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "banking_grade_reversibility",
+        "out-of-band-refund",
+        "compensating-action"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-payment-ledger"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [
+        "CPA-refund-disclosure",
+        "TRC-record-keeping"
+      ],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-2-004"
+      ],
+      "environment_ref": "env-e2e-fulfil",
+      "expected_assertions": [
+        {
+          "description": "operator marks notification log row 'refund_disbursed_at' with timestamp + external_ref; system records compensating-action audit row",
+          "type": "workflow"
+        },
+        {
+          "description": "compensating-action audit row contains actor (operator), original_order_id, refund_external_ref, ts, idem_key",
+          "type": "audit"
+        },
+        {
+          "description": "order remains 'cancelled' (OOB does not change order state, only annotates compensation)",
+          "type": "no-state-change"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-005",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "e2e",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::OOB manual refund operator workflow",
+      "scenario_type": "banking_grade_reversibility",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "banking_grade_reversibility",
+        "oob-workflow",
+        "operator-triggered"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-payment-ledger"
+      ],
+      "test_type": "e2e"
+    },
+    {
+      "compliance_tags": [
+        "TRC-record-keeping"
+      ],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-2-001"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "admin_cancelled audit row contains 7 mandatory fields plus reason text",
+          "type": "audit-fields"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-006",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "contract",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::Audit on admin-cancel",
+      "scenario_type": "banking_grade_audit",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "banking_grade_audit",
+        "AP-Q12"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "contract"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "customer or other-tenant admin attempts to cancel are rejected with HTTP 403",
+          "type": "authz"
+        },
+        {
+          "description": "authz_denied audit emitted with actor, attempted action, subject",
+          "type": "audit"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-007",
+      "owner": "security-tester",
+      "pyramid_level": "integration",
+      "reviewer_role": "security-tester",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::Admin-only cancel authz",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "banking_grade_authz",
+        "rbac",
+        "admin-only"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-users-roles"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-2-001"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "replay with same idem_key does not double-cancel; stock not double-restored",
+          "type": "state"
+        },
+        {
+          "description": "exactly one admin_cancelled audit row exists",
+          "type": "audit-dedup"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-2-008",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-2::Idempotent admin-cancel replay",
+      "scenario_type": "banking_grade_idempotency",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-2",
+      "tags": [
+        "banking_grade_idempotency",
+        "replay-safe"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-idem-keys"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [
+        "PDPA-subject-access"
+      ],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-e2e-fulfil",
+      "expected_assertions": [
+        {
+          "description": "order-detail page renders order_number ORD-YYYYMMDD-NNNNNN, line snapshot (price/name/SKU), address snapshot, totals (subtotal, discount, shipping, grand_total), current status, status timeline, tracking_number",
+          "type": "ui-render"
+        },
+        {
+          "description": "page returns only data owned by authenticated C1",
+          "type": "data-isolation"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-3-001",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "e2e",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-3::Customer views own order with full snapshot",
+      "scenario_type": "happy",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "tags": [
+        "customer-self-read",
+        "snapshot"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-tracking-numbers"
+      ],
+      "test_type": "e2e"
+    },
+    {
+      "compliance_tags": [
+        "CPA-truthful-display"
+      ],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "order detail still shows 1290 for P1 line after catalog price changed to 999",
+          "type": "snapshot"
+        },
+        {
+          "description": "catalog page shows new 999 price; snapshot vs catalog divergence is by design",
+          "type": "catalog-divergence"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-3-002",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "integration",
+      "reviewer_role": "qa-lead",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-3::Snapshot price unaffected by catalog change",
+      "scenario_type": "edge_case",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "tags": [
+        "snapshot-immutability",
+        "section-6.8"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-catalog-mutated"
+      ],
+      "test_type": "integration"
+    },
+    {
+      "compliance_tags": [
+        "PDPA-art-37"
+      ],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "C2 GET /orders/O1 (owned by C1) returns HTTP 403 (or 404 anti-enumeration)",
+          "type": "authz"
+        },
+        {
+          "description": "response body contains no order detail, no order number echo, no line items",
+          "type": "no-leak"
+        },
+        {
+          "description": "authz_denied audit row {actor:C2, attempted:'order.read', subject:O1}",
+          "type": "audit"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-3-003",
+      "owner": "security-tester",
+      "pyramid_level": "integration",
+      "reviewer_role": "security-tester",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-3::Cross-customer access is rejected",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": true,
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "tags": [
+        "banking_grade_authz",
+        "cross-tenant",
+        "iaa"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-users-roles"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [],
+      "depends_on_test_cases": [],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "customer C1 POST to state-advance endpoint on own order returns 403",
+          "type": "authz"
+        },
+        {
+          "description": "order state unchanged",
+          "type": "state"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-3-004",
+      "owner": "security-tester",
+      "pyramid_level": "integration",
+      "reviewer_role": "security-tester",
+      "risk_level": "critical",
+      "scenario_ref": "EPIC-ORDER-FULFILL-3::Customer cannot advance state (read-only)",
+      "scenario_type": "banking_grade_authz",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "tags": [
+        "banking_grade_authz",
+        "rbac",
+        "customer-read-only"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen",
+        "fx-users-roles"
+      ],
+      "test_type": "security"
+    },
+    {
+      "compliance_tags": [
+        "PDPA-subject-access"
+      ],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-3-001"
+      ],
+      "environment_ref": "env-integration-fulfil",
+      "expected_assertions": [
+        {
+          "description": "shipping address, recipient_name, phone, email rendered only when authenticated user is the order owner",
+          "type": "pii"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-3-005",
+      "owner": "compliance-mapper",
+      "pyramid_level": "integration",
+      "reviewer_role": "compliance-mapper",
+      "risk_level": "high",
+      "scenario_ref": "EPIC-ORDER-FULFILL-3::Order-detail PII fields rendered to owner only",
+      "scenario_type": "regulatory",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "tags": [
+        "pdpa",
+        "pii-render",
+        "owner-only"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "compliance"
+    },
+    {
+      "compliance_tags": [
+        "CPA-truthful-display"
+      ],
+      "depends_on_test_cases": [
+        "TC-EPIC-ORDER-FULFILL-3-001"
+      ],
+      "environment_ref": "env-e2e-fulfil",
+      "expected_assertions": [
+        {
+          "description": "status timeline lists each transition with ts in customer-local TZ; matches audit rows 1:1",
+          "type": "ui"
+        }
+      ],
+      "id": "TC-EPIC-ORDER-FULFILL-3-006",
+      "owner": "sdet-fulfilment",
+      "pyramid_level": "e2e",
+      "reviewer_role": "qa-lead",
+      "risk_level": "medium",
+      "scenario_ref": "EPIC-ORDER-FULFILL-3::Status timeline truthful display",
+      "scenario_type": "happy",
+      "smoke_subset_member": false,
+      "story_id": "EPIC-ORDER-FULFILL-3",
+      "tags": [
+        "status-timeline",
+        "truthful-display"
+      ],
+      "test_data_refs": [
+        "fx-orders-state-frozen"
+      ],
+      "test_type": "e2e"
+    }
+  ],
+  "test_data_specs": [
+    {
+      "fixture_set_id": "fx-orders-state-frozen",
+      "pii_field_refs": [
+        "email",
+        "phone",
+        "name",
+        "shipping_address"
+      ],
+      "synthesis_rules": "Frozen-state order fixtures at each state checkpoint: O-awaiting (awaiting_payment), O-paid (paid), O-packing (packing), O-shipped (shipped, tracking=TH123456789), O-delivered (delivered, terminal), O-cancelled (cancelled from paid). PII is synthetic-fake: deterministic seed=ecommerce-v5-fulfil; tipping-off scan clean. Order numbers conform to ORD-YYYYMMDD-NNNNNN with frozen date 2025-11-01.",
+      "time_anchors": [
+        "frozen-now=2025-11-01T09:00:00+07:00",
+        "frozen-paid-ts=2025-11-01T09:05:00+07:00",
+        "frozen-packing-ts=2025-11-01T10:00:00+07:00",
+        "frozen-shipped-ts=2025-11-02T14:00:00+07:00",
+        "frozen-delivered-ts=2025-11-04T11:30:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-tracking-numbers",
+      "pii_field_refs": [
+        "tracking_number"
+      ],
+      "synthesis_rules": "Deterministic synthetic Thailand-Post-format tracking numbers (TH + 9 digits). Seeded so TC-EPIC-ORDER-FULFILL-1-003/-005 always observe 'TH123456789'. Indirect identifier - flagged for tipping-off scan.",
+      "time_anchors": [
+        "frozen-now=2025-11-01T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-stock-ledger",
+      "pii_field_refs": [],
+      "synthesis_rules": "Stock ledger snapshot: P1 stock_available=8, stock_sold=2 prior to cancel; expected post-cancel: stock_available=10, stock_sold=0. Idempotent fixture; resets per test run.",
+      "time_anchors": [
+        "frozen-now=2025-11-01T09:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-payment-ledger",
+      "pii_field_refs": [],
+      "synthesis_rules": "Payment-captured marker rows for O-paid and O-cancelled orders, with no auto-refund record. Used by OOB-refund tests to assert compensating-action workflow.",
+      "time_anchors": [
+        "frozen-paid-ts=2025-11-01T09:05:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-idem-keys",
+      "pii_field_refs": [],
+      "synthesis_rules": "Pre-seeded idempotency keys: ik-fulfil-001 (paid->packing), ik-cancel-001 (admin-cancel). Replay tests reuse exact keys to verify dedupe.",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-users-roles",
+      "pii_field_refs": [
+        "email"
+      ],
+      "synthesis_rules": "Role fixtures: admin:aoy (role=admin, tenant=T1), customer:C1 (role=customer, owns O1, tenant=T1), customer:C2 (role=customer, tenant=T1, no orders). Used for authz tests.",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-catalog-mutated",
+      "pii_field_refs": [],
+      "synthesis_rules": "Catalog state where P1.price was 1290 at order time then mutated to 999. Used to verify snapshot immutability per 6.8.",
+      "time_anchors": [
+        "frozen-order-ts=2025-11-01T09:05:00+07:00",
+        "frozen-mutation-ts=2025-11-03T10:00:00+07:00"
+      ]
+    }
+  ]
+}

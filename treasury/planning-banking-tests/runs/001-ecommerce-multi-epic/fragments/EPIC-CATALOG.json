@@ -1,0 +1,581 @@
+{
+  "epic": {
+    "epic_id": "EPIC-CATALOG",
+    "test_tier": "T2",
+    "critical_paths": [
+      "Guest listing returns only active products with valid pagination",
+      "PDP suppresses add-to-cart affordance for non-sellable products",
+      "Admin product edits emit audit events and remain idempotent under replay"
+    ],
+    "stakeholder_owners": [
+      "Merchant Admin (back-office operator)",
+      "Product Manager (business-side spec author)",
+      "Guest / Customer (read-side consumer)"
+    ]
+  },
+  "stories": [
+    {
+      "story_id": "EPIC-CATALOG-1",
+      "epic_id": "EPIC-CATALOG",
+      "test_case_ids": [
+        "TC-EPIC-CATALOG-1-001",
+        "TC-EPIC-CATALOG-1-002",
+        "TC-EPIC-CATALOG-1-003",
+        "TC-EPIC-CATALOG-1-004",
+        "TC-EPIC-CATALOG-1-005"
+      ],
+      "coverage_status": "partial",
+      "blocking_oqs": ["OQ-12", "OQ-16", "OQ-37", "OQ-49"],
+      "qa_effort_estimate": {
+        "sdet_hours": 10,
+        "manual_hours": 2,
+        "perf_hours": 4,
+        "compliance_hours": 0
+      }
+    },
+    {
+      "story_id": "EPIC-CATALOG-2",
+      "epic_id": "EPIC-CATALOG",
+      "test_case_ids": [
+        "TC-EPIC-CATALOG-2-001",
+        "TC-EPIC-CATALOG-2-002",
+        "TC-EPIC-CATALOG-2-003",
+        "TC-EPIC-CATALOG-2-004"
+      ],
+      "coverage_status": "complete",
+      "blocking_oqs": [],
+      "qa_effort_estimate": {
+        "sdet_hours": 8,
+        "manual_hours": 2,
+        "perf_hours": 0,
+        "compliance_hours": 0
+      }
+    },
+    {
+      "story_id": "EPIC-CATALOG-3",
+      "epic_id": "EPIC-CATALOG",
+      "test_case_ids": [
+        "TC-EPIC-CATALOG-3-001",
+        "TC-EPIC-CATALOG-3-002",
+        "TC-EPIC-CATALOG-3-003",
+        "TC-EPIC-CATALOG-3-004",
+        "TC-EPIC-CATALOG-3-005",
+        "TC-EPIC-CATALOG-3-006",
+        "TC-EPIC-CATALOG-3-007"
+      ],
+      "coverage_status": "partial",
+      "blocking_oqs": ["OQ-34", "OQ-35"],
+      "qa_effort_estimate": {
+        "sdet_hours": 14,
+        "manual_hours": 3,
+        "perf_hours": 0,
+        "compliance_hours": 1
+      }
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "TC-EPIC-CATALOG-1-001",
+      "story_id": "EPIC-CATALOG-1",
+      "scenario_ref": "Guest sees only active products in listing",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": [],
+      "tags": ["happy", "listing", "catalog"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "state", "description": "the listing returns exactly the 12 active products"},
+        {"type": "state", "description": "no product with status in {draft, paused, deleted} appears in the response"},
+        {"type": "state", "description": "pagination metadata is present in the response"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-CATALOG-1-002",
+      "story_id": "EPIC-CATALOG-1",
+      "scenario_ref": "Filter by category narrows results",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-1-001"],
+      "tags": ["happy", "listing", "filter", "category"],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {"type": "state", "description": "the listing returns only products whose category_id = Electronics"},
+        {"type": "state", "description": "the count badge reflects the filtered count"},
+        {"type": "state", "description": "the URL contains the filter parameter for shareability"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-1-003",
+      "story_id": "EPIC-CATALOG-1",
+      "scenario_ref": "Filter by in-stock-only excludes out-of-stock items",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-1-001"],
+      "tags": ["happy", "listing", "filter", "stock"],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {"type": "state", "description": "the response returns only the 10 products where stock_available > 0"},
+        {"type": "state", "description": "no product with stock_available = 0 appears"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-1-004",
+      "story_id": "EPIC-CATALOG-1",
+      "scenario_ref": "Price range filter rejects invalid bounds",
+      "scenario_type": "error",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-1-001"],
+      "tags": ["error", "listing", "filter", "validation"],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {"type": "state", "description": "the listing returns an empty result with an explanation that min must be <= max"},
+        {"type": "state", "description": "no server error is raised"},
+        {"type": "state", "description": "the previous filter state is recoverable"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-1-005",
+      "story_id": "EPIC-CATALOG-1",
+      "scenario_ref": "Public listing endpoint never surfaces admin-only fields or non-active products (banking_grade authn_authz)",
+      "scenario_type": "banking_grade_authz",
+      "test_type": "security",
+      "pyramid_level": "integration",
+      "owner": "Security-Tester",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-1-001"],
+      "tags": ["banking_grade_authn_authz", "listing", "authz"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "authz", "description": "anonymous guest caller receives only status=active products"},
+        {"type": "state", "description": "response payload omits admin-only fields (e.g. cost price, supplier notes) regardless of caller"},
+        {"type": "state", "description": "no product with status in {draft, paused, deleted} appears even when caller crafts arbitrary query parameters"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "Security-Reviewer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-2-001",
+      "story_id": "EPIC-CATALOG-2",
+      "scenario_ref": "Active product PDP shows add-to-cart affordance",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": [],
+      "tags": ["happy", "pdp"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "state", "description": "the page renders name, SKU, description, all images, current price, compare-at price, in-stock indicator, average rating 4.2, and review count 11"},
+        {"type": "state", "description": "the add-to-cart button is enabled"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-CATALOG-2-002",
+      "story_id": "EPIC-CATALOG-2",
+      "scenario_ref": "Paused product PDP shows unavailable message instead of add-to-cart",
+      "scenario_type": "error",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-2-001"],
+      "tags": ["error", "pdp", "unavailable", "i18n-th"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "state", "description": "the page renders product metadata for reference"},
+        {"type": "state", "description": "the add-to-cart button is replaced by an unavailable-message block with the Thai unavailable copy"},
+        {"type": "state", "description": "no add-to-cart request can be sent from this view"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-2-003",
+      "story_id": "EPIC-CATALOG-2",
+      "scenario_ref": "Soft-deleted product reached via direct URL returns 404 or unavailable view",
+      "scenario_type": "edge_case",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-2-001"],
+      "tags": ["edge_case", "pdp", "soft-delete"],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {"type": "state", "description": "the response is HTTP 404 OR an unavailable view with the same Thai unavailable copy"},
+        {"type": "state", "description": "no add-to-cart affordance is rendered"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-2-004",
+      "story_id": "EPIC-CATALOG-2",
+      "scenario_ref": "PDP response never surfaces admin-only product attributes regardless of caller (banking_grade authn_authz)",
+      "scenario_type": "banking_grade_authz",
+      "test_type": "security",
+      "pyramid_level": "integration",
+      "owner": "Security-Tester",
+      "test_data_refs": ["catalog-fixture-set"],
+      "environment_ref": "env-ci",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-2-001"],
+      "tags": ["banking_grade_authn_authz", "pdp", "authz"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "state", "description": "PDP response omits admin-only attributes such as cost price and supplier notes for anonymous callers"},
+        {"type": "authz", "description": "PDP response payload is identical (no extra fields) when called with arbitrary or forged caller headers"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "Security-Reviewer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-3-001",
+      "story_id": "EPIC-CATALOG-3",
+      "scenario_ref": "Admin creates a product with all required fields",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-admin-fixture-set"],
+      "environment_ref": "env-integration",
+      "depends_on_test_cases": [],
+      "tags": ["happy", "admin", "product-create"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "state", "description": "a new product row is created with the submitted values"},
+        {"type": "state", "description": "the response includes the product id"},
+        {"type": "state", "description": "the product appears in the admin catalog list with status=active"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-CATALOG-3-002",
+      "story_id": "EPIC-CATALOG-3",
+      "scenario_ref": "Duplicate SKU is rejected",
+      "scenario_type": "error",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-admin-fixture-set"],
+      "environment_ref": "env-integration",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-3-001"],
+      "tags": ["error", "admin", "sku", "uniqueness"],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {"type": "state", "description": "the request is rejected with a field-level error on SKU"},
+        {"type": "state", "description": "no new product is created"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-3-003",
+      "story_id": "EPIC-CATALOG-3",
+      "scenario_ref": "Price change emits an audit event",
+      "scenario_type": "banking_grade_audit",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-admin-fixture-set"],
+      "environment_ref": "env-integration",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-3-001"],
+      "tags": ["banking_grade_audit_events", "admin", "audit", "price-change"],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {"type": "state", "description": "product P1 has price=999 after the edit is saved"},
+        {"type": "audit", "description": "an audit event is emitted with payload containing event='product.price_changed', actor, ts (ISO-8601), before.price=1290, after.price=999, reason, and idem_key"},
+        {"type": "audit", "description": "the audit event payload does NOT contain any password, token, or card data"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-3-004",
+      "story_id": "EPIC-CATALOG-3",
+      "scenario_ref": "Edit attempt to mutate SKU is rejected",
+      "scenario_type": "error",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-admin-fixture-set"],
+      "environment_ref": "env-integration",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-3-001"],
+      "tags": ["error", "admin", "sku", "immutable"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "state", "description": "the request is rejected with a field-level error stating SKU is immutable"},
+        {"type": "state", "description": "no change is persisted"},
+        {"type": "audit", "description": "the audit log records no successful SKU change"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Peer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-3-005",
+      "story_id": "EPIC-CATALOG-3",
+      "scenario_ref": "Idempotent product-edit replay produces no duplicate audit",
+      "scenario_type": "banking_grade_idempotency",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-admin-fixture-set"],
+      "environment_ref": "env-integration",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-3-003"],
+      "tags": ["banking_grade_idempotency", "admin", "replay"],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {"type": "state", "description": "no additional state change occurs when the same idempotency_key='ik-prod-001' request is replayed"},
+        {"type": "audit", "description": "no duplicate audit event is emitted for the replayed request"},
+        {"type": "state", "description": "the response returns the original result"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-3-006",
+      "story_id": "EPIC-CATALOG-3",
+      "scenario_ref": "Non-admin caller is rejected from admin product CRUD surface (banking_grade authn_authz)",
+      "scenario_type": "banking_grade_authz",
+      "test_type": "security",
+      "pyramid_level": "integration",
+      "owner": "Security-Tester",
+      "test_data_refs": ["catalog-admin-fixture-set"],
+      "environment_ref": "env-integration",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-3-001"],
+      "tags": ["banking_grade_authn_authz", "admin", "authz"],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {"type": "authz", "description": "guest caller invoking the admin create-product endpoint receives 401/403 and no product row is created"},
+        {"type": "authz", "description": "customer-role caller invoking the admin edit-product endpoint receives 403 and no state change is persisted"},
+        {"type": "audit", "description": "rejected admin-endpoint calls do not emit a successful-write audit event"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "Security-Reviewer",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-CATALOG-3-007",
+      "story_id": "EPIC-CATALOG-3",
+      "scenario_ref": "Soft-delete and price edit are reversible by inverse admin action with full audit trail (banking_grade reversibility)",
+      "scenario_type": "banking_grade_reversibility",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": ["catalog-admin-fixture-set"],
+      "environment_ref": "env-integration",
+      "depends_on_test_cases": ["TC-EPIC-CATALOG-3-003"],
+      "tags": ["banking_grade_reversibility", "admin", "soft-delete", "audit"],
+      "risk_level": "high",
+      "expected_assertions": [
+        {"type": "state", "description": "flipping status from active to paused and back to active leaves the product row in the original active state"},
+        {"type": "state", "description": "re-editing price from 999 back to 1290 restores the original price value"},
+        {"type": "audit", "description": "each reversing action emits its own audit event with before/after deltas; no audit row is mutated or removed"}
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    }
+  ],
+  "nfr_tests": [
+    {
+      "id": "NFR-EPIC-CATALOG-perf-001",
+      "epic_id": "EPIC-CATALOG",
+      "nfr_type": "latency",
+      "metric": "p95 listing-page first-paint latency under normal load",
+      "target": "TBD pending OQ-12",
+      "blocking_oqs": ["OQ-12"]
+    },
+    {
+      "id": "NFR-EPIC-CATALOG-perf-002",
+      "epic_id": "EPIC-CATALOG",
+      "nfr_type": "scalability",
+      "metric": "listing pagination page-size and read:write ratio capacity",
+      "target": "TBD pending OQ-16",
+      "blocking_oqs": ["OQ-16"]
+    },
+    {
+      "id": "NFR-EPIC-CATALOG-sec-001",
+      "epic_id": "EPIC-CATALOG",
+      "nfr_type": "security",
+      "metric": "bot / scraping / credential-stuffing defence threshold on public catalog endpoints",
+      "target": "TBD pending OQ-37",
+      "blocking_oqs": ["OQ-37"]
+    },
+    {
+      "id": "NFR-EPIC-CATALOG-a11y-001",
+      "epic_id": "EPIC-CATALOG",
+      "nfr_type": "accessibility",
+      "metric": "WCAG conformance level on listing and PDP customer-facing surfaces",
+      "target": "TBD pending OQ-49",
+      "blocking_oqs": ["OQ-49"]
+    },
+    {
+      "id": "NFR-EPIC-CATALOG-data-001",
+      "epic_id": "EPIC-CATALOG",
+      "nfr_type": "data-integrity",
+      "metric": "customer complaints citing 'product visible but cannot be bought' per week",
+      "target": "0 in the first 30 days post-launch",
+      "blocking_oqs": []
+    }
+  ],
+  "compliance_tests": [],
+  "test_data_specs": [
+    {
+      "fixture_set_id": "catalog-fixture-set",
+      "pii_field_refs": [],
+      "synthesis_rules": "20 seed products: 12 with status=active and stock_available>0 (10 in-stock + 2 will be toggled out-of-stock for the in-stock-only filter test), 8 with status in {draft, paused, deleted}. Distribute the 12 active products across 5 categories with Electronics having at least 3 SKUs. Include bilingual product names (Thai + English) sourced from the BA glossary surface forms. Each product carries: SKU (immutable), slug, name, description, image, price (>0), compare-at price (nullable), category_id, stock_available, status, public/hidden flag. Includes a soft-deleted product P3 reachable by deep link, an active product P1 (price=1290, stock=5, rating=4.2, review_count=11), and a paused product P2.",
+      "time_anchors": ["T0"]
+    },
+    {
+      "fixture_set_id": "catalog-admin-fixture-set",
+      "pii_field_refs": [],
+      "synthesis_rules": "Admin actor records (role=admin, username='aoy' and a second admin for concurrency tests) used as audit-event actors only — no customer PII. Pre-existing product with SKU 'SKU-EL-001', price=1290, status=active, category=Electronics, stock=10 to support duplicate-SKU rejection, price-change audit, SKU-immutability, and idempotent-replay scenarios. Pre-issued idempotency_key 'ik-prod-001' bound to one prior successful edit. Reason-for-change free-text seed values for audit payload assertions.",
+      "time_anchors": ["T0", "T+1m"]
+    }
+  ],
+  "environments": [
+    {
+      "id": "env-ci",
+      "purpose": "CI integration tests for public catalog read paths (listing, PDP) with seeded relational DB and stubbed downstream services",
+      "required_mocks": ["postgres", "auth-stub-guest"],
+      "real_services": []
+    },
+    {
+      "id": "env-integration",
+      "purpose": "Integration tests for admin product CRUD with audit emission, idempotency store, and authz enforcement",
+      "required_mocks": ["postgres", "audit-event-sink", "idempotency-store", "auth-stub-admin"],
+      "real_services": []
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "type": "missing-nfr-target",
+      "severity": "P2",
+      "story_id": "EPIC-CATALOG-1",
+      "description": "Listing-page first-paint p95 latency target unresolved; BA section 8.3 says 'within a fraction of a second' but gives no numeric SLO.",
+      "required_action": "Resolve OQ-12 to obtain numeric p50/p95 SLO before enabling perf gate.",
+      "escalation_target": "BA"
+    },
+    {
+      "type": "missing-nfr-target",
+      "severity": "P1",
+      "story_id": "EPIC-CATALOG-1",
+      "description": "Listing read:write ratio, expected scale, and pagination page-size are unspecified; capacity model and index strategy depend on these inputs.",
+      "required_action": "Resolve OQ-16 with PM and TL before TL design freezes the catalog query layer.",
+      "escalation_target": "BA"
+    },
+    {
+      "type": "missing-nfr-target",
+      "severity": "P2",
+      "story_id": "EPIC-CATALOG-1",
+      "description": "WCAG accessibility conformance level for customer-facing listing and PDP is unspecified; section 8.6 says only 'basic accessibility'.",
+      "required_action": "Resolve OQ-49 to confirm WCAG A vs AA vs AAA target.",
+      "escalation_target": "BA"
+    },
+    {
+      "type": "missing-nfr-target",
+      "severity": "P2",
+      "story_id": "EPIC-CATALOG-1",
+      "description": "Bot / scraping / credential-stuffing defence threshold for the public catalog endpoints is unspecified beyond a generic rate-limit mention in section 8.1.",
+      "required_action": "Resolve OQ-37 with Security Reviewer to set concrete defence thresholds.",
+      "escalation_target": "BA"
+    },
+    {
+      "type": "ambiguous-requirement",
+      "severity": "P2",
+      "story_id": "EPIC-CATALOG-3",
+      "description": "Behaviour for admin soft-deleting a product currently held in a customer's cart is unspecified on the admin side of the race.",
+      "required_action": "Resolve OQ-34 with PM and TL to define admin-side outcome.",
+      "escalation_target": "BA"
+    },
+    {
+      "type": "ambiguous-requirement",
+      "severity": "P2",
+      "story_id": "EPIC-CATALOG-3",
+      "description": "Optimistic-locking policy for two admins concurrently editing the same product is unspecified; risk of silent lost update on price.",
+      "required_action": "Resolve OQ-35 with TL to define lock policy and conflict-response shape.",
+      "escalation_target": "TL"
+    }
+  ],
+  "execution_dag_nodes": [
+    {"id": "n-EPIC-CATALOG-1-001", "test_case_ref": "TC-EPIC-CATALOG-1-001", "label": "Guest listing happy path"},
+    {"id": "n-EPIC-CATALOG-1-002", "test_case_ref": "TC-EPIC-CATALOG-1-002", "label": "Filter by category"},
+    {"id": "n-EPIC-CATALOG-1-003", "test_case_ref": "TC-EPIC-CATALOG-1-003", "label": "In-stock-only filter"},
+    {"id": "n-EPIC-CATALOG-1-004", "test_case_ref": "TC-EPIC-CATALOG-1-004", "label": "Invalid price-range filter"},
+    {"id": "n-EPIC-CATALOG-1-005", "test_case_ref": "TC-EPIC-CATALOG-1-005", "label": "Listing authz - admin fields hidden"},
+    {"id": "n-EPIC-CATALOG-2-001", "test_case_ref": "TC-EPIC-CATALOG-2-001", "label": "PDP active product happy"},
+    {"id": "n-EPIC-CATALOG-2-002", "test_case_ref": "TC-EPIC-CATALOG-2-002", "label": "PDP paused unavailable"},
+    {"id": "n-EPIC-CATALOG-2-003", "test_case_ref": "TC-EPIC-CATALOG-2-003", "label": "PDP soft-deleted deep link"},
+    {"id": "n-EPIC-CATALOG-2-004", "test_case_ref": "TC-EPIC-CATALOG-2-004", "label": "PDP authz - admin fields hidden"},
+    {"id": "n-EPIC-CATALOG-3-001", "test_case_ref": "TC-EPIC-CATALOG-3-001", "label": "Admin create product happy"},
+    {"id": "n-EPIC-CATALOG-3-002", "test_case_ref": "TC-EPIC-CATALOG-3-002", "label": "Duplicate SKU rejected"},
+    {"id": "n-EPIC-CATALOG-3-003", "test_case_ref": "TC-EPIC-CATALOG-3-003", "label": "Price change emits audit"},
+    {"id": "n-EPIC-CATALOG-3-004", "test_case_ref": "TC-EPIC-CATALOG-3-004", "label": "SKU mutation rejected"},
+    {"id": "n-EPIC-CATALOG-3-005", "test_case_ref": "TC-EPIC-CATALOG-3-005", "label": "Idempotent replay no duplicate audit"},
+    {"id": "n-EPIC-CATALOG-3-006", "test_case_ref": "TC-EPIC-CATALOG-3-006", "label": "Admin authz - non-admin rejected"},
+    {"id": "n-EPIC-CATALOG-3-007", "test_case_ref": "TC-EPIC-CATALOG-3-007", "label": "Reversibility - status flip and price restore"}
+  ],
+  "execution_dag_edges": [
+    {"from": "n-EPIC-CATALOG-3-001", "to": "n-EPIC-CATALOG-1-001", "kind": "data"},
+    {"from": "n-EPIC-CATALOG-1-001", "to": "n-EPIC-CATALOG-2-001", "kind": "data"},
+    {"from": "n-EPIC-CATALOG-1-001", "to": "n-EPIC-CATALOG-1-002", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-1-001", "to": "n-EPIC-CATALOG-1-003", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-1-001", "to": "n-EPIC-CATALOG-1-004", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-1-001", "to": "n-EPIC-CATALOG-1-005", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-2-001", "to": "n-EPIC-CATALOG-2-002", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-2-001", "to": "n-EPIC-CATALOG-2-003", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-2-001", "to": "n-EPIC-CATALOG-2-004", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-3-001", "to": "n-EPIC-CATALOG-3-002", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-3-001", "to": "n-EPIC-CATALOG-3-003", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-3-001", "to": "n-EPIC-CATALOG-3-004", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-3-003", "to": "n-EPIC-CATALOG-3-005", "kind": "data"},
+    {"from": "n-EPIC-CATALOG-3-001", "to": "n-EPIC-CATALOG-3-006", "kind": "ordering"},
+    {"from": "n-EPIC-CATALOG-3-003", "to": "n-EPIC-CATALOG-3-007", "kind": "data"}
+  ]
+}

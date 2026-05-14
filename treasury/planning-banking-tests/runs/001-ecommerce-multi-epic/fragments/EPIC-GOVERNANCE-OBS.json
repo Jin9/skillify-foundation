@@ -1,0 +1,1248 @@
+{
+  "epic": {
+    "epic_id": "EPIC-GOVERNANCE-OBS",
+    "test_tier": "T2",
+    "critical_paths": [
+      "audit-emission",
+      "pii-redaction",
+      "notification-log-emission",
+      "review-moderation",
+      "audit-log-read-and-export"
+    ],
+    "stakeholder_owners": [
+      "Compliance-Lead",
+      "Privacy-Lead",
+      "Legal",
+      "QA-Lead"
+    ]
+  },
+  "stories": [
+    {
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "epic_id": "EPIC-GOVERNANCE-OBS",
+      "test_case_ids": [
+        "TC-EPIC-GOVERNANCE-OBS-1-001",
+        "TC-EPIC-GOVERNANCE-OBS-1-002",
+        "TC-EPIC-GOVERNANCE-OBS-1-003",
+        "TC-EPIC-GOVERNANCE-OBS-1-004",
+        "TC-EPIC-GOVERNANCE-OBS-1-005",
+        "TC-EPIC-GOVERNANCE-OBS-1-006",
+        "TC-EPIC-GOVERNANCE-OBS-1-007"
+      ],
+      "coverage_status": "partial",
+      "blocking_oqs": [
+        "OQ-20"
+      ],
+      "qa_effort_estimate": {
+        "sdet_hours": 16,
+        "manual_hours": 4,
+        "perf_hours": 0,
+        "compliance_hours": 4
+      }
+    },
+    {
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "epic_id": "EPIC-GOVERNANCE-OBS",
+      "test_case_ids": [
+        "TC-EPIC-GOVERNANCE-OBS-2-001",
+        "TC-EPIC-GOVERNANCE-OBS-2-002",
+        "TC-EPIC-GOVERNANCE-OBS-2-003",
+        "TC-EPIC-GOVERNANCE-OBS-2-004",
+        "TC-EPIC-GOVERNANCE-OBS-2-005",
+        "TC-EPIC-GOVERNANCE-OBS-2-006",
+        "TC-EPIC-GOVERNANCE-OBS-2-007",
+        "TC-EPIC-GOVERNANCE-OBS-2-008",
+        "TC-EPIC-GOVERNANCE-OBS-2-009"
+      ],
+      "coverage_status": "partial",
+      "blocking_oqs": [
+        "OQ-19"
+      ],
+      "qa_effort_estimate": {
+        "sdet_hours": 20,
+        "manual_hours": 6,
+        "perf_hours": 0,
+        "compliance_hours": 4
+      }
+    },
+    {
+      "story_id": "EPIC-GOVERNANCE-OBS-3",
+      "epic_id": "EPIC-GOVERNANCE-OBS",
+      "test_case_ids": [
+        "TC-EPIC-GOVERNANCE-OBS-3-001",
+        "TC-EPIC-GOVERNANCE-OBS-3-002",
+        "TC-EPIC-GOVERNANCE-OBS-3-003",
+        "TC-EPIC-GOVERNANCE-OBS-3-004",
+        "TC-EPIC-GOVERNANCE-OBS-3-005",
+        "TC-EPIC-GOVERNANCE-OBS-3-006"
+      ],
+      "coverage_status": "partial",
+      "blocking_oqs": [
+        "OQ-20"
+      ],
+      "qa_effort_estimate": {
+        "sdet_hours": 18,
+        "manual_hours": 4,
+        "perf_hours": 0,
+        "compliance_hours": 6
+      }
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-1-001",
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "scenario_ref": "Stock increase with reason is recorded",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-admin-aoy",
+        "fx-gov-sku-p1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "audit-emission",
+        "inventory-adjust",
+        "happy"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "state_change",
+          "description": "P1 stock_available transitions from 5 to 15 after +10 adjustment with reason='restocked_from_supplier'."
+        },
+        {
+          "type": "audit_event_emitted",
+          "description": "Audit event 'inventory.adjusted' enumerates all 7 fields: event='inventory.adjusted', actor='admin:aoy', ts (ISO-8601), before={stock_available:5}, after={stock_available:15}, reason='restocked_from_supplier', idem_key (non-empty). (AP-Q12)"
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D"
+      ],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-1-002",
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "scenario_ref": "Adjustment without reason is rejected",
+      "scenario_type": "error",
+      "test_type": "functional",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-admin-aoy",
+        "fx-gov-sku-p1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "validation",
+        "inventory-adjust",
+        "error"
+      ],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {
+          "type": "error_response",
+          "description": "Request rejected with field-level error code 'reason_required'."
+        },
+        {
+          "type": "state_invariant",
+          "description": "P1 stock_available is unchanged after rejected adjustment."
+        },
+        {
+          "type": "no_audit_event",
+          "description": "No 'inventory.adjusted' audit event is emitted for a rejected adjustment."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-1-003",
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "scenario_ref": "Cannot reduce stock below currently-reserved",
+      "scenario_type": "edge_case",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-sku-p1-with-reservations"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "invariants",
+        "inventory-adjust",
+        "edge"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "error_response",
+          "description": "Adjustment rejected with reason='would_break_reservations' when invariant violated."
+        },
+        {
+          "type": "state_invariant",
+          "description": "stock_available + stock_reserved >= existing reservations remains true."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-1-004",
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "scenario_ref": "Stock can never become negative under any path",
+      "scenario_type": "edge_case",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-sku-p1-low-stock"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "invariants",
+        "inventory-adjust",
+        "edge"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "error_response",
+          "description": "Adjustment rejected with reason='stock_cannot_go_negative'."
+        },
+        {
+          "type": "state_invariant",
+          "description": "P1 stock_available stays at 1 after rejected -5 adjustment."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-1-005",
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "scenario_ref": "Banking-grade audit assertion: 7-field audit row on inventory adjust",
+      "scenario_type": "banking_grade_audit",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-admin-aoy",
+        "fx-gov-sku-p1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_audit",
+        "AP-Q12",
+        "cross-cutting"
+      ],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {
+          "type": "audit_field_event",
+          "description": "Field 'event' equals 'inventory.adjusted' (AP-Q12 field 1)."
+        },
+        {
+          "type": "audit_field_actor",
+          "description": "Field 'actor' equals 'admin:aoy' (AP-Q12 field 2)."
+        },
+        {
+          "type": "audit_field_ts",
+          "description": "Field 'ts' is ISO-8601 timestamp (AP-Q12 field 3)."
+        },
+        {
+          "type": "audit_field_before",
+          "description": "Field 'before' captures pre-state snapshot (AP-Q12 field 4)."
+        },
+        {
+          "type": "audit_field_after",
+          "description": "Field 'after' captures post-state snapshot (AP-Q12 field 5)."
+        },
+        {
+          "type": "audit_field_reason",
+          "description": "Field 'reason' is non-empty mandatory string (AP-Q12 field 6)."
+        },
+        {
+          "type": "audit_field_idem_key",
+          "description": "Field 'idem_key' present and non-empty (AP-Q12 field 7)."
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D"
+      ],
+      "reviewer_role": "Compliance-Lead",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-1-006",
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "scenario_ref": "Banking-grade authz on admin-only inventory-adjust endpoint",
+      "scenario_type": "banking_grade_authz",
+      "test_type": "security",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-customer-c1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_authz",
+        "admin-only"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "http_status",
+          "description": "Non-admin caller receives HTTP 403 (or 404) on POST /admin/inventory/adjust."
+        },
+        {
+          "type": "audit_event_emitted",
+          "description": "authz_denied audit event emitted with 7 standard fields (event='authz_denied', actor, ts, before={authz_state}, after={authz_state}, reason='not_admin', idem_key)."
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D"
+      ],
+      "reviewer_role": "Compliance-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-1-007",
+      "story_id": "EPIC-GOVERNANCE-OBS-1",
+      "scenario_ref": "Idempotency: double-click inventory adjust does not double-apply",
+      "scenario_type": "banking_grade_idempotency",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-admin-aoy",
+        "fx-gov-sku-p1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_idempotency",
+        "inventory-adjust"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "state_invariant",
+          "description": "Repeated POST with same idem_key produces stock delta of +10 once, not twice."
+        },
+        {
+          "type": "audit_event_count",
+          "description": "Exactly one 'inventory.adjusted' audit event with that idem_key exists."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-001",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Customer writes a review for a delivered order line",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-customer-c1",
+        "fx-gov-order-o1-delivered",
+        "fx-gov-sku-p1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "review",
+        "happy",
+        "audit-emission"
+      ],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {
+          "type": "state_change",
+          "description": "A review row is created tied to {customer:C1, order:O1, line:P1, rating:5, text:'<delivery_speed_remark_th>', is_hidden:false}."
+        },
+        {
+          "type": "derived_metric_update",
+          "description": "P1.average_rating and P1.review_count refresh to reflect the new review."
+        },
+        {
+          "type": "audit_event_emitted",
+          "description": "Audit event 'review.created' emitted with all 7 fields (event, actor='customer:c1', ts, before=null, after={review_row_id}, reason='customer_initiated', idem_key). (AP-Q12)"
+        }
+      ],
+      "compliance_tags": [
+        "PDPA-TH-2019"
+      ],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-002",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Second review on same order line is rejected",
+      "scenario_type": "error",
+      "test_type": "functional",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-customer-c1",
+        "fx-gov-order-o1-already-reviewed"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "review",
+        "error",
+        "uniqueness"
+      ],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {
+          "type": "error_response",
+          "description": "Second submit rejected with reason='already_reviewed'."
+        },
+        {
+          "type": "row_count_invariant",
+          "description": "Review-row count for {O1,P1} remains 1."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-003",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Review rejected for non-delivered order",
+      "scenario_type": "error",
+      "test_type": "functional",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-order-o1-paid-not-delivered"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "review",
+        "error",
+        "lifecycle"
+      ],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {
+          "type": "error_response",
+          "description": "Request rejected with reason='order_not_delivered'."
+        },
+        {
+          "type": "row_count_invariant",
+          "description": "No review row created."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-004",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Rating outside 1-5 is rejected",
+      "scenario_type": "boundary",
+      "test_type": "functional",
+      "pyramid_level": "unit",
+      "owner": "SDET",
+      "test_data_refs": [],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "review",
+        "validation",
+        "boundary"
+      ],
+      "risk_level": "low",
+      "expected_assertions": [
+        {
+          "type": "error_response",
+          "description": "Rating 0 and rating 6 each rejected with reason='rating_out_of_range'."
+        },
+        {
+          "type": "boundary_accepted",
+          "description": "Rating 1 and rating 5 each accepted (inclusive bounds)."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-005",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Admin soft-hides a review with reason and review is not edited",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-admin-aoy",
+        "fx-gov-review-r1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "review",
+        "moderation",
+        "happy",
+        "audit-emission"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "state_change",
+          "description": "R1.is_hidden becomes true; R1.text unchanged (admin cannot edit)."
+        },
+        {
+          "type": "public_view_invariant",
+          "description": "Hidden review does not appear on the public PDP."
+        },
+        {
+          "type": "audit_event_emitted",
+          "description": "Audit event 'review.hidden' emitted with all 7 fields (event, actor='admin:aoy', ts, before={is_hidden:false}, after={is_hidden:true}, reason='violates_review_policy', idem_key). (AP-Q12)"
+        }
+      ],
+      "compliance_tags": [
+        "PDPA-TH-2019",
+        "CPA-TH-DISCLOSURE"
+      ],
+      "reviewer_role": "Compliance-Lead",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-006",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Banking-grade authz: only admins can hide reviews; only owning customer can submit",
+      "scenario_type": "banking_grade_authz",
+      "test_type": "security",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-customer-c2-not-owner",
+        "fx-gov-review-r1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_authz",
+        "review-moderation"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "http_status",
+          "description": "Non-admin attempting to hide a review receives HTTP 403."
+        },
+        {
+          "type": "http_status",
+          "description": "Customer attempting to submit a review for an order they do not own receives HTTP 403."
+        },
+        {
+          "type": "audit_event_emitted",
+          "description": "authz_denied audit event emitted with all 7 standard fields."
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D"
+      ],
+      "reviewer_role": "Compliance-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-007",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Banking-grade tipping-off: moderation rejection copy does not disclose detection rule",
+      "scenario_type": "banking_grade_tipping_off",
+      "test_type": "compliance",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-review-r-flagged"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_tipping_off",
+        "AP-Q11",
+        "review-moderation",
+        "product-copy"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "copy_lint",
+          "description": "Customer-visible moderation-rejection copy contains no detection-rule name, internal code, or threshold value (AP-Q11 applied to product copy)."
+        },
+        {
+          "type": "copy_lint",
+          "description": "Copy uses generic language only (e.g. 'This review violates our community guidelines') and does not disclose which rule fired."
+        },
+        {
+          "type": "internal_log_invariant",
+          "description": "Internal moderation audit event records the specific rule_id, while the customer-facing notification message contains no rule_id."
+        }
+      ],
+      "compliance_tags": [
+        "CPA-TH-DISCLOSURE"
+      ],
+      "reviewer_role": "Legal",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-008",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Notification log: review-status change to customer is logged with notification_logged=true",
+      "scenario_type": "banking_grade_notification",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-customer-c1",
+        "fx-gov-review-r1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "notification-log",
+        "review"
+      ],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {
+          "type": "notification_log_record",
+          "description": "Every customer-facing review-status notification emits a notification-log row with notification_logged=true and references the notification template id."
+        },
+        {
+          "type": "no_pii_leak",
+          "description": "Notification-log payload contains customer_id (indirect) only, not email/phone/name in plaintext (masking_rule applied per pii_inventory)."
+        }
+      ],
+      "compliance_tags": [
+        "PDPA-TH-2019"
+      ],
+      "reviewer_role": "Privacy-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-2-009",
+      "story_id": "EPIC-GOVERNANCE-OBS-2",
+      "scenario_ref": "Idempotency: duplicate review-submit with same idem_key produces single row",
+      "scenario_type": "banking_grade_idempotency",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-customer-c1",
+        "fx-gov-order-o1-delivered"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_idempotency",
+        "review"
+      ],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {
+          "type": "row_count_invariant",
+          "description": "Replayed POST with same idem_key results in exactly one review row."
+        },
+        {
+          "type": "audit_event_count",
+          "description": "Exactly one 'review.created' audit event with that idem_key."
+        }
+      ],
+      "compliance_tags": [],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-3-001",
+      "story_id": "EPIC-GOVERNANCE-OBS-3",
+      "scenario_ref": "Admin views audit row with before/after diff",
+      "scenario_type": "happy",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-admin-aoy",
+        "fx-gov-audit-row-price-changed"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "audit-read",
+        "happy"
+      ],
+      "risk_level": "medium",
+      "expected_assertions": [
+        {
+          "type": "ui_render",
+          "description": "Audit row renders with actor, action='product.price_changed', entity_id, ts, before={price:1290}, after={price:999}, reason."
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D"
+      ],
+      "reviewer_role": "QA-Lead",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-3-002",
+      "story_id": "EPIC-GOVERNANCE-OBS-3",
+      "scenario_ref": "Audit-log payload never contains forbidden fields (banking-grade audit)",
+      "scenario_type": "banking_grade_audit",
+      "test_type": "security",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-admin-aoy",
+        "fx-gov-audit-corpus-mixed"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_audit",
+        "scrubbing",
+        "AP-Q12"
+      ],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {
+          "type": "scrub_invariant",
+          "description": "No row in the audit corpus contains a regex match for 'password', 'password_hash', 'token', 'card_number', or PAN-shaped digit sequences in any payload field."
+        },
+        {
+          "type": "fail_closed",
+          "description": "If any forbidden match is detected by the self-test scrubber, the export fails closed and an alert is raised."
+        },
+        {
+          "type": "audit_field_completeness",
+          "description": "Every sampled audit row enumerates all 7 fields (event, actor, ts, before, after, reason, idem_key) (AP-Q12)."
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D",
+        "PDPA-TH-2019"
+      ],
+      "reviewer_role": "Compliance-Lead",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-3-003",
+      "story_id": "EPIC-GOVERNANCE-OBS-3",
+      "scenario_ref": "Customer cannot reach audit-log endpoint (authz)",
+      "scenario_type": "banking_grade_authz",
+      "test_type": "security",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-customer-c1"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_authz",
+        "audit-read"
+      ],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {
+          "type": "http_status",
+          "description": "GET /admin/audit by non-admin returns HTTP 403 or 404."
+        },
+        {
+          "type": "audit_event_emitted",
+          "description": "authz_denied audit event emitted with all 7 standard fields."
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D"
+      ],
+      "reviewer_role": "Compliance-Lead",
+      "smoke_subset_member": true
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-3-004",
+      "story_id": "EPIC-GOVERNANCE-OBS-3",
+      "scenario_ref": "Cross-cutting: every state-changing event across all epics emits an audit event with 7 fields",
+      "scenario_type": "banking_grade_audit",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-cross-epic-event-corpus"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "banking_grade_audit",
+        "cross-cutting",
+        "AP-Q12"
+      ],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {
+          "type": "cross_event_completeness",
+          "description": "For each enumerated state-changing event class (catalog.*, order.*, inventory.adjusted, review.created, review.hidden, identity.*, payment.*, fulfillment.*), at least one audit row is emitted per occurrence."
+        },
+        {
+          "type": "audit_field_completeness",
+          "description": "Every sampled audit row enumerates all 7 fields (event, actor, ts, before, after, reason, idem_key) (AP-Q12)."
+        }
+      ],
+      "compliance_tags": [
+        "CCA-TH-LOG-90D"
+      ],
+      "reviewer_role": "Compliance-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-3-005",
+      "story_id": "EPIC-GOVERNANCE-OBS-3",
+      "scenario_ref": "Cross-cutting: every customer-facing notification logged with notification_logged=true",
+      "scenario_type": "banking_grade_notification",
+      "test_type": "integration",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-notification-corpus"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "notification-log",
+        "cross-cutting"
+      ],
+      "risk_level": "high",
+      "expected_assertions": [
+        {
+          "type": "notification_log_record",
+          "description": "For each customer-facing notification class (order updates, signup confirm, password reset, review-status), a notification-log row is recorded with notification_logged=true."
+        },
+        {
+          "type": "no_pii_leak",
+          "description": "Notification-log payload masks PII per pii_inventory[*].masking_rule — email partial-masked, phone partial-masked outside fulfilment context, password/token never appear."
+        }
+      ],
+      "compliance_tags": [
+        "PDPA-TH-2019"
+      ],
+      "reviewer_role": "Privacy-Lead",
+      "smoke_subset_member": false
+    },
+    {
+      "id": "TC-EPIC-GOVERNANCE-OBS-3-006",
+      "story_id": "EPIC-GOVERNANCE-OBS-3",
+      "scenario_ref": "Cross-cutting: PII redaction across log volume per pii_inventory masking rules",
+      "scenario_type": "regulatory",
+      "test_type": "compliance",
+      "pyramid_level": "integration",
+      "owner": "SDET",
+      "test_data_refs": [
+        "fx-gov-synth-pii-corpus"
+      ],
+      "environment_ref": "env-gov-integration",
+      "tags": [
+        "pii-redaction",
+        "AP-Q7",
+        "cross-cutting"
+      ],
+      "risk_level": "critical",
+      "expected_assertions": [
+        {
+          "type": "redaction_invariant",
+          "description": "Synthetic fixtures (AP-Q7: no real PII) carry well-known marker tokens; log scan must detect zero plaintext markers for password and session_token (always-masked rule), and the configured partial-mask pattern for phone outside fulfilment surfaces."
+        },
+        {
+          "type": "redaction_invariant",
+          "description": "shipping_address line is scrubbed from authz_denied audit payloads per pii_inventory.shipping_address.masking_rule."
+        }
+      ],
+      "compliance_tags": [
+        "PDPA-TH-2019"
+      ],
+      "reviewer_role": "Privacy-Lead",
+      "smoke_subset_member": false
+    }
+  ],
+  "nfr_tests": [
+    {
+      "id": "NFR-EPIC-GOVERNANCE-OBS-obs-001",
+      "epic_id": "EPIC-GOVERNANCE-OBS",
+      "nfr_type": "throughput",
+      "metric": "audit_log_write_throughput_events_per_second_sustained_p95_latency",
+      "target": "TBD pending OQ-20 (audit-log throughput / retention SLO not stated; AP-Q9 forbids invented thresholds)",
+      "blocking_oqs": [
+        "OQ-20"
+      ]
+    },
+    {
+      "id": "NFR-EPIC-GOVERNANCE-OBS-data-001",
+      "epic_id": "EPIC-GOVERNANCE-OBS",
+      "nfr_type": "data-integrity",
+      "metric": "pii_redaction_correctness_pct_on_sample_log_corpus",
+      "target": "TBD pending pii_inventory_missing gap resolution (masking_rule per field finalized) and OQ-resolved sample size; AP-Q9 forbids invented thresholds",
+      "blocking_oqs": []
+    },
+    {
+      "id": "NFR-EPIC-GOVERNANCE-OBS-reliab-001",
+      "epic_id": "EPIC-GOVERNANCE-OBS",
+      "nfr_type": "resilience",
+      "metric": "audit_event_durability_loss_count_under_induced_crash",
+      "target": "TBD pending OQ-20 (durability target not stated; AP-Q9)",
+      "blocking_oqs": [
+        "OQ-20"
+      ]
+    }
+  ],
+  "compliance_tests": [
+    {
+      "id": "COMP-CCA-001",
+      "regulator_code": "CCA-TH-LOG-90D",
+      "test_type": "log_retention_enforcement",
+      "scope": "Verify audit-log retention enforces the Computer Crime Act 90-day minimum retention window (rows >= 90 days old retained; deletion before 90d blocked). Retention threshold sourced from CCA-TH-LOG-90D citation, not invented (AP-Q9).",
+      "compliance_scope_blocked": true,
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "regulatory_citation_unresolved",
+        "retention_policy_unstated"
+      ]
+    },
+    {
+      "id": "COMP-CCA-002",
+      "regulator_code": "CCA-TH-LOG-90D",
+      "test_type": "log_integrity_tamper_evident_hashing",
+      "scope": "Verify audit-log rows carry tamper-evident hashing (e.g. hash-chained per row) and any in-place modification is detectable. Append-only invariant per OQ-20.",
+      "compliance_scope_blocked": true,
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "regulatory_citation_unresolved"
+      ]
+    },
+    {
+      "id": "COMP-CCA-003",
+      "regulator_code": "CCA-TH-LOG-90D",
+      "test_type": "access_event_logging",
+      "scope": "Verify every read of the audit-log surface itself is audit-emitted (access audit per 6.6). Reader identity and queried filter captured.",
+      "compliance_scope_blocked": true,
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "regulatory_citation_unresolved"
+      ]
+    },
+    {
+      "id": "COMP-CCA-004",
+      "regulator_code": "CCA-TH-LOG-90D",
+      "test_type": "lawful_access_procedure",
+      "scope": "Verify procedure for lawful-access requests (law-enforcement / regulator). Audit-log export workflow exists, is admin-gated, is itself audit-emitted, and uses the scrubbing path that fails-closed on forbidden-field detection.",
+      "compliance_scope_blocked": true,
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "regulatory_citation_unresolved",
+        "retention_policy_unstated"
+      ]
+    },
+    {
+      "id": "COMP-PDPA-101",
+      "regulator_code": "PDPA-TH-2019",
+      "test_type": "pii_redaction_in_logs",
+      "scope": "Verify PII-redaction rule applied to all log surfaces per pii_inventory[*].masking_rule. Sample-based scan across audit log and notification log; zero leaks for always-masked fields (password, session_token); partial-mask pattern verified for phone/email in non-fulfilment surfaces; address scrubbed from authz_denied payloads.",
+      "compliance_scope_blocked": true,
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "pii_inventory_missing",
+        "regulatory_citation_unresolved"
+      ]
+    },
+    {
+      "id": "COMP-PDPA-102",
+      "regulator_code": "PDPA-TH-2019",
+      "test_type": "cross_border_transfer",
+      "scope": "Verify cross-border-transfer controls when mock-shipping or mock-payment endpoints route through non-Thailand regions. Residency-rule per pii_inventory enforced; transfer events audit-emitted with destination region recorded.",
+      "compliance_scope_blocked": true,
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "pii_inventory_missing",
+        "regulatory_citation_unresolved"
+      ]
+    },
+    {
+      "id": "COMP-PDPA-103",
+      "regulator_code": "PDPA-TH-2019",
+      "test_type": "lawful_basis_record_per_processing_activity",
+      "scope": "Verify each processing activity (signup, order, review-submit, audit-read, notification-send, review-moderation) is annotated with a lawful basis (consent / contract / legitimate-interest / legal-obligation) and that the record-of-processing-activities export contains all activities.",
+      "compliance_scope_blocked": true,
+      "blocking_governance_gaps": [
+        "legal_absent_on_regulatory",
+        "regulatory_citation_unresolved"
+      ]
+    }
+  ],
+  "test_data_specs": [
+    {
+      "fixture_set_id": "fx-gov-admin-aoy",
+      "pii_field_refs": [
+        "name",
+        "email"
+      ],
+      "synthesis_rules": "Synthetic admin identity 'admin:aoy'; email pattern aoy+admin@example.test; no real PII (AP-Q7). Role=admin.",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-customer-c1",
+      "pii_field_refs": [
+        "email",
+        "phone",
+        "name",
+        "shipping_address",
+        "customer_id"
+      ],
+      "synthesis_rules": "Synthetic customer C1 with synth email c1@example.test, synth phone +66-XX-XXX-XXX0 (non-routable test range), name and Thai-format address generated from a closed test gazetteer; never use real customer data (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-customer-c2-not-owner",
+      "pii_field_refs": [
+        "email",
+        "customer_id"
+      ],
+      "synthesis_rules": "Second synthetic customer used for authz negative tests; same synthesis rules as C1 (AP-Q7).",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-gov-sku-p1",
+      "pii_field_refs": [],
+      "synthesis_rules": "Catalog SKU P1 seeded with stock_available=5, stock_reserved=0, stock_sold=0. No PII.",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-gov-sku-p1-with-reservations",
+      "pii_field_refs": [],
+      "synthesis_rules": "SKU P1 seeded with stock_available=2, stock_reserved=3 and 3 live reservations. No PII.",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-gov-sku-p1-low-stock",
+      "pii_field_refs": [],
+      "synthesis_rules": "SKU P1 seeded with stock_available=1, stock_reserved=0. No PII.",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-gov-order-o1-delivered",
+      "pii_field_refs": [
+        "shipping_address",
+        "order_number",
+        "tracking_number",
+        "customer_id"
+      ],
+      "synthesis_rules": "Synthetic order O1 in status='delivered' for C1, one line for P1. Address and order_number synthesized; tracking_number from synth carrier ID space (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00",
+        "delivered_at=T0-7d"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-order-o1-paid-not-delivered",
+      "pii_field_refs": [
+        "order_number",
+        "customer_id"
+      ],
+      "synthesis_rules": "Synthetic order O1 in status='paid' (not delivered) for C1 (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-order-o1-already-reviewed",
+      "pii_field_refs": [
+        "order_number",
+        "customer_id",
+        "review_text"
+      ],
+      "synthesis_rules": "Synthetic order O1 delivered with one pre-existing review row for the P1 line (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-review-r1",
+      "pii_field_refs": [
+        "review_text",
+        "customer_id"
+      ],
+      "synthesis_rules": "Review row R1 with synth text in Thai; no incidental PII; tied to C1+O1+P1 (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-review-r-flagged",
+      "pii_field_refs": [
+        "review_text",
+        "customer_id"
+      ],
+      "synthesis_rules": "Synthetic review whose content is configured to trigger a specific moderation rule_id for tipping-off-copy tests (AP-Q7, AP-Q11).",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-gov-audit-row-price-changed",
+      "pii_field_refs": [
+        "customer_id"
+      ],
+      "synthesis_rules": "Seeded audit row 'product.price_changed' with before={price:1290}, after={price:999}. No customer PII.",
+      "time_anchors": []
+    },
+    {
+      "fixture_set_id": "fx-gov-audit-corpus-mixed",
+      "pii_field_refs": [
+        "customer_id",
+        "order_number",
+        "shipping_address"
+      ],
+      "synthesis_rules": "Synth corpus of mixed audit rows covering catalog/order/identity/payment/fulfillment events. Marker tokens injected for scrubbing assertions; never any real PII (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00",
+        "T0-30d",
+        "T0-90d",
+        "T0-91d"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-cross-epic-event-corpus",
+      "pii_field_refs": [
+        "customer_id",
+        "order_number"
+      ],
+      "synthesis_rules": "Synth corpus exercising one instance of each enumerated state-changing event class across all epics (catalog.*, order.*, inventory.adjusted, review.created, review.hidden, identity.*, payment.*, fulfillment.*).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-notification-corpus",
+      "pii_field_refs": [
+        "email",
+        "phone",
+        "customer_id",
+        "order_number"
+      ],
+      "synthesis_rules": "Synth corpus of customer-facing notifications: order-status updates, signup confirm, password reset, review-status. Synth recipients only (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    },
+    {
+      "fixture_set_id": "fx-gov-synth-pii-corpus",
+      "pii_field_refs": [
+        "email",
+        "phone",
+        "name",
+        "shipping_address",
+        "password",
+        "session_token",
+        "customer_id"
+      ],
+      "synthesis_rules": "Marker-tokenized synthetic PII corpus driven through the system to produce realistic log volume. Markers are well-known sentinel strings ('SENTINEL_PWD', 'SENTINEL_TOKEN', etc.) so post-hoc log scans can deterministically count leaks. No real PII (AP-Q7).",
+      "time_anchors": [
+        "T0=2026-05-12T00:00:00+07:00"
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "id": "env-gov-integration",
+      "purpose": "Integration env for governance/observability epic: real app, real audit-log store, real notification-log store, mock-shipping and mock-payment for cross-border transfer test.",
+      "required_mocks": [
+        "mock-shipping",
+        "mock-payment",
+        "mock-clock"
+      ],
+      "real_services": [
+        "app",
+        "audit-log-store",
+        "notification-log-store",
+        "pdp-renderer"
+      ]
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "type": "qa_blocking_governance_gap",
+      "severity": "P1",
+      "description": "legal_absent_on_regulatory: Legal stakeholder absent on every epic while Thai-market regulators (PDPA, CCA, CPA, TRC) are implicit. Blocks compliance test scope for this epic (all 7 compliance_tests carry compliance_scope_blocked=true).",
+      "required_action": "Engage Legal counsel and DPO to confirm PDPA controller, lawful basis, retention schedule, DSAR workflow, breach-notification process, CCA log-retention duration, and CPA mandatory-disclosure scope before QA execution.",
+      "escalation_target": "Legal"
+    },
+    {
+      "type": "qa_blocking_governance_gap",
+      "severity": "P1",
+      "description": "pii_inventory_missing: pii_inventory exists at field level but retention/residency for several fields is 'TBD per PDPA review'. Blocks PII test-data design because masking-rule edges (e.g. partial-mask pattern length, residency boundary) are not finalized.",
+      "required_action": "Privacy-Lead + Legal to finalize per-field retention, residency, masking pattern, and access-audit rules. QA cannot ship redaction-correctness NFR target without finalized masking rules.",
+      "escalation_target": "Compliance"
+    },
+    {
+      "type": "qa_blocking_governance_gap",
+      "severity": "P1",
+      "description": "regulatory_citation_unresolved: All four regulators (PDPA-TH-2019, TRC-VAT-7PCT, CCA-TH-LOG-90D, CPA-TH-DISCLOSURE) carry citation_status='pending'. Blocks compliance test scope — exact citation required to bind test assertions to statute clauses.",
+      "required_action": "Legal + Compliance Officer to produce exact statute citations and confirm scope of application to ShopPilot MVP per regulator. Due 2026-05-26.",
+      "escalation_target": "Legal"
+    },
+    {
+      "type": "qa_blocking_governance_gap",
+      "severity": "P1",
+      "description": "retention_policy_unstated: Audit-log retention duration absent (5.9), customer-account retention not stated, order retention not stated. Blocks retention-test thresholds (cannot test 90-day enforcement without a stated threshold; AP-Q9 forbids inventing one).",
+      "required_action": "Compliance Officer + Legal to confirm retention schedule per data class and per audit-event class before QA execution of COMP-CCA-001 and COMP-CCA-004.",
+      "escalation_target": "Compliance"
+    }
+  ],
+  "execution_dag_nodes": [
+    {"id": "n-gov-1-001", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-1-001", "label": "inventory adjust happy"},
+    {"id": "n-gov-1-002", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-1-002", "label": "inventory adjust no reason"},
+    {"id": "n-gov-1-003", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-1-003", "label": "stock vs reservations"},
+    {"id": "n-gov-1-004", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-1-004", "label": "stock cannot go negative"},
+    {"id": "n-gov-1-005", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-1-005", "label": "audit 7-fields inventory"},
+    {"id": "n-gov-1-006", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-1-006", "label": "inventory authz"},
+    {"id": "n-gov-1-007", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-1-007", "label": "inventory idempotency"},
+    {"id": "n-gov-2-001", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-001", "label": "review create happy"},
+    {"id": "n-gov-2-002", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-002", "label": "review duplicate"},
+    {"id": "n-gov-2-003", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-003", "label": "review non-delivered"},
+    {"id": "n-gov-2-004", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-004", "label": "rating boundary"},
+    {"id": "n-gov-2-005", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-005", "label": "admin hide review"},
+    {"id": "n-gov-2-006", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-006", "label": "review authz"},
+    {"id": "n-gov-2-007", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-007", "label": "moderation tipping-off"},
+    {"id": "n-gov-2-008", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-008", "label": "review notification log"},
+    {"id": "n-gov-2-009", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-2-009", "label": "review idempotency"},
+    {"id": "n-gov-3-001", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-3-001", "label": "audit row diff view"},
+    {"id": "n-gov-3-002", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-3-002", "label": "scrubber forbidden fields"},
+    {"id": "n-gov-3-003", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-3-003", "label": "audit read authz"},
+    {"id": "n-gov-3-004", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-3-004", "label": "cross-cutting audit emission"},
+    {"id": "n-gov-3-005", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-3-005", "label": "cross-cutting notification log"},
+    {"id": "n-gov-3-006", "test_case_ref": "TC-EPIC-GOVERNANCE-OBS-3-006", "label": "cross-cutting PII redaction"}
+  ],
+  "execution_dag_edges": [
+    {"from": "n-gov-1-001", "to": "n-gov-1-005", "kind": "data"},
+    {"from": "n-gov-1-001", "to": "n-gov-1-007", "kind": "fixture"},
+    {"from": "n-gov-1-001", "to": "n-gov-3-001", "kind": "data"},
+    {"from": "n-gov-1-005", "to": "n-gov-3-004", "kind": "data"},
+    {"from": "n-gov-1-006", "to": "n-gov-3-004", "kind": "data"},
+    {"from": "n-gov-2-001", "to": "n-gov-2-002", "kind": "ordering"},
+    {"from": "n-gov-2-001", "to": "n-gov-2-009", "kind": "fixture"},
+    {"from": "n-gov-2-001", "to": "n-gov-2-008", "kind": "data"},
+    {"from": "n-gov-2-005", "to": "n-gov-2-007", "kind": "fixture"},
+    {"from": "n-gov-2-005", "to": "n-gov-3-004", "kind": "data"},
+    {"from": "n-gov-2-006", "to": "n-gov-3-004", "kind": "data"},
+    {"from": "n-gov-2-008", "to": "n-gov-3-005", "kind": "data"},
+    {"from": "n-gov-3-001", "to": "n-gov-3-002", "kind": "fixture"},
+    {"from": "n-gov-3-002", "to": "n-gov-3-006", "kind": "data"},
+    {"from": "n-gov-3-004", "to": "n-gov-3-002", "kind": "data"},
+    {"from": "n-gov-3-005", "to": "n-gov-3-006", "kind": "data"}
+  ]
+}
