@@ -1,0 +1,42 @@
+{
+  "design_document": "# Design — POST /v1/loans/{id}/transfer DTO contract\n\n## L1 invariant\n\nEvery externally-deserialized DTO MUST carry `#[serde(deny_unknown_fields)]`. A client typo (`amunt` for `amount`) MUST fail deserialization, never silently default. PII fields MUST NOT appear in `Debug` / `Display` output without redaction.\n\n## Public contract\n\n- Route: `POST /v1/loans/:id/transfer`\n- Request body: `TransferDto { from: AccountId, to: AccountId, amount_cents: i64, customer_email: String }`\n- `customer_email` is PII — MUST be redacted in logs / errors.\n\n## Convention notes\n\n- Validation crate: `validator` OR hand-rolled `TryFrom<RawDto>` (this PR uses validator).\n- All DTOs use `#[serde(rename_all = \"snake_case\")]` consistently.\n",
+  "target_crate": "services/loan/src/application",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/application/transfer_dto.rs", "lines": 14}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/application/transfer_dto.rs", "coverage_pct": 80, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "header_uuid_v4",
+    "compensating_actions": [],
+    "audit_events_emitted": [],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": [
+        "serde_deny_unknown_fields_on_external_dtos",
+        "pii_redaction_via_custom_debug",
+        "validator_crate_for_field_validation"
+      ],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": [],
+        "clippy_lint_floor": "workspace.lints with unsafe_code=forbid"
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/application/transfer_dto.rs",
+      "content": "use serde::Deserialize;\nuse uuid::Uuid;\n\n// BUG #1: missing #[serde(deny_unknown_fields)] — silent acceptance of unknown keys.\n// BUG #2: no #[serde(rename_all = \"snake_case\")] — silently inconsistent with sibling DTOs.\n// BUG #3: #[derive(Debug)] on a struct with PII (customer_email) — Debug output reaches logs.\n#[derive(Deserialize, Debug)]\npub struct TransferDto {\n    pub from: Uuid,\n    pub to: Uuid,\n    pub amount_cents: i64,\n    pub customer_email: String,\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/application/transfer_dto.rs",
+      "content": "#[cfg(test)]\nmod tests {\n    use super::*;\n    #[test]\n    fn deserializes_happy_path() {\n        let json = r#\"{\"from\":\"00000000-0000-0000-0000-000000000000\",\"to\":\"00000000-0000-0000-0000-000000000000\",\"amount_cents\":100,\"customer_email\":\"a@b.test\"}\"#;\n        let _: TransferDto = serde_json::from_str(json).unwrap();\n    }\n    // MISSING: a test with an unknown field that should fail deserialization.\n}\n"
+    }
+  ],
+  "idempotency_key": "12120000-7e6d-4f3a-bc44-aa11cc22dd33"
+}

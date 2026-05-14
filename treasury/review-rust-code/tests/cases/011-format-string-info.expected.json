@@ -1,0 +1,84 @@
+{
+  "verdict": "loop_back",
+  "loop_back_target_stage": "implement",
+  "findings": [
+    {
+      "severity": "P3",
+      "confidence": "High",
+      "category": "observability",
+      "rule_violated": "R10",
+      "file": "services/loan/src/application/disburse_logging.rs",
+      "line": 5,
+      "evidence": "tracing::info!(\"loan {} disbursed for user {} amount={}\", loan_id, user_id, amount_cents);",
+      "fix_shape": "Use structured fields: `tracing::info!(loan_id = %loan_id, user_id = %user_id, amount_cents = amount_cents, \"loan disbursed\");`. Backends index named fields; the format-string form produces a single unparseable message field."
+    },
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "observability",
+      "rule_violated": "R10",
+      "file": "services/loan/src/application/disburse_logging.rs",
+      "line": 11,
+      "evidence": "metrics::counter!(\"loan_disbursements_total\", \"user_id\" => user_id.to_string(), \"loan_id\" => loan_id.to_string()).increment(1);",
+      "fix_shape": "Drop user_id and loan_id from the metric labels (every distinct value creates a new time series — Prometheus cardinality explosion). Per the design contract, the only permitted labels are `currency` and `status_class`. If per-user breakdown is needed, emit it as a span field for traces (sampled), not as a metric label."
+    },
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "claims_vs_reality",
+      "rule_violated": "C3",
+      "file": "services/loan/src/application/disburse_logging.rs",
+      "line": 11,
+      "evidence": "decision_metadata.pattern_choices declares 'structured_tracing_fields' AND 'bounded_metric_labels' but the code violates both at lines 5 and 11.",
+      "fix_shape": "Update the code to match the declared patterns OR remove the patterns from the implement-stage output (and accept the observability degradation)."
+    }
+  ],
+  "claims_verified": [],
+  "claims_unverified": [
+    "structured_tracing_fields — line 5 uses format-string interpolation",
+    "bounded_metric_labels — line 11 uses user_id and loan_id as metric labels (unbounded cardinality)"
+  ],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 1,
+    "lines_scanned": 18,
+    "review_duration_inferred_seconds": 25,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "no_finding"},
+      {"rule": "B2", "outcome": "no_finding"},
+      {"rule": "B3", "outcome": "no_finding"},
+      {"rule": "B4", "outcome": "no_finding"},
+      {"rule": "B5", "outcome": "not_applicable", "rationale": "no persistence call in code_under_review"},
+      {"rule": "B6", "outcome": "not_applicable", "rationale": "logging utility — no external side-effect handler"},
+      {"rule": "B7", "outcome": "not_applicable", "rationale": "no async function"},
+      {"rule": "B8", "outcome": "not_applicable", "rationale": "no error path"},
+      {"rule": "B9", "outcome": "no_finding"},
+      {"rule": "B10", "outcome": "no_finding"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "not_applicable", "rationale": "no audit-event emit (this file is logging utility, not an audit publisher)"},
+      {"rule": "A2", "outcome": "not_applicable", "rationale": "no idempotency-key strategy in this file"},
+      {"rule": "A3", "outcome": "not_applicable", "rationale": "no irreversible external side-effect"},
+      {"rule": "A4", "outcome": "not_applicable", "rationale": "no error variants returned"},
+      {"rule": "A5", "outcome": "no_finding"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no unsafe blocks"},
+      {"rule": "R2", "outcome": "no_finding"},
+      {"rule": "R3", "outcome": "not_applicable", "rationale": "no async function"},
+      {"rule": "R4", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R5", "outcome": "no_finding"},
+      {"rule": "R6", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R7", "outcome": "no_finding"},
+      {"rule": "R8", "outcome": "no_finding"},
+      {"rule": "R9", "outcome": "no_finding"},
+      {"rule": "R10", "outcome": "finding"},
+      {"rule": "R11", "outcome": "not_applicable", "rationale": "no DTO in code_under_review"},
+      {"rule": "R12", "outcome": "not_applicable", "rationale": "no Cargo.toml or deny.toml"},
+      {"rule": "C1", "outcome": "no_finding"},
+      {"rule": "C2", "outcome": "no_finding"},
+      {"rule": "C3", "outcome": "finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": []
+}

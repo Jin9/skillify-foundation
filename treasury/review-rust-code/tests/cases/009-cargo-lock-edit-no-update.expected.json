@@ -1,0 +1,71 @@
+{
+  "verdict": "loop_back",
+  "loop_back_target_stage": "implement",
+  "findings": [
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "cargo_hygiene",
+      "rule_violated": "R6",
+      "file": "services/loan/Cargo.lock",
+      "line": 7,
+      "evidence": "tokio version bumped 1.35.0 -> 1.36.0 in Cargo.lock without a corresponding Cargo.toml change or a documented `cargo update -p tokio` invocation in the PR.",
+      "fix_shape": "Either (a) re-run `cargo update -p tokio` and document the rationale in the commit message (the implement stage's pattern_choice 'bump_tokio_to_pick_up_security_patch' is consistent with this), OR (b) revert the Cargo.lock change and let CI rebuild deterministically. Hand-edited Cargo.lock lines are forbidden by R6."
+    }
+  ],
+  "claims_verified": [
+    "rust-version (MSRV) is pinned in Cargo.toml at 1.74"
+  ],
+  "claims_unverified": [
+    "decision_metadata.pattern_choices declares 'bump_tokio_to_pick_up_security_patch' but no `cargo update` invocation is documented and no RUSTSEC advisory is cited"
+  ],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 2,
+    "lines_scanned": 18,
+    "review_duration_inferred_seconds": 25,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "not_applicable", "rationale": "no Rust source in code_under_review"},
+      {"rule": "B2", "outcome": "not_applicable", "rationale": "no Rust source"},
+      {"rule": "B3", "outcome": "not_applicable", "rationale": "no public contract changed"},
+      {"rule": "B4", "outcome": "not_applicable", "rationale": "no state mutation"},
+      {"rule": "B5", "outcome": "not_applicable", "rationale": "no persistence call"},
+      {"rule": "B6", "outcome": "not_applicable", "rationale": "no handler"},
+      {"rule": "B7", "outcome": "not_applicable", "rationale": "no async function"},
+      {"rule": "B8", "outcome": "not_applicable", "rationale": "no error path"},
+      {"rule": "B9", "outcome": "not_applicable", "rationale": "no observability surface"},
+      {"rule": "B10", "outcome": "not_applicable", "rationale": "no security boundary"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "not_applicable", "rationale": "no audit event surface"},
+      {"rule": "A2", "outcome": "not_applicable", "rationale": "no idempotency surface"},
+      {"rule": "A3", "outcome": "not_applicable", "rationale": "no compensating action surface"},
+      {"rule": "A4", "outcome": "not_applicable", "rationale": "no error type surface"},
+      {"rule": "A5", "outcome": "not_applicable", "rationale": "no test code in PR"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no Rust source in code_under_review"},
+      {"rule": "R2", "outcome": "not_applicable", "rationale": "no Rust source"},
+      {"rule": "R3", "outcome": "not_applicable", "rationale": "no async source"},
+      {"rule": "R4", "outcome": "no_finding"},
+      {"rule": "R5", "outcome": "not_applicable", "rationale": "no module visibility changes"},
+      {"rule": "R6", "outcome": "finding"},
+      {"rule": "R7", "outcome": "not_applicable", "rationale": "no money type"},
+      {"rule": "R8", "outcome": "not_applicable", "rationale": "no time API"},
+      {"rule": "R9", "outcome": "not_applicable", "rationale": "no SQL"},
+      {"rule": "R10", "outcome": "not_applicable", "rationale": "no observability call"},
+      {"rule": "R11", "outcome": "not_applicable", "rationale": "no DTO"},
+      {"rule": "R12", "outcome": "no_finding"},
+      {"rule": "C1", "outcome": "not_applicable", "rationale": "no production Rust file to require a companion test"},
+      {"rule": "C2", "outcome": "not_applicable", "rationale": "no Rust coverage claim"},
+      {"rule": "C3", "outcome": "no_finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": [
+    {
+      "kind": "needs_human_judgment",
+      "location": "services/loan/Cargo.lock:7",
+      "note": "The pattern_choice 'bump_tokio_to_pick_up_security_patch' is plausible (1.35.0 -> 1.36.0 is the right shape for a patch bump) but the PR cites no RUSTSEC advisory ID. A reviewer should check whether RUSTSEC-2024-* covers tokio 1.35.x and require the ID in the commit message."
+    }
+  ]
+}

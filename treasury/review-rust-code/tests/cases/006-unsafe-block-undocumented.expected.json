@@ -1,0 +1,89 @@
+{
+  "verdict": "human-queue",
+  "loop_back_target_stage": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "unsafe_rust",
+      "rule_violated": "R1",
+      "file": "services/loan/src/util/cast.rs",
+      "line": 10,
+      "evidence": "unsafe { std::mem::transmute::<&str, &'static str>(s) } — no // SAFETY: comment naming the invariants, and decision_metadata.rust_specific.unsafe_declarations is empty (the implement stage did not declare this unsafe block).",
+      "fix_shape": "Either (a) replace with a safe interner like the `string-interner` crate, OR (b) add a // SAFETY: comment naming the soundness argument (it has none — this transmute is unsound because the input lifetime is not actually 'static) AND declare the block in decision_metadata.rust_specific.unsafe_declarations[] with miri_status. Option (a) is the only sound fix here."
+    },
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "lint_baseline",
+      "rule_violated": "R4",
+      "file": "services/loan/src/util/cast.rs",
+      "line": 4,
+      "evidence": "#![allow(unsafe_code)] weakens the workspace lint floor unsafe_code=\"forbid\" without a documented exception.",
+      "fix_shape": "Remove the #![allow(unsafe_code)] attribute. The workspace lint floor is unsafe_code=forbid; weakening it crate-by-crate defeats the purpose. If unsafe is truly needed, raise the exception at workspace level with a written rationale."
+    },
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "unsafe_rust",
+      "rule_violated": "R1",
+      "file": "services/loan/src/util/cast.rs",
+      "line": 10,
+      "evidence": "transmute<&str, &'static str> launders a non-static lifetime to 'static. This is unsound: when the input string is dropped, the returned reference dangles.",
+      "fix_shape": "Use a safe abstraction (e.g. `string-interner::DefaultStringInterner` or `Box::leak(Box::from(s)) as &'static str`). `Box::leak` is also a 'static-widener but is at least sound; transmute here is UB."
+    }
+  ],
+  "claims_verified": [],
+  "claims_unverified": [
+    "decision_metadata.rust_specific.unsafe_declarations is empty but the code contains 1 unsafe block at services/loan/src/util/cast.rs:10"
+  ],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 1,
+    "lines_scanned": 14,
+    "review_duration_inferred_seconds": 40,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "no_finding"},
+      {"rule": "B2", "outcome": "no_finding"},
+      {"rule": "B3", "outcome": "no_finding"},
+      {"rule": "B4", "outcome": "no_finding"},
+      {"rule": "B5", "outcome": "not_applicable", "rationale": "no persistence in code_under_review"},
+      {"rule": "B6", "outcome": "not_applicable", "rationale": "no external side-effect handler"},
+      {"rule": "B7", "outcome": "no_finding"},
+      {"rule": "B8", "outcome": "no_finding"},
+      {"rule": "B9", "outcome": "no_finding"},
+      {"rule": "B10", "outcome": "no_finding"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "no_finding"},
+      {"rule": "A2", "outcome": "no_finding"},
+      {"rule": "A3", "outcome": "no_finding"},
+      {"rule": "A4", "outcome": "no_finding"},
+      {"rule": "A5", "outcome": "no_finding"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "finding"},
+      {"rule": "R2", "outcome": "no_finding"},
+      {"rule": "R3", "outcome": "no_finding"},
+      {"rule": "R4", "outcome": "finding"},
+      {"rule": "R5", "outcome": "no_finding"},
+      {"rule": "R6", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R7", "outcome": "no_finding"},
+      {"rule": "R8", "outcome": "no_finding"},
+      {"rule": "R9", "outcome": "no_finding"},
+      {"rule": "R10", "outcome": "no_finding"},
+      {"rule": "R11", "outcome": "no_finding"},
+      {"rule": "R12", "outcome": "not_applicable", "rationale": "no Cargo.toml or deny.toml in code_under_review"},
+      {"rule": "C1", "outcome": "no_finding"},
+      {"rule": "C2", "outcome": "no_finding"},
+      {"rule": "C3", "outcome": "no_finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": [
+    {
+      "kind": "needs_human_judgment",
+      "location": "services/loan/src/util/cast.rs:10",
+      "note": "The transmute is unsound regardless of declaration. Even if the implement stage adds an unsafe_declarations[] entry with a // SAFETY: comment, the soundness argument cannot be valid for this code shape. Recommend rejecting the design pattern (lifetime_widen_via_transmute) entirely."
+    }
+  ]
+}

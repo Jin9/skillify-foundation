@@ -1,0 +1,66 @@
+{
+  "verdict": "human-queue",
+  "loop_back_target_stage": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "panicking_api",
+      "rule_violated": "R2",
+      "file": "services/loan/src/application/handler.rs",
+      "line": 15,
+      "evidence": "let loan = state.loan_repo.get_by_id(loan_id).await.unwrap();",
+      "fix_shape": "Match on the Result: map the RepoError::NotFound case to ApiError::NotFound and RepoError::Db to ApiError::Dependency. Never .unwrap() a Result on a request path."
+    }
+  ],
+  "claims_verified": [
+    "GET is naturally idempotent — handler is read-only (no inserts/updates/deletes/publishes)",
+    "no audit event needed — read-only path matches Generate's pattern choice",
+    "no compensating action needed — empty compensating_actions array is consistent with read-only code",
+    "tracing::instrument applied to LoanHandler::get"
+  ],
+  "claims_unverified": [],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 1,
+    "lines_scanned": 18,
+    "review_duration_inferred_seconds": 30,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "no_finding"},
+      {"rule": "B2", "outcome": "no_finding"},
+      {"rule": "B3", "outcome": "no_finding"},
+      {"rule": "B4", "outcome": "no_finding"},
+      {"rule": "B5", "outcome": "no_finding"},
+      {"rule": "B6", "outcome": "no_finding"},
+      {"rule": "B7", "outcome": "no_finding"},
+      {"rule": "B8", "outcome": "no_finding"},
+      {"rule": "B9", "outcome": "no_finding"},
+      {"rule": "B10", "outcome": "no_finding"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "no_finding"},
+      {"rule": "A2", "outcome": "no_finding"},
+      {"rule": "A3", "outcome": "no_finding"},
+      {"rule": "A4", "outcome": "no_finding"},
+      {"rule": "A5", "outcome": "no_finding"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no unsafe blocks in code_under_review"},
+      {"rule": "R2", "outcome": "finding"},
+      {"rule": "R3", "outcome": "no_finding"},
+      {"rule": "R4", "outcome": "not_applicable", "rationale": "no lib.rs / Cargo.toml in code_under_review"},
+      {"rule": "R5", "outcome": "no_finding"},
+      {"rule": "R6", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R7", "outcome": "no_finding"},
+      {"rule": "R8", "outcome": "no_finding"},
+      {"rule": "R9", "outcome": "no_finding"},
+      {"rule": "R10", "outcome": "no_finding"},
+      {"rule": "R11", "outcome": "no_finding"},
+      {"rule": "R12", "outcome": "not_applicable", "rationale": "no Cargo.toml or deny.toml in code_under_review"},
+      {"rule": "C1", "outcome": "no_finding"},
+      {"rule": "C2", "outcome": "no_finding"},
+      {"rule": "C3", "outcome": "no_finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": []
+}

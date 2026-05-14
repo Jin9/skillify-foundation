@@ -1,0 +1,43 @@
+{
+  "design_document": "# Design — public API surface for the loan crate\n\n## L1 invariant\n\nThe public API surface MUST be limited to the types enumerated below. New `pub use` re-exports require an API-surface review and a SemVer-minor bump. Glob re-exports (`pub use foo::*;`) are forbidden — each re-export must enumerate the items.\n\n## Public contract\n\nOnly these items may be reachable through the loan crate's `pub` tree:\n\n- `pub struct LoanResponse { ... }`\n- `pub enum LoanError { ... }`\n\nInternal types (`InternalLoan`, `RawSnapshot`, `LedgerCursor`, etc.) MUST remain `pub(crate)`.\n\n## Convention notes\n\n- No glob re-exports.\n- `#[non_exhaustive]` preserved on every public enum and struct.\n",
+  "target_crate": "services/loan/src",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/lib.rs", "lines": 6},
+      {"path": "services/loan/src/internal/types.rs", "lines": 18}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/internal/types.rs", "coverage_pct": 80, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "naturally_idempotent_read_only",
+    "compensating_actions": [],
+    "audit_events_emitted": [],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": ["narrow_pub_use_only", "non_exhaustive_on_public_enums"],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": [],
+        "clippy_lint_floor": "workspace.lints with unsafe_code=forbid"
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/lib.rs",
+      "content": "// Public API surface\npub mod internal;\n\n// BUG: glob re-export — silently widens the public API to every pub item in internal::types,\n// which today includes InternalLoan, RawSnapshot, LedgerCursor in addition to LoanResponse / LoanError.\npub use internal::types::*;\n"
+    },
+    {
+      "path": "services/loan/src/internal/types.rs",
+      "content": "// Public contract per design: only LoanResponse and LoanError.\npub struct LoanResponse {\n    pub id: uuid::Uuid,\n    pub principal_cents: i64,\n}\n\n#[non_exhaustive]\npub enum LoanError {\n    NotFound,\n    Forbidden,\n}\n\n// These were intended pub(crate) per design but are pub here, then glob-re-exported above.\npub struct InternalLoan { pub raw: RawSnapshot }\npub struct RawSnapshot { pub bytes: Vec<u8> }\npub struct LedgerCursor { pub offset: u64 }\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/internal/types.rs",
+      "content": "#[cfg(test)]\nmod tests { use super::*; #[test] fn smoke() { let _ = LoanResponse { id: uuid::Uuid::nil(), principal_cents: 0 }; } }\n"
+    }
+  ],
+  "idempotency_key": "88880000-7e6d-4f3a-bc44-aa11cc22dd33"
+}

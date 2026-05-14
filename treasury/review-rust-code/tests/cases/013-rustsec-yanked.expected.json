@@ -1,0 +1,83 @@
+{
+  "verdict": "loop_back",
+  "loop_back_target_stage": "implement",
+  "findings": [
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "supply_chain",
+      "rule_violated": "R12",
+      "file": "services/loan/Cargo.lock",
+      "line": 7,
+      "evidence": "tokio 1.35.0 is YANKED on crates.io (per implement_stage_output.decision_metadata.rust_specific.cargo_audit_summary.yanked_count = 1). Cargo.toml exact-pins =1.35.0 in services/loan/Cargo.toml:8, so a fresh `cargo update` will not move off the yanked version.",
+      "fix_shape": "Bump the exact pin in Cargo.toml from `=1.35.0` to the next non-yanked patch (e.g. `=1.35.1` or simply `1` to inherit the workspace version), then run `cargo update -p tokio`. Re-run `cargo audit` to confirm yanked_count drops to 0.",
+      "standards_ref": "RUSTSEC-YYYY-NNNN (verify the actual advisory ID before publishing — withhold if uncertain)"
+    },
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "claims_vs_reality",
+      "rule_violated": "C3",
+      "file": "services/loan/Cargo.toml",
+      "line": null,
+      "evidence": "decision_metadata.pattern_choices declares 'pin_tokio_for_compat' but does not name a target version, and the chosen pin (=1.35.0) is the yanked version. The pattern itself (pinning) is reasonable; the chosen value is not.",
+      "fix_shape": "Either move to inherited workspace dep (`tokio.workspace = true`) so workspace-level pin governs, OR keep the exact pin and update it to a non-yanked patch."
+    }
+  ],
+  "claims_verified": [
+    "rust-version (MSRV) pinned in Cargo.toml at 1.74",
+    "deny.toml gates passing per implement_stage_output.cargo_deny_summary"
+  ],
+  "claims_unverified": [
+    "cargo_audit_summary.yanked_count = 1 — confirmed by tokio 1.35.0 in Cargo.lock; the implement stage correctly reported the yanked count but did not bump off it"
+  ],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 2,
+    "lines_scanned": 15,
+    "review_duration_inferred_seconds": 25,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "not_applicable", "rationale": "no Rust source in code_under_review"},
+      {"rule": "B2", "outcome": "not_applicable", "rationale": "no Rust source"},
+      {"rule": "B3", "outcome": "not_applicable", "rationale": "no public contract changed"},
+      {"rule": "B4", "outcome": "not_applicable", "rationale": "no state mutation"},
+      {"rule": "B5", "outcome": "not_applicable", "rationale": "no persistence call"},
+      {"rule": "B6", "outcome": "not_applicable", "rationale": "no handler"},
+      {"rule": "B7", "outcome": "not_applicable", "rationale": "no async function"},
+      {"rule": "B8", "outcome": "not_applicable", "rationale": "no error path"},
+      {"rule": "B9", "outcome": "not_applicable", "rationale": "no observability surface"},
+      {"rule": "B10", "outcome": "not_applicable", "rationale": "no security boundary in this PR"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "not_applicable", "rationale": "no audit-event surface"},
+      {"rule": "A2", "outcome": "not_applicable", "rationale": "no idempotency surface"},
+      {"rule": "A3", "outcome": "not_applicable", "rationale": "no compensating action surface"},
+      {"rule": "A4", "outcome": "not_applicable", "rationale": "no error type surface"},
+      {"rule": "A5", "outcome": "not_applicable", "rationale": "no test code in PR"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no Rust source in code_under_review"},
+      {"rule": "R2", "outcome": "not_applicable", "rationale": "no Rust source"},
+      {"rule": "R3", "outcome": "not_applicable", "rationale": "no async source"},
+      {"rule": "R4", "outcome": "no_finding"},
+      {"rule": "R5", "outcome": "not_applicable", "rationale": "no module visibility surface"},
+      {"rule": "R6", "outcome": "no_finding"},
+      {"rule": "R7", "outcome": "not_applicable", "rationale": "no money type"},
+      {"rule": "R8", "outcome": "not_applicable", "rationale": "no time API"},
+      {"rule": "R9", "outcome": "not_applicable", "rationale": "no SQL"},
+      {"rule": "R10", "outcome": "not_applicable", "rationale": "no observability call"},
+      {"rule": "R11", "outcome": "not_applicable", "rationale": "no DTO"},
+      {"rule": "R12", "outcome": "finding"},
+      {"rule": "C1", "outcome": "not_applicable", "rationale": "no production Rust file to require a companion test"},
+      {"rule": "C2", "outcome": "not_applicable", "rationale": "no Rust coverage claim"},
+      {"rule": "C3", "outcome": "finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": [
+    {
+      "kind": "needs_human_judgment",
+      "location": "services/loan/Cargo.toml:8",
+      "note": "The yank reason is not in the input. A reviewer should consult the RUSTSEC database (or the crate's GitHub releases) to determine whether the yank is for a security issue (P1) or a regression (P2). Conservative default kept at P2 here."
+    }
+  ]
+}

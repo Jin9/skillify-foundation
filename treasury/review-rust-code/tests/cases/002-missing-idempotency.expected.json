@@ -1,0 +1,86 @@
+{
+  "verdict": "human-queue",
+  "loop_back_target_stage": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "idempotency",
+      "rule_violated": "B6",
+      "file": "services/loan/src/application/disburse_handler.rs",
+      "line": 13,
+      "evidence": "pub async fn disburse(State(state): State<AppState>, Path(loan_id): Path<Uuid>, Json(req): Json<DisbursementRequest>) -> ... — no Header(idempotency_key) extractor; no dedup-store call; no replay branch on a money-moving handler.",
+      "fix_shape": "Add Header(idempotency_key): Header<Uuid> extractor. Persist (key, request_hash, response_payload, status) in idempotency_records. Branch: same-key replay returns stored response; same-key + different-request_hash returns 409."
+    },
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "idempotency",
+      "rule_violated": "A2",
+      "file": "services/loan/src/application/disburse_handler.rs",
+      "line": null,
+      "evidence": "Generate's idempotency_strategy claims 'header_uuid_v4' but the code does not read a header, persist a dedup row, or branch on replay.",
+      "fix_shape": "Implement the claimed strategy end-to-end OR change the strategy declaration to match what the code does."
+    },
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "audit",
+      "rule_violated": "A1",
+      "file": "services/loan/src/application/disburse_handler.rs",
+      "line": 22,
+      "evidence": "Handler completes a money-moving state change without emitting audit event 'loan.disbursed' declared in implement_stage_output.audit_events_emitted.",
+      "fix_shape": "Emit AuditPublisher::record(AuditEvent { event_type: \"loan.disbursed\", actor, action, target: loan_id, timestamp, trace_id, decision_metadata: {amount, currency} }) before returning Ok."
+    }
+  ],
+  "claims_verified": [
+    "compensating action declared (loan.disbursement_reversed) — declaration shape matches implement_stage_output.compensating_actions[0].trigger"
+  ],
+  "claims_unverified": [
+    "idempotency_strategy 'header_uuid_v4' — no idempotency_key extractor, no dedup-store call, no replay branch in code",
+    "audit_events_emitted 'loan.disbursed' — no emit call found in code"
+  ],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 1,
+    "lines_scanned": 28,
+    "review_duration_inferred_seconds": 60,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "no_finding"},
+      {"rule": "B2", "outcome": "no_finding"},
+      {"rule": "B3", "outcome": "no_finding"},
+      {"rule": "B4", "outcome": "no_finding"},
+      {"rule": "B5", "outcome": "no_finding"},
+      {"rule": "B6", "outcome": "finding"},
+      {"rule": "B7", "outcome": "no_finding"},
+      {"rule": "B8", "outcome": "no_finding"},
+      {"rule": "B9", "outcome": "no_finding"},
+      {"rule": "B10", "outcome": "no_finding"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "finding"},
+      {"rule": "A2", "outcome": "finding"},
+      {"rule": "A3", "outcome": "no_finding"},
+      {"rule": "A4", "outcome": "no_finding"},
+      {"rule": "A5", "outcome": "no_finding"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no unsafe blocks in code_under_review"},
+      {"rule": "R2", "outcome": "no_finding"},
+      {"rule": "R3", "outcome": "no_finding"},
+      {"rule": "R4", "outcome": "not_applicable", "rationale": "no lib.rs / Cargo.toml in code_under_review to inspect lint floor"},
+      {"rule": "R5", "outcome": "no_finding"},
+      {"rule": "R6", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R7", "outcome": "no_finding"},
+      {"rule": "R8", "outcome": "no_finding"},
+      {"rule": "R9", "outcome": "no_finding"},
+      {"rule": "R10", "outcome": "no_finding"},
+      {"rule": "R11", "outcome": "no_finding"},
+      {"rule": "R12", "outcome": "not_applicable", "rationale": "no Cargo.toml or deny.toml in code_under_review"},
+      {"rule": "C1", "outcome": "no_finding"},
+      {"rule": "C2", "outcome": "no_finding"},
+      {"rule": "C3", "outcome": "no_finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": []
+}

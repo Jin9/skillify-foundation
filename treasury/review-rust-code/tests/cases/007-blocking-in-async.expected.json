@@ -1,0 +1,64 @@
+{
+  "verdict": "human-queue",
+  "loop_back_target_stage": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "confidence": "High",
+      "category": "async_blocking",
+      "rule_violated": "R3",
+      "file": "services/loan/src/application/disburse_handler.rs",
+      "line": 24,
+      "evidence": "std::thread::sleep(Duration::from_millis(state.config.disburse_backoff_ms)) — blocking std call inside an `async fn`. [critical: money handling and ledger writes] — severity promoted P2 -> P1 because file matches critical_paths glob 'services/loan/**'.",
+      "fix_shape": "Replace with tokio::time::sleep(Duration::from_millis(...)).await. std::thread::sleep blocks the executor thread, holding up every other task scheduled on it — catastrophic on a money-critical retry path."
+    }
+  ],
+  "claims_verified": [
+    "tokio runtime declared in async_runtime_features matches the #[tokio::test] flavor in tests",
+    "idempotency_strategy: header_uuid_v4 declared (separate review needed for the actual extractor/dedup-store implementation; out of scope for this case)"
+  ],
+  "claims_unverified": [],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 1,
+    "lines_scanned": 30,
+    "review_duration_inferred_seconds": 35,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "no_finding"},
+      {"rule": "B2", "outcome": "no_finding"},
+      {"rule": "B3", "outcome": "no_finding"},
+      {"rule": "B4", "outcome": "no_finding"},
+      {"rule": "B5", "outcome": "no_finding"},
+      {"rule": "B6", "outcome": "no_finding"},
+      {"rule": "B7", "outcome": "no_finding"},
+      {"rule": "B8", "outcome": "no_finding"},
+      {"rule": "B9", "outcome": "no_finding"},
+      {"rule": "B10", "outcome": "no_finding"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "no_finding"},
+      {"rule": "A2", "outcome": "no_finding"},
+      {"rule": "A3", "outcome": "no_finding"},
+      {"rule": "A4", "outcome": "no_finding"},
+      {"rule": "A5", "outcome": "no_finding"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no unsafe blocks in code_under_review"},
+      {"rule": "R2", "outcome": "no_finding"},
+      {"rule": "R3", "outcome": "finding"},
+      {"rule": "R4", "outcome": "not_applicable", "rationale": "no lib.rs / Cargo.toml in code_under_review"},
+      {"rule": "R5", "outcome": "no_finding"},
+      {"rule": "R6", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R7", "outcome": "no_finding"},
+      {"rule": "R8", "outcome": "no_finding"},
+      {"rule": "R9", "outcome": "no_finding"},
+      {"rule": "R10", "outcome": "no_finding"},
+      {"rule": "R11", "outcome": "no_finding"},
+      {"rule": "R12", "outcome": "not_applicable", "rationale": "no Cargo.toml or deny.toml in code_under_review"},
+      {"rule": "C1", "outcome": "no_finding"},
+      {"rule": "C2", "outcome": "no_finding"},
+      {"rule": "C3", "outcome": "no_finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": []
+}

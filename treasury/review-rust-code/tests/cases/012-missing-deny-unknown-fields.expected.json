@@ -1,0 +1,95 @@
+{
+  "verdict": "loop_back",
+  "loop_back_target_stage": "implement",
+  "findings": [
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "security",
+      "rule_violated": "R11",
+      "file": "services/loan/src/application/transfer_dto.rs",
+      "line": 7,
+      "evidence": "#[derive(Deserialize, Debug)] pub struct TransferDto { ... } — missing #[serde(deny_unknown_fields)] on an externally-deserialized DTO.",
+      "fix_shape": "Add `#[serde(deny_unknown_fields, rename_all = \"snake_case\")]` to the derive attribute block. A client typo like {\"amunt\": 100} would currently be silently dropped; with deny_unknown_fields it produces a deserialization error."
+    },
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "security",
+      "rule_violated": "R11",
+      "file": "services/loan/src/application/transfer_dto.rs",
+      "line": 7,
+      "evidence": "#[derive(Debug)] on TransferDto where TransferDto.customer_email is PII (named in the design's L1 invariant).",
+      "fix_shape": "Either remove #[derive(Debug)] and write a custom impl that prints `customer_email: ***@<domain>` only, OR move customer_email to a separate Pii<String> newtype with a redacting Debug impl. Today the default Debug output reaches log lines."
+    },
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "claims_vs_reality",
+      "rule_violated": "C3",
+      "file": "services/loan/src/application/transfer_dto.rs",
+      "line": 7,
+      "evidence": "decision_metadata.pattern_choices declares 'serde_deny_unknown_fields_on_external_dtos' AND 'pii_redaction_via_custom_debug' but the code violates both.",
+      "fix_shape": "Update the code to match the declared patterns. The patterns are the right defaults; this is an implementation gap."
+    },
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "tests",
+      "rule_violated": "C2",
+      "file": "services/loan/src/application/transfer_dto.rs",
+      "line": null,
+      "evidence": "Per-file coverage_pct claim is 80 but the only test is the happy-path deserialization. There is no test that an unknown field fails deserialization, no validator-crate validation test, no PII-redaction test.",
+      "fix_shape": "Add three tests: (a) `unknown_field_fails_deserialization` with `{\"amunt\": 100}` expecting Err, (b) validator::Validate happy + sad paths once #[validate] attributes are added, (c) `debug_redacts_email` verifying the Debug output does not contain the raw email."
+    }
+  ],
+  "claims_verified": [],
+  "claims_unverified": [
+    "serde_deny_unknown_fields_on_external_dtos — TransferDto is missing this attribute",
+    "pii_redaction_via_custom_debug — TransferDto uses #[derive(Debug)] which reveals customer_email",
+    "validator_crate_for_field_validation — no #[derive(Validate)] or #[validate(...)] attributes present in code"
+  ],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 1,
+    "lines_scanned": 14,
+    "review_duration_inferred_seconds": 30,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "no_finding"},
+      {"rule": "B2", "outcome": "no_finding"},
+      {"rule": "B3", "outcome": "no_finding"},
+      {"rule": "B4", "outcome": "no_finding"},
+      {"rule": "B5", "outcome": "not_applicable", "rationale": "no persistence call"},
+      {"rule": "B6", "outcome": "not_applicable", "rationale": "no handler"},
+      {"rule": "B7", "outcome": "not_applicable", "rationale": "no async function"},
+      {"rule": "B8", "outcome": "not_applicable", "rationale": "no error path"},
+      {"rule": "B9", "outcome": "not_applicable", "rationale": "no observability surface"},
+      {"rule": "B10", "outcome": "no_finding"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "not_applicable", "rationale": "no audit emit in this DTO file"},
+      {"rule": "A2", "outcome": "not_applicable", "rationale": "no idempotency strategy in DTO file"},
+      {"rule": "A3", "outcome": "not_applicable", "rationale": "no compensating action in DTO file"},
+      {"rule": "A4", "outcome": "not_applicable", "rationale": "no error variants in DTO file"},
+      {"rule": "A5", "outcome": "no_finding"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no unsafe blocks"},
+      {"rule": "R2", "outcome": "no_finding"},
+      {"rule": "R3", "outcome": "not_applicable", "rationale": "no async code"},
+      {"rule": "R4", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R5", "outcome": "no_finding"},
+      {"rule": "R6", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R7", "outcome": "no_finding"},
+      {"rule": "R8", "outcome": "no_finding"},
+      {"rule": "R9", "outcome": "no_finding"},
+      {"rule": "R10", "outcome": "no_finding"},
+      {"rule": "R11", "outcome": "finding"},
+      {"rule": "R12", "outcome": "not_applicable", "rationale": "no Cargo.toml or deny.toml in code_under_review"},
+      {"rule": "C1", "outcome": "no_finding"},
+      {"rule": "C2", "outcome": "finding"},
+      {"rule": "C3", "outcome": "finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": []
+}

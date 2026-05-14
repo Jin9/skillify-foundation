@@ -1,0 +1,53 @@
+{
+  "design_document": "# Design — GET /v1/loans/{id} (Rust)\n\n## L1 invariant\n\nReading a loan by id is naturally idempotent: same `loan_id` MUST return identical bytes for the lifetime of the loan, or a documented 404 if absent.\n\n## Public contract\n\n- Route: `GET /v1/loans/:id`\n- Handler: `LoanHandler::get(state, Path(loan_id)) -> Result<Json<LoanResponse>, ApiError>`\n- Auth: bearer token, scope `loan:read`.\n- Errors: `ApiError::NotFound` -> 404; `ApiError::Unauthorized` -> 401; `ApiError::Dependency` -> 502.\n\n## Idempotency strategy\n\nNaturally idempotent. No dedup table. No state change. Read-only path.\n\n## Audit events\n\nNone — read-only path. The use-case service does NOT emit an audit event for GETs; access logs at the gateway are sufficient per repo policy.\n\n## Compensating actions\n\nNone — no irreversible external side-effects.\n\n## Failure modes\n\n- `not_found` — counter `loan_get_not_found_total`, tracing event at `warn` level, span `loan.get` with attribute `outcome=not_found`.\n- `dependency_error` — counter `loan_get_dependency_error_total`, tracing event at `error`, span attribute `outcome=dependency_error`.\n\n## Convention notes\n\n- Use `thiserror` for the domain error enum; use `axum::response::IntoResponse` for the HTTP mapping.\n- Use `sqlx` macros (`query_as!`).\n- Use `tracing::instrument` for span wrapping.\n- All public async functions take `&AppState` (which carries the cancellation deadline).\n",
+  "target_crate": "services/loan/src/application",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/application/handler.rs", "lines": 38},
+      {"path": "services/loan/src/application/service.rs", "lines": 42},
+      {"path": "services/loan/src/application/repository.rs", "lines": 28}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/application/service.rs", "coverage_pct": 92, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "naturally_idempotent_read_only",
+    "compensating_actions": [],
+    "audit_events_emitted": [],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": [
+        "thiserror_for_domain_errors",
+        "sqlx_query_as_macro_for_persistence",
+        "tracing_instrument_for_span_wrap",
+        "no_audit_on_read_only_path"
+      ],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": ["tokio_rt_multi_thread"],
+        "clippy_lint_floor": "workspace.lints with unsafe_code=forbid"
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/application/handler.rs",
+      "content": "use axum::{extract::{Path, State}, response::IntoResponse, Json};\nuse uuid::Uuid;\nuse crate::application::service::LoanService;\nuse crate::application::error::ApiError;\nuse crate::application::dto::LoanResponse;\nuse crate::app_state::AppState;\n\npub struct LoanHandler;\n\nimpl LoanHandler {\n    #[tracing::instrument(skip(state), fields(loan_id = %loan_id))]\n    pub async fn get(\n        State(state): State<AppState>,\n        Path(loan_id): Path<Uuid>,\n    ) -> Result<Json<LoanResponse>, ApiError> {\n        let svc = LoanService::new(state.loan_repo.clone());\n        let loan = svc.get(loan_id).await?;\n        Ok(Json(LoanResponse::from(loan)))\n    }\n}\n"
+    },
+    {
+      "path": "services/loan/src/application/service.rs",
+      "content": "use std::sync::Arc;\nuse uuid::Uuid;\nuse crate::application::error::ApiError;\nuse crate::application::repository::{LoanRepository, Loan};\n\npub struct LoanService {\n    repo: Arc<dyn LoanRepository + Send + Sync>,\n}\n\nimpl LoanService {\n    pub fn new(repo: Arc<dyn LoanRepository + Send + Sync>) -> Self {\n        Self { repo }\n    }\n\n    #[tracing::instrument(skip(self))]\n    pub async fn get(&self, loan_id: Uuid) -> Result<Loan, ApiError> {\n        self.repo\n            .get_by_id(loan_id)\n            .await\n            .map_err(|e| match e {\n                crate::application::repository::RepoError::NotFound => ApiError::NotFound,\n                crate::application::repository::RepoError::Db(inner) => {\n                    tracing::error!(error = ?inner, \"loan repo db error\");\n                    ApiError::Dependency\n                }\n            })\n    }\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n    use crate::application::repository::{LoanRepository, Loan, RepoError};\n    use async_trait::async_trait;\n    use uuid::Uuid;\n\n    struct StubRepo {\n        outcome: Result<Loan, RepoError>,\n    }\n\n    #[async_trait]\n    impl LoanRepository for StubRepo {\n        async fn get_by_id(&self, _id: Uuid) -> Result<Loan, RepoError> {\n            match &self.outcome {\n                Ok(l) => Ok(l.clone()),\n                Err(RepoError::NotFound) => Err(RepoError::NotFound),\n                Err(RepoError::Db(_)) => Err(RepoError::Db(\"db down\".into())),\n            }\n        }\n    }\n\n    #[tokio::test]\n    async fn returns_loan_when_found() {\n        let loan = Loan { id: Uuid::nil(), principal_cents: 100_00 };\n        let repo = Arc::new(StubRepo { outcome: Ok(loan.clone()) });\n        let svc = LoanService::new(repo);\n        let got = svc.get(Uuid::nil()).await.unwrap();\n        assert_eq!(got.principal_cents, 100_00);\n    }\n\n    #[tokio::test]\n    async fn maps_not_found_to_api_error() {\n        let repo = Arc::new(StubRepo { outcome: Err(RepoError::NotFound) });\n        let svc = LoanService::new(repo);\n        let err = svc.get(Uuid::nil()).await.unwrap_err();\n        assert!(matches!(err, ApiError::NotFound));\n    }\n\n    #[tokio::test]\n    async fn maps_db_error_to_dependency() {\n        let repo = Arc::new(StubRepo { outcome: Err(RepoError::Db(\"x\".into())) });\n        let svc = LoanService::new(repo);\n        let err = svc.get(Uuid::nil()).await.unwrap_err();\n        assert!(matches!(err, ApiError::Dependency));\n    }\n}\n"
+    },
+    {
+      "path": "services/loan/src/application/repository.rs",
+      "content": "use async_trait::async_trait;\nuse thiserror::Error;\nuse uuid::Uuid;\n\n#[derive(Debug, Clone)]\npub struct Loan {\n    pub id: Uuid,\n    pub principal_cents: i64,\n}\n\n#[derive(Debug, Error)]\npub enum RepoError {\n    #[error(\"not found\")]\n    NotFound,\n    #[error(\"db error: {0}\")]\n    Db(String),\n}\n\n#[async_trait]\npub trait LoanRepository {\n    async fn get_by_id(&self, id: Uuid) -> Result<Loan, RepoError>;\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/application/service.rs",
+      "content": "// inline #[cfg(test)] mod tests block — see code_under_review entry above. Reproduced here so the harness can scan tests in isolation.\n\nuse super::*;\nuse crate::application::repository::{LoanRepository, Loan, RepoError};\nuse async_trait::async_trait;\nuse uuid::Uuid;\n\nstruct StubRepo {\n    outcome: Result<Loan, RepoError>,\n}\n\n#[async_trait]\nimpl LoanRepository for StubRepo {\n    async fn get_by_id(&self, _id: Uuid) -> Result<Loan, RepoError> {\n        match &self.outcome {\n            Ok(l) => Ok(l.clone()),\n            Err(RepoError::NotFound) => Err(RepoError::NotFound),\n            Err(RepoError::Db(_)) => Err(RepoError::Db(\"db down\".into())),\n        }\n    }\n}\n\n#[tokio::test]\nasync fn returns_loan_when_found() { /* ... */ }\n\n#[tokio::test]\nasync fn maps_not_found_to_api_error() { /* ... */ }\n\n#[tokio::test]\nasync fn maps_db_error_to_dependency() { /* ... */ }\n"
+    }
+  ],
+  "idempotency_key": "0b6a1f10-7e6d-4f3a-bc44-aa11cc22dd33"
+}

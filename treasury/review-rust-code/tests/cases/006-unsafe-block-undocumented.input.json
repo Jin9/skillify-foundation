@@ -1,0 +1,38 @@
+{
+  "design_document": "# Design — internal string utility\n\n## L1 invariant\n\nLifetime laundering is forbidden. No `&'static` widening via `transmute` or `Box::leak`. Crate-level `#![forbid(unsafe_code)]` is the repo default; any exception requires written justification AND a declaration in `decision_metadata.rust_specific.unsafe_declarations[]`.\n\n## Public contract\n\n- `pub fn intern_str(s: &str) -> &'static str` — interns a string. Implementation MAY use `string-interner` crate or equivalent safe abstraction. Must NOT widen lifetime via transmute.\n\n## Convention notes\n\n- Workspace lint floor: `[workspace.lints.rust] unsafe_code = \"forbid\"`.\n",
+  "target_crate": "services/loan/src/util",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/util/cast.rs", "lines": 14}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/util/cast.rs", "coverage_pct": 90, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "naturally_idempotent_read_only",
+    "compensating_actions": [],
+    "audit_events_emitted": [],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": ["lifetime_widen_via_transmute"],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": [],
+        "clippy_lint_floor": "workspace.lints with unsafe_code=forbid"
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/util/cast.rs",
+      "content": "// Internal helper. Workspace lint floor declares unsafe_code = \"forbid\";\n// this file would not compile under it — but the author also weakened the\n// crate-level attribute (see the #![allow(unsafe_code)] line).\n#![allow(unsafe_code)]\n\npub fn intern_str(s: &str) -> &'static str {\n    // BUG: lifetime laundering via transmute, no // SAFETY: comment,\n    // and decision_metadata.rust_specific.unsafe_declarations is empty\n    // — the implement stage did not declare this unsafe block.\n    unsafe {\n        std::mem::transmute::<&str, &'static str>(s)\n    }\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/util/cast.rs",
+      "content": "#[cfg(test)]\nmod tests {\n    use super::*;\n    #[test]\n    fn returns_static_ref() {\n        let s = String::from(\"hi\");\n        let r = intern_str(&s);\n        assert_eq!(r, \"hi\");\n        // does not exercise the unsoundness — by the time the assert runs, `s` is still alive.\n    }\n}\n"
+    }
+  ],
+  "idempotency_key": "66660000-7e6d-4f3a-bc44-aa11cc22dd33"
+}

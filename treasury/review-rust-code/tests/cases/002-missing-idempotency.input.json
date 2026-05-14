@@ -1,0 +1,44 @@
+{
+  "design_document": "# Design — POST /v1/loans/{id}/disburse\n\n## L1 invariant\n\nDisbursement is a money-moving operation. Same `idempotency_key` MUST disburse exactly once.\n\n## Public contract\n\n- Route: `POST /v1/loans/:id/disburse`\n- Handler: `LoanHandler::disburse(state, Path(loan_id), Header(idempotency_key), Json(req)) -> Result<Json<DisbursementResponse>, ApiError>`\n- Auth: bearer token, scope `loan:disburse`.\n- Errors: `ApiError::NotFound` -> 404; `ApiError::Unauthorized` -> 401; `ApiError::Conflict` -> 409 (key reuse with different request); `ApiError::Dependency` -> 502.\n\n## Idempotency strategy\n\nHeader-driven UUID v4. Persist `(idempotency_key, request_hash, response_payload, status)` in `idempotency_records`. Replay returns stored response. Same-key + different-`request_hash` returns 409.\n\n## Audit events\n\n- `loan.disbursed` — actor, action=disburse, target=loan_id, timestamp, trace_id, decision_metadata={amount, currency}.\n\n## Compensating actions\n\n- `loan.disbursement_reversed` — triggered if external ledger call succeeds but persistence fails.\n\n## Failure modes\n\n- `not_found` — counter `loan_disburse_not_found_total`.\n- `dependency_error` — counter `loan_disburse_dependency_error_total`.\n",
+  "target_crate": "services/loan/src/application",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/application/disburse_handler.rs", "lines": 28}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/application/disburse_handler.rs", "coverage_pct": 60, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "header_uuid_v4",
+    "compensating_actions": [
+      {"trigger": "ledger_call_success_persistence_failure", "action_skill_ref": "skills/reverse-loan-disbursement"}
+    ],
+    "audit_events_emitted": ["loan.disbursed"],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": [
+        "header_idempotency_key_extractor",
+        "sqlx_query_for_idempotency_table",
+        "ledger_client_for_external_call"
+      ],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": ["tokio_rt_multi_thread"],
+        "clippy_lint_floor": "workspace.lints with unsafe_code=forbid"
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/application/disburse_handler.rs",
+      "content": "use axum::{extract::{Path, State}, response::IntoResponse, Json};\nuse uuid::Uuid;\nuse crate::application::dto::{DisbursementRequest, DisbursementResponse};\nuse crate::application::error::ApiError;\nuse crate::app_state::AppState;\n\npub struct LoanHandler;\n\nimpl LoanHandler {\n    // BUG: no Header(idempotency_key) extractor; no dedup-store call;\n    // no replay branch. Money-moving handler with NO idempotency.\n    #[tracing::instrument(skip(state, req), fields(loan_id = %loan_id))]\n    pub async fn disburse(\n        State(state): State<AppState>,\n        Path(loan_id): Path<Uuid>,\n        Json(req): Json<DisbursementRequest>,\n    ) -> Result<Json<DisbursementResponse>, ApiError> {\n        let ledger_id = state.ledger.disburse(loan_id, req.amount_cents).await\n            .map_err(|_| ApiError::Dependency)?;\n        sqlx::query!(\n            \"INSERT INTO loan_disbursements (loan_id, amount_cents, ledger_id) VALUES ($1, $2, $3)\",\n            loan_id, req.amount_cents, ledger_id\n        ).execute(&state.pool).await.map_err(|_| ApiError::Dependency)?;\n        // BUG: no audit event emitted either — claim says loan.disbursed but code does not emit.\n        Ok(Json(DisbursementResponse { ledger_id }))\n    }\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/application/disburse_handler.rs",
+      "content": "#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[tokio::test]\n    async fn disburses_loan() {\n        // happy path only — does not test replay, does not test 409, does not test audit emission.\n    }\n}\n"
+    }
+  ],
+  "idempotency_key": "12340000-7e6d-4f3a-bc44-aa11cc22dd33"
+}

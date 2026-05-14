@@ -1,0 +1,38 @@
+{
+  "design_document": "# Design — POST /v1/loans/{id}/snapshot (Rust)\n\n## L1 invariant\n\nA loan snapshot captures the loan's state at a deterministic timestamp. Tests MUST be reproducible across runs and across deployment regions; therefore the timestamp source MUST be injectable.\n\n## Public contract\n\n- Route: `POST /v1/loans/:id/snapshot`\n- Handler: `LoanHandler::snapshot(state, Path(loan_id), Header(idempotency_key)) -> Result<Json<SnapshotResponse>, ApiError>`\n- Response: `{ snapshot_id, captured_at }` where `captured_at` is `DateTime<Utc>`.\n\n## Convention notes\n\n- Time crate: `chrono`.\n- `chrono::Utc::now()` and `std::time::Instant::now()` MUST NOT be called directly in handlers or domain code. Inject a `Clock` trait (`pub trait Clock: Send + Sync { fn now(&self) -> DateTime<Utc>; }`) via `AppState`.\n- Tests substitute a fake `Clock` that returns a fixed time.\n",
+  "target_crate": "services/loan/src/application",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/application/snapshot_handler.rs", "lines": 22}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/application/snapshot_handler.rs", "coverage_pct": 70, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "header_uuid_v4",
+    "compensating_actions": [],
+    "audit_events_emitted": ["loan.snapshot_captured"],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": ["clock_injection_via_app_state"],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": ["tokio_rt_multi_thread"],
+        "clippy_lint_floor": "workspace.lints with unsafe_code=forbid"
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/application/snapshot_handler.rs",
+      "content": "use axum::{extract::{Path, State}, response::IntoResponse, Json};\nuse chrono::Utc;\nuse uuid::Uuid;\nuse crate::application::dto::SnapshotResponse;\nuse crate::application::error::ApiError;\nuse crate::app_state::AppState;\n\npub struct LoanHandler;\n\nimpl LoanHandler {\n    #[tracing::instrument(skip(state), fields(loan_id = %loan_id))]\n    pub async fn snapshot(\n        State(state): State<AppState>,\n        Path(loan_id): Path<Uuid>,\n    ) -> Result<Json<SnapshotResponse>, ApiError> {\n        let snapshot_id = state.snapshot_repo.create(loan_id).await\n            .map_err(|_| ApiError::Dependency)?;\n        // BUG: direct chrono::Utc::now() call inside the handler. Design declares\n        // pattern_choice 'clock_injection_via_app_state' but state.clock is unused.\n        let captured_at = Utc::now();\n        Ok(Json(SnapshotResponse { snapshot_id, captured_at }))\n    }\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/application/snapshot_handler.rs",
+      "content": "#[cfg(test)]\nmod tests { use super::*; #[tokio::test] async fn smoke() { /* relies on real wall clock — non-reproducible */ } }\n"
+    }
+  ],
+  "idempotency_key": "10100000-7e6d-4f3a-bc44-aa11cc22dd33"
+}

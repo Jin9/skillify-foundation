@@ -1,0 +1,38 @@
+{
+  "design_document": "# Design — POST /v1/loans/{id}/disburse logging discipline\n\n## L1 invariant\n\nObservability output MUST be structured (machine-indexable). Format-string interpolation in `tracing` macros is forbidden; use structured fields. Metric labels MUST have bounded cardinality; user-scoped identifiers (user_id, account_id, request_id, IP, email) are FORBIDDEN as label values.\n\n## Public contract\n\n- Route: `POST /v1/loans/:id/disburse`\n- Telemetry: span `loan.disburse` with bounded fields (`loan_id` allowed only as a span field, not a metric label).\n- Metrics: `loan_disbursements_total{currency, status_class}`. Currency is bounded enum; status_class is `success|client|server|dependency`.\n\n## Convention notes\n\n- Logging crate: `tracing`.\n- Use `field = %value` (Display) or `field = ?value` (Debug) sigils.\n- Format-string log lines (`tracing::info!(\"...{}...\", x)`) are a finding regardless of severity.\n",
+  "target_crate": "services/loan/src/application",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/application/disburse_logging.rs", "lines": 18}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/application/disburse_logging.rs", "coverage_pct": 60, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "header_uuid_v4",
+    "compensating_actions": [],
+    "audit_events_emitted": ["loan.disbursed"],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": ["structured_tracing_fields", "bounded_metric_labels"],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": ["tokio_rt_multi_thread"],
+        "clippy_lint_floor": "workspace.lints with unsafe_code=forbid"
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/application/disburse_logging.rs",
+      "content": "use uuid::Uuid;\n\npub fn record_disbursement(loan_id: Uuid, user_id: Uuid, amount_cents: i64) {\n    // BUG #1: format-string log instead of structured fields. Backends cannot index `loan_id` or `user_id`.\n    tracing::info!(\"loan {} disbursed for user {} amount={}\", loan_id, user_id, amount_cents);\n\n    // BUG #2: unbounded metric label cardinality. Every distinct user_id creates a new time series\n    // — high-cardinality explosion in Prometheus.\n    metrics::counter!(\n        \"loan_disbursements_total\",\n        \"user_id\" => user_id.to_string(),\n        \"loan_id\" => loan_id.to_string()\n    ).increment(1);\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/application/disburse_logging.rs",
+      "content": "#[cfg(test)]\nmod tests { use super::*; #[test] fn smoke() { record_disbursement(uuid::Uuid::nil(), uuid::Uuid::nil(), 100); } }\n"
+    }
+  ],
+  "idempotency_key": "11110000-7e6d-4f3a-bc44-aa11cc22dd33"
+}

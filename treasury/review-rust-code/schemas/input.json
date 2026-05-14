@@ -1,0 +1,275 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "treasury/review-rust-code/schemas/input.json",
+  "title": "review-rust-code input",
+  "description": "Input contract for the review-rust-code Review stage. Consumes the design plus the entire output of an upstream Rust Generate stage plus the file contents the workflow fetched. Validated by the workflow engine before invocation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "design_document",
+    "target_crate",
+    "implement_stage_output",
+    "code_under_review",
+    "tests_under_review",
+    "idempotency_key"
+  ],
+  "properties": {
+    "design_document": {
+      "type": "string",
+      "minLength": 200,
+      "description": "The same approved design document the upstream Generate stage consumed. Used at step 2 to extract the truth against which claims are checked."
+    },
+    "target_crate": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_/-]*[a-z0-9]$",
+      "minLength": 3,
+      "maxLength": 256,
+      "description": "Same Rust crate path / module path the Generate stage targeted (e.g. 'services/payments', 'crates/payments/src/loan')."
+    },
+    "implement_stage_output": {
+      "type": "object",
+      "description": "Verbatim output payload of the upstream Rust implement stage for this feature. Structure validated separately against that skill's schemas/output.json. See references/implement-stage-output-contract.md for the forward-compat extension keys (decision_metadata.rust_specific).",
+      "additionalProperties": true,
+      "required": [
+        "files_generated",
+        "tests_generated",
+        "idempotency_strategy",
+        "compensating_actions",
+        "audit_events_emitted",
+        "uncertainty_flags",
+        "decision_metadata"
+      ],
+      "properties": {
+        "decision_metadata": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Implement stage's decisions. The optional `rust_specific` block carries forward-compat extension keys consumed when present, ignored when absent. See references/implement-stage-output-contract.md.",
+          "properties": {
+            "pattern_choices": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "rust_specific": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Rust-implement-skill extension fields. Optional. Reviewer consumes when present, falls back to direct code walk when absent.",
+              "properties": {
+                "schema_version": {
+                  "type": "string",
+                  "description": "e.g. '1.1-rust'. Bump major on field removal/type change; minor for additive fields."
+                },
+                "unsafe_declarations": {
+                  "type": "array",
+                  "description": "Per-unsafe-block records. Shape mirrors clippy --message-format=json diagnostics. See references/coverage-and-unsafe-shapes.md § Unsafe tracking.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "file_path": {"type": "string"},
+                      "line_start": {"type": "integer", "minimum": 1},
+                      "line_end": {"type": "integer", "minimum": 1},
+                      "kind": {"type": "string", "enum": ["function", "expr", "impl", "trait", "method"]},
+                      "safety_comment_present": {"type": "boolean"},
+                      "safety_justification": {"type": "string"},
+                      "miri_status": {"type": "string", "enum": ["ok", "fail", "skipped"]},
+                      "miri_commit": {"type": "string"},
+                      "audit_ref": {"type": "string"},
+                      "allow_lint_attribute": {"type": "string"}
+                    }
+                  }
+                },
+                "async_runtime_features": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "Tokio (or chosen runtime) features required, e.g. ['tokio_rt_multi_thread', 'tokio_macros']."
+                },
+                "per_function_coverage": {
+                  "type": "array",
+                  "description": "Per-function coverage entries. Keys converged across cargo-llvm-cov / cargo-tarpaulin / LCOV. See references/coverage-and-unsafe-shapes.md § Coverage.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "function_name": {"type": "string"},
+                      "file_path": {"type": "string"},
+                      "entry_line": {"type": "integer"},
+                      "execution_count": {"type": "integer"},
+                      "lines_covered": {"type": "integer"},
+                      "lines_total": {"type": "integer"},
+                      "regions_covered": {"type": "integer"},
+                      "regions_total": {"type": "integer"},
+                      "branches_covered": {"type": "integer"},
+                      "branches_total": {"type": "integer"}
+                    }
+                  }
+                },
+                "clippy_lint_floor": {"type": "string", "description": "Free-text identifier; mirrors convention_overrides.lint_floor for cross-check."},
+                "cargo_audit_summary": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "advisories_unresolved": {"type": "integer", "minimum": 0},
+                    "yanked_count": {"type": "integer", "minimum": 0},
+                    "last_run_commit": {"type": "string"}
+                  }
+                },
+                "cargo_deny_summary": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "advisories_pass": {"type": "boolean"},
+                    "licenses_pass": {"type": "boolean"},
+                    "bans_pass": {"type": "boolean"},
+                    "sources_pass": {"type": "boolean"},
+                    "last_run_commit": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "code_under_review": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Production files emitted by Generate (typically *.rs plus any Cargo.toml deltas). Each entry includes the file content so the reviewer can cite file:line.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "content"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "content": {"type": "string"}
+        }
+      }
+    },
+    "tests_under_review": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Companion tests emitted by Generate (#[cfg(test)] modules inline, integration tests under tests/*.rs, or doctests). Empty array is invalid - banking-grade never reviews production without companion tests.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "content"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "content": {"type": "string"}
+        }
+      }
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "UUID v4 carried from the workflow. Same key + same other inputs MUST produce the same verdict bytes."
+    },
+    "convention_overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional. Declares the repo's choice of crate / framework for each role so the reviewer evaluates rules against the actual stack instead of mis-flagging template defaults. Absent values mean the default crate applies (see references/review-checklist.md Convention overrides preamble for the defaults).",
+      "properties": {
+        "http_framework": {
+          "type": "string",
+          "description": "Default: axum. Examples: actix-web, warp, rocket, poem, salvo."
+        },
+        "sql_layer": {
+          "type": "string",
+          "description": "Default: sqlx. Examples: diesel, sea-orm, tokio-postgres, rusqlite."
+        },
+        "logging_crate": {
+          "type": "string",
+          "description": "Default: tracing. Examples: slog, log+env_logger, log4rs."
+        },
+        "error_crate": {
+          "type": "string",
+          "description": "Default: thiserror for domain errors, anyhow at application top-level. Examples: eyre, miette, snafu."
+        },
+        "mock_http_crate": {
+          "type": "string",
+          "description": "Default: wiremock. Examples: mockito, httptest."
+        },
+        "validation_crate": {
+          "type": "string",
+          "description": "Default: validator. Examples: garde, hand-rolled TryFrom<RawDto>."
+        },
+        "time_crate": {
+          "type": "string",
+          "description": "Default: chrono. Examples: time, jiff."
+        },
+        "money_type": {
+          "type": "string",
+          "description": "Default: rust_decimal_Decimal. Examples: bigdecimal_BigDecimal, integer_minor_units_newtype."
+        },
+        "async_runtime": {
+          "type": "string",
+          "description": "Default: tokio. Examples: async-std, smol."
+        },
+        "lint_floor": {
+          "type": "string",
+          "description": "Free-text identifier for the repo's lint baseline (e.g. 'workspace.lints with unsafe_code=forbid + clippy::pedantic warn')."
+        },
+        "expect_invariant_policy": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["allow", "forbid"]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["default"],
+              "properties": {
+                "default": {"type": "string", "enum": ["allow", "forbid"]},
+                "forbid_under": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "Globset patterns (gitignore semantics). Files matching one of these are FORBID regardless of default. Restrictive wins over allow_under."
+                },
+                "allow_under": {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "description": "Globset patterns. Files matching one of these are ALLOW (unless also matched by forbid_under)."
+                }
+              }
+            }
+          ],
+          "description": "Either a single string (allow|forbid applied to all files) or an object with per-path overrides via globset patterns. See references/severity-guide.md § Documented-invariant expect exception § Per-module override, and references/glob-policy-idioms.md for glob syntax."
+        }
+      }
+    },
+    "severity_floor": {
+      "type": "string",
+      "enum": ["P1", "P2", "P3"],
+      "default": "P3",
+      "description": "Findings below this severity are dropped from the output. Default P3 (emit everything). Set P2 or P1 only for noisy reviews."
+    },
+    "critical_paths": {
+      "type": "array",
+      "description": "Per-path severity-zone declarations. When a finding's `file` matches one of the `globs`, severity is promoted to the declared `promote_to` (default P1) but only for eligible categories (data_correctness, idempotency, security, audit, compensation, async_blocking, unsafe_rust, cancellation, supply_chain). Cosmetic categories (observability, errors, scope, project_structure, cargo_hygiene, lint_baseline, claims_vs_reality, tests) are NOT promoted. Glob dialect: globset (gitignore semantics). See references/severity-guide.md § Critical-paths severity promotion and references/glob-policy-idioms.md.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["globs", "reason"],
+        "properties": {
+          "globs": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "description": "Globset patterns (gitignore semantics). e.g. ['src/payments/**', 'src/ledger/**']."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Human-readable rationale (money handling, auth boundary, PII handling, key material, etc.). Surfaces in finding evidence as '[critical: <reason>]'."
+          },
+          "promote_to": {
+            "type": "string",
+            "enum": ["P1", "P2"],
+            "default": "P1",
+            "description": "Target severity for matching findings in eligible categories. Defaults to P1."
+          }
+        }
+      }
+    }
+  }
+}

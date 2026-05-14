@@ -1,0 +1,75 @@
+{
+  "verdict": "loop_back",
+  "loop_back_target_stage": "implement",
+  "findings": [
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "project_structure",
+      "rule_violated": "R5",
+      "file": "services/loan/src/lib.rs",
+      "line": 6,
+      "evidence": "pub use internal::types::*;",
+      "fix_shape": "Replace with explicit re-exports: `pub use internal::types::{LoanResponse, LoanError};`. Demote InternalLoan / RawSnapshot / LedgerCursor to `pub(crate)` in internal/types.rs."
+    },
+    {
+      "severity": "P2",
+      "confidence": "High",
+      "category": "claims_vs_reality",
+      "rule_violated": "C3",
+      "file": "services/loan/src/lib.rs",
+      "line": 6,
+      "evidence": "decision_metadata.pattern_choices declares 'narrow_pub_use_only' but lib.rs:6 contains a glob re-export.",
+      "fix_shape": "Either change the code to match the declared pattern (explicit re-exports) or change the declared pattern to match the code (and accept the API-surface widening review)."
+    }
+  ],
+  "claims_verified": [
+    "non_exhaustive_on_public_enums — LoanError carries #[non_exhaustive]"
+  ],
+  "claims_unverified": [
+    "narrow_pub_use_only — lib.rs:6 contains a glob re-export"
+  ],
+  "audit_metadata": {
+    "rules_evaluated": 34,
+    "files_scanned": 2,
+    "lines_scanned": 24,
+    "review_duration_inferred_seconds": 30,
+    "rule_walk": [
+      {"rule": "B1", "outcome": "no_finding"},
+      {"rule": "B2", "outcome": "no_finding"},
+      {"rule": "B3", "outcome": "no_finding"},
+      {"rule": "B4", "outcome": "no_finding"},
+      {"rule": "B5", "outcome": "not_applicable", "rationale": "no persistence in code_under_review"},
+      {"rule": "B6", "outcome": "not_applicable", "rationale": "no external side-effect handler"},
+      {"rule": "B7", "outcome": "no_finding"},
+      {"rule": "B8", "outcome": "no_finding"},
+      {"rule": "B9", "outcome": "no_finding"},
+      {"rule": "B10", "outcome": "no_finding"},
+      {"rule": "B11", "outcome": "no_finding"},
+      {"rule": "A1", "outcome": "not_applicable", "rationale": "no state-changing path"},
+      {"rule": "A2", "outcome": "not_applicable", "rationale": "no idempotency-key strategy to verify (read-only)"},
+      {"rule": "A3", "outcome": "not_applicable", "rationale": "no irreversible external side-effect"},
+      {"rule": "A4", "outcome": "no_finding"},
+      {"rule": "A5", "outcome": "no_finding"},
+      {"rule": "A6", "outcome": "no_finding"},
+      {"rule": "A7", "outcome": "no_finding"},
+      {"rule": "R1", "outcome": "not_applicable", "rationale": "no unsafe blocks in code_under_review"},
+      {"rule": "R2", "outcome": "no_finding"},
+      {"rule": "R3", "outcome": "no_finding"},
+      {"rule": "R4", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review to inspect lint floor"},
+      {"rule": "R5", "outcome": "finding"},
+      {"rule": "R6", "outcome": "not_applicable", "rationale": "no Cargo.toml in code_under_review"},
+      {"rule": "R7", "outcome": "no_finding"},
+      {"rule": "R8", "outcome": "no_finding"},
+      {"rule": "R9", "outcome": "no_finding"},
+      {"rule": "R10", "outcome": "no_finding"},
+      {"rule": "R11", "outcome": "no_finding"},
+      {"rule": "R12", "outcome": "not_applicable", "rationale": "no Cargo.toml or deny.toml in code_under_review"},
+      {"rule": "C1", "outcome": "no_finding"},
+      {"rule": "C2", "outcome": "no_finding"},
+      {"rule": "C3", "outcome": "finding"},
+      {"rule": "C4", "outcome": "no_finding"}
+    ]
+  },
+  "uncertainty_flags": []
+}

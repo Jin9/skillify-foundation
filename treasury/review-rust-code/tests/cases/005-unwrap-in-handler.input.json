@@ -1,0 +1,37 @@
+{
+  "design_document": "# Design — GET /v1/loans/{id} (Rust)\n\n## L1 invariant\n\nReading a loan by id is naturally idempotent: same `loan_id` MUST return identical bytes for the lifetime of the loan, or a documented 404 if absent.\n\n## Public contract\n\n- Route: `GET /v1/loans/:id`\n- Handler: `LoanHandler::get(state, Path(loan_id)) -> Result<Json<LoanResponse>, ApiError>`\n- Auth: bearer token, scope `loan:read`.\n- Errors: `ApiError::NotFound` -> 404; `ApiError::Unauthorized` -> 401; `ApiError::Dependency` -> 502.\n\n## Idempotency strategy\n\nNaturally idempotent. No dedup table. No state change. Read-only path.\n\n## Audit events\n\nNone — read-only path.\n\n## Compensating actions\n\nNone — no irreversible external side-effects.\n\n## Convention notes\n\n- Use `thiserror` for the domain error enum.\n- Use `tracing::instrument` for span wrapping.\n",
+  "target_crate": "services/loan/src/application",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/application/handler.rs", "lines": 18}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/application/handler.rs", "coverage_pct": 50, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "naturally_idempotent_read_only",
+    "compensating_actions": [],
+    "audit_events_emitted": [],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": ["thiserror_for_domain_errors", "tracing_instrument_for_span_wrap"],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": ["tokio_rt_multi_thread"]
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/application/handler.rs",
+      "content": "use axum::{extract::{Path, State}, response::IntoResponse, Json};\nuse uuid::Uuid;\nuse crate::application::dto::LoanResponse;\nuse crate::application::error::ApiError;\nuse crate::app_state::AppState;\n\npub struct LoanHandler;\n\nimpl LoanHandler {\n    #[tracing::instrument(skip(state), fields(loan_id = %loan_id))]\n    pub async fn get(\n        State(state): State<AppState>,\n        Path(loan_id): Path<Uuid>,\n    ) -> Result<Json<LoanResponse>, ApiError> {\n        // BUG: .unwrap() on a Result inside a request path crashes the handler thread on any DB error.\n        let loan = state.loan_repo.get_by_id(loan_id).await.unwrap();\n        Ok(Json(LoanResponse::from(loan)))\n    }\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/application/handler.rs",
+      "content": "#[cfg(test)]\nmod tests { use super::*; #[tokio::test] async fn smoke() {} }\n"
+    }
+  ],
+  "idempotency_key": "55550000-7e6d-4f3a-bc44-aa11cc22dd33"
+}

@@ -1,0 +1,44 @@
+{
+  "design_document": "# Design — POST /v1/loans/{id}/disburse retry (Rust)\n\n## L1 invariant\n\nDisbursement is a money-moving operation. Same `idempotency_key` MUST disburse exactly once. On transient dependency error, retry up to N times with backoff.\n\n## Public contract\n\n- Route: `POST /v1/loans/:id/disburse`\n- Handler: `LoanHandler::disburse(state, Path(loan_id), Header(idempotency_key), Json(req)) -> Result<Json<DisbursementResponse>, ApiError>`\n- Internal retry loop bounded by `state.config.disburse_max_retries` and `state.config.disburse_backoff_ms`.\n\n## Idempotency strategy\n\nHeader-driven UUID v4 with full dedup-store discipline.\n\n## Convention notes\n\n- Use `tokio` async runtime.\n- All time-based waits MUST be `tokio::time::sleep` (NEVER `std::thread::sleep` inside an `async fn`).\n",
+  "target_crate": "services/loan/src/application",
+  "implement_stage_output": {
+    "files_generated": [
+      {"path": "services/loan/src/application/disburse_handler.rs", "lines": 30}
+    ],
+    "tests_generated": [
+      {"path": "services/loan/src/application/disburse_handler.rs", "coverage_pct": 70, "kind": "inline_cfg_test"}
+    ],
+    "idempotency_strategy": "header_uuid_v4",
+    "compensating_actions": [],
+    "audit_events_emitted": ["loan.disbursed"],
+    "uncertainty_flags": [],
+    "decision_metadata": {
+      "pattern_choices": ["retry_with_backoff", "tokio_runtime"],
+      "rust_specific": {
+        "schema_version": "1.1-rust",
+        "unsafe_declarations": [],
+        "async_runtime_features": ["tokio_rt_multi_thread", "tokio_time"]
+      }
+    }
+  },
+  "code_under_review": [
+    {
+      "path": "services/loan/src/application/disburse_handler.rs",
+      "content": "use axum::{extract::{Path, State}, response::IntoResponse, Json};\nuse uuid::Uuid;\nuse std::time::Duration;\nuse crate::application::dto::{DisbursementRequest, DisbursementResponse};\nuse crate::application::error::ApiError;\nuse crate::app_state::AppState;\n\npub struct LoanHandler;\n\nimpl LoanHandler {\n    #[tracing::instrument(skip(state, req), fields(loan_id = %loan_id))]\n    pub async fn disburse(\n        State(state): State<AppState>,\n        Path(loan_id): Path<Uuid>,\n        Json(req): Json<DisbursementRequest>,\n    ) -> Result<Json<DisbursementResponse>, ApiError> {\n        let mut attempts = 0u32;\n        loop {\n            match state.ledger.disburse(loan_id, req.amount_cents).await {\n                Ok(id) => return Ok(Json(DisbursementResponse { ledger_id: id })),\n                Err(_) if attempts < state.config.disburse_max_retries => {\n                    // BUG: std::thread::sleep inside an async fn — blocks the executor.\n                    // On a money-critical path; gets auto-promoted to P1 via critical_paths.\n                    std::thread::sleep(Duration::from_millis(state.config.disburse_backoff_ms));\n                    attempts += 1;\n                }\n                Err(_) => return Err(ApiError::Dependency),\n            }\n        }\n    }\n}\n"
+    }
+  ],
+  "tests_under_review": [
+    {
+      "path": "services/loan/src/application/disburse_handler.rs",
+      "content": "#[cfg(test)]\nmod tests { use super::*; #[tokio::test] async fn smoke() {} }\n"
+    }
+  ],
+  "idempotency_key": "77770000-7e6d-4f3a-bc44-aa11cc22dd33",
+  "critical_paths": [
+    {
+      "globs": ["services/loan/**"],
+      "reason": "money handling and ledger writes",
+      "promote_to": "P1"
+    }
+  ]
+}
