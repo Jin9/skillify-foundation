@@ -94,6 +94,9 @@ Anthropic — Effective Context Engineering for AI Agents	https://www.anthropic.
 GitHub Docs — About agent skills	https://docs.github.com/en/copilot/concepts/agents/about-agent-skills	GitHub Copilot skill behavior.
 VS Code Docs — Use Agent Skills	https://code.visualstudio.com/docs/copilot/customization/agent-skills	Skill placement and usage in VS Code/Copilot.
 GitHub Changelog — Manage agent skills with GitHub CLI	https://github.blog/changelog/2026-04-16-manage-agent-skills-with-github-cli/	gh skill, version pinning, supply-chain concerns.
+Open Agent Skills — Specification	https://openagentskills.dev/docs/specification	Neutral format reference for required fields, optional directories, progressive disclosure, and validation.
+GitHub Docs — Adding agent skills for GitHub Copilot	https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/create-skills	Copilot skill creation, sharing, `gh skill`, provenance, pinning, and security review.
+VS Code Docs — Custom agents	https://code.visualstudio.com/docs/copilot/customization/custom-agents	Decision boundary between custom agents, prompt files, and skills.
 
 B. Open standard / reference sites
 
@@ -104,6 +107,12 @@ AGENTS.md open format	https://agents.md	Simple repo-level instruction standard.
 Awesome Agent Skills — VoltAgent	https://github.com/VoltAgent/awesome-agent-skills	Large catalog of community skills.
 Awesome Agent Skills — scienceaix	https://github.com/scienceaix/agentskills	Curated references and learning list.
 Anthony Fu skills repo	https://github.com/antfu/skills	Good example of curated skills and metadata conventions.
+Gemini CLI — GEMINI.md context files	https://google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html	Hierarchical instruction loading, memory commands, and import-based modularization.
+Gemini CLI — Custom commands	https://google-gemini.github.io/gemini-cli/docs/cli/custom-commands.html	Reusable manual prompt commands with global/project precedence.
+Cursor Rules	https://docs.cursor.com/context/rules-for-ai	Persistent scoped project/user rules and AGENTS.md support.
+Cline Rules	https://docs.cline.bot/features/cline-rules/overview	Rule file locations, cross-tool rule detection, toggles, and path-conditional activation.
+OpenCode Rules	https://dev.opencode.ai/docs/rules/	AGENTS.md precedence, global/project instructions, Claude fallback, and opencode.json references.
+Windsurf Cascade customization	https://docs.windsurf.com/windsurf/cascade/memories	Clear taxonomy across memories, rules, AGENTS.md, workflows, and skills.
 
 C. Community / practical implementation sources
 
@@ -120,7 +129,17 @@ Spring AI — Agent Skills pattern	https://spring.io/blog/2026/01/13/spring-ai-g
 Snyk — Top Claude Skills for Developers	https://snyk.io/articles/top-claude-skills-developers/	Developer-oriented examples: security, Terraform, PR review.
 DataCamp — Top Agent Skills	https://www.datacamp.com/blog/top-agent-skills	Broad catalog-style overview.
 
-D. Sources for adjacent concepts
+D. Research papers for agent skill methodology
+
+Source	Link	Use for
+ReAct — Synergizing Reasoning and Acting	https://arxiv.org/abs/2210.03629	Reason/action/observation loops for interactive skills.
+Reflexion — Verbal Reinforcement Learning	https://arxiv.org/abs/2303.11366	Post-task reflection, feedback loops, and episodic memory.
+Voyager — Open-Ended Embodied Agent	https://arxiv.org/abs/2305.16291	Skill libraries, reusable executable behaviors, and compositional learning.
+Toolformer — Models Teach Themselves Tool Use	https://arxiv.org/abs/2302.04761	Tool selection, argument construction, and result integration.
+MemGPT — LLMs as Operating Systems	https://arxiv.org/abs/2310.08560	Context tiers, virtual context management, and memory discipline.
+SWE-agent — Agent-Computer Interfaces	https://arxiv.org/abs/2405.15793	Agent-facing software interfaces, repository navigation, edit/test loops.
+
+E. Sources for adjacent concepts
 
 These are not only about SKILL.md, but they help you design better skills.
 
@@ -147,7 +166,10 @@ Recommended research order
 10. Claude Subagents
 11. Anthropic Building Effective Agents
 12. Anthropic Effective Context Engineering
-13. Community examples: mgechev, shanraisshan, sohamkamani, groff.dev
+13. Open Agent Skills specification
+14. Platform adaptation sources: Gemini CLI, Cursor, Cline, OpenCode, Windsurf
+15. Research papers: ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent
+16. Community examples: mgechev, shanraisshan, sohamkamani, groff.dev
 
 My filter for source trust
 

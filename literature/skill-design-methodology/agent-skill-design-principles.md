@@ -1,6 +1,6 @@
 # Source Document Synthesis: Agent Skill Creation Principles (Expanded)
 
-This document serves as the definitive architectural input for Opus 4.7 Max Reasoning to design the `skill-creator` meta-skill. It synthesizes the exact structural constraints, trigger mechanics, anti-patterns, and lifecycle requirements extracted from over 36 source files across the Anthropic, Codex, Copilot, and OpenCode ecosystems.
+This document serves as the definitive architectural input for Opus 4.7 Max Reasoning to design the `skill-creator` meta-skill. It synthesizes the exact structural constraints, trigger mechanics, anti-patterns, and lifecycle requirements extracted from 55 source files across the Anthropic, Codex, Copilot, OpenCode, Gemini, Cursor, Cline, Windsurf, open-standard, and academic agent ecosystems.
 
 ## 1. Skill Architecture & Progressive Disclosure
 The fundamental design pattern for agent skills is **Progressive Disclosure**, ensuring the agent's context window is strictly optimized.
@@ -53,3 +53,29 @@ Any generated `SKILL.md` must pass this checklist before deployment:
 - [ ] Are all auxiliary human-readable docs (`README.md`, etc.) removed?
 - [ ] Are complex validations offloaded to deterministic scripts?
 - [ ] Are instructions written in actionable, imperative form?
+
+## 7. Surface Selection: Skill vs Rule vs Agent vs Prompt
+The expanded platform corpus shows that not all reusable guidance belongs in `SKILL.md`.
+
+* **SKILL.md:** Use for portable, repeatable workflows with optional scripts, references, templates, or assets.
+* **AGENTS.md / GEMINI.md / rules:** Use for durable repo, directory, or team conventions that should influence many tasks.
+* **Prompt files / custom commands / workflows:** Use for manual, reusable prompt templates without heavy resources.
+* **Custom agents / subagents:** Use for persistent role/persona behavior, tool restrictions, model preferences, or handoffs.
+* **Memory:** Use for local facts and transient preferences; do not rely on memory for team-shared durable knowledge.
+
+## 8. Agent Research Patterns To Encode
+Academic agent literature adds reusable workflow shapes:
+
+* **ReAct:** Interactive skills should alternate planning, action, observation, and plan revision.
+* **Reflexion:** Iterative skills should capture failed attempts, feedback signals, concise lessons, and retry strategy.
+* **Voyager:** A skill library should favor narrow, composable skills that can be retrieved and reused in new contexts.
+* **Toolformer:** Tool guidance must include when to call the tool, how to form arguments, and how to integrate results.
+* **MemGPT:** Progressive disclosure is context management; hot context must stay small and cold context should remain external.
+* **SWE-agent:** Scripts and command wrappers should be designed as agent-facing interfaces with concise, structured outputs.
+
+## 9. Cross-Platform Portability Rules
+- Prefer `.agents/skills/` when the host supports it because it is increasingly scanned by multiple systems.
+- Preserve platform-specific paths only when targeting a single host (`.github/skills`, `.windsurf/skills`, `.claude/skills`).
+- Keep portable frontmatter valid first; add host-specific fields only when they are optional and harmless elsewhere.
+- For hosts without skills, adapt reusable workflows into rules, command files, or imported context documents.
+- Never duplicate large guidance across multiple platform files. Create one source file and reference or adapt it.

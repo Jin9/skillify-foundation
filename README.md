@@ -1,6 +1,6 @@
 # Skillify — AI Agent Skill Engineering Toolkit
 
-A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 37 primary sources across the Anthropic, OpenAI, GitHub Copilot, and open-source agent ecosystems.
+A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 55 primary and supporting sources across the Anthropic, OpenAI, GitHub Copilot, open-standard, platform-rule, and academic agent ecosystems.
 
 ## What is a Skill?
 
@@ -19,13 +19,16 @@ my-skill/
 
 ```
 .
-├── literature/              # 37 curated source documents
+├── literature/              # 55 curated source documents
 │   ├── anthropic-claude/    # 13 files — Claude Code, sub-agents, skills docs
-│   ├── codex-copilot/       #  7 files — Codex agents, GitHub Copilot skills
+│   ├── codex-copilot/       #  9 files — Codex agents, GitHub Copilot skills, VS Code agents
 │   ├── openai/              #  4 files — OpenAI skill creator, API tools, cookbook
 │   ├── best-practices/      #  4 files — Cross-platform skill authoring guides
 │   ├── awesome-lists/       #  2 files — Community skill aggregations
-│   └── other-platforms/     #  7 files — Spring AI, Strapi, antfu, and others
+│   ├── open-standard/       #  1 file  — Agent Skills specification
+│   ├── other-platforms/     # 13 files — Gemini, Cursor, Cline, OpenCode, Windsurf, and others
+│   ├── research-papers/     #  6 files — ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent
+│   └── skill-design-methodology/ # 3 files — synthesized source index, taxonomy, principles
 │
 └── skillify/                # The skill-creator meta-skill
     ├── SKILL.md             # Core skill definition (8 modes)
@@ -125,16 +128,19 @@ python skillify/scripts/check_links.py path/to/skill-folder
 
 ## Literature Sources
 
-The `literature/` directory contains the complete research corpus — 37 documents totaling ~750K words — organized by ecosystem:
+The `literature/` directory contains the complete research corpus — 55 documents totaling ~758K words — organized by ecosystem:
 
 | Category | Files | Key Sources |
 |----------|-------|-------------|
 | **Anthropic / Claude** | 13 | Claude Code Best Practices, Skills Repo, Sub-Agents, Context Engineering |
-| **Codex / Copilot** | 7 | Codex Skills & Agents, GitHub CLI Agent Skills, VS Code Copilot |
+| **Codex / Copilot** | 9 | Codex Skills & Agents, GitHub CLI Agent Skills, VS Code Copilot, VS Code Custom Agents |
 | **OpenAI** | 4 | Skill Creator (canonical reference), API Tools, Cookbook |
 | **Best Practices** | 4 | Cross-platform authoring guides, SKILL.md pattern analysis |
 | **Awesome Lists** | 2 | ScienceAIX and VoltAgent community aggregations |
-| **Other Platforms** | 7 | Spring AI, Strapi, antfu, Soham Kamani, and others |
+| **Open Standard** | 1 | Open Agent Skills specification |
+| **Other Platforms** | 13 | Gemini CLI, Cursor, Cline, OpenCode, Windsurf, Spring AI, Strapi, antfu |
+| **Research Papers** | 6 | ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent |
+| **Skill Design Methodology** | 3 | Source index, reading taxonomy, synthesized design principles |
 
 ## Platform Compatibility
 
