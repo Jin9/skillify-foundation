@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillify.local/treasury/multi-agent-handoff-architect/handoff-contract.schema.json",
+  "title": "Inter-agent handoff contract",
+  "description": "One handoff payload transferring control, context, and responsibility from one agent to another. A contract, not a note: typed fields only, versioned, validated at generation time with repair-on-failure. Free-text narrative payloads are forbidden by design.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "intent",
+    "state",
+    "confidence",
+    "provenance",
+    "schemaVersion"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Stable identifier for the unit of work being handed off. Constant across every handoff for the same task.",
+      "minLength": 1
+    },
+    "intent": {
+      "type": "string",
+      "description": "The receiving agent's next required action as a discrete, enumerable directive — not prose.",
+      "enum": [
+        "plan",
+        "implement",
+        "review",
+        "test",
+        "deploy",
+        "investigate",
+        "escalate",
+        "finalize"
+      ]
+    },
+    "state": {
+      "type": "object",
+      "description": "Structured current state: the typed fields the receiving agent needs to act, not a transcript. Target 200-500 tokens, never full-context forwarding.",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "summary",
+        "artifacts"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "in_progress",
+            "blocked",
+            "ready_for_next",
+            "complete",
+            "failed"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "description": "Bounded structured summary of progress (fielded, not narrative). Keep terse.",
+          "maxLength": 600
+        },
+        "artifacts": {
+          "type": "array",
+          "description": "Lightweight references to externally persisted work products, not inlined content.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "ref"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "uri",
+                  "diff",
+                  "log",
+                  "dataset",
+                  "plan"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "description": "Explicit decisions already made, so downstream agents do not silently re-decide them.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "value"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Self-reported confidence in the handed-off state. Low values must be surfaced before the handoff proceeds.",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Cross-boundary trace context so the full execution graph can be reconstructed.",
+      "additionalProperties": false,
+      "required": [
+        "traceId",
+        "spanId",
+        "sourceAgent"
+      ],
+      "properties": {
+        "traceId": {
+          "type": "string",
+          "description": "Correlation ID constant across the entire multi-agent execution graph.",
+          "minLength": 1
+        },
+        "spanId": {
+          "type": "string",
+          "description": "Span ID for this handoff, child of the producing agent's span.",
+          "minLength": 1
+        },
+        "sourceAgent": {
+          "type": "string",
+          "description": "Identifier/role of the agent ceding ownership in this handoff.",
+          "minLength": 1
+        },
+        "parentSpanId": {
+          "type": "string",
+          "description": "Optional parent span ID preserving the parent-child nesting across agent transitions.",
+          "minLength": 1
+        }
+      }
+    },
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of this contract. Breaking field changes require a major bump; receivers reject incompatible majors.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "autonomyLevel": {
+      "type": "integer",
+      "description": "Optional governance level for the receiving action, calibrated to reversibility: 1 human-approves (irreversible) ... 4 full autonomy (reversible low-stakes).",
+      "minimum": 1,
+      "maximum": 4
+    }
+  }
+}
