@@ -30,31 +30,35 @@ my-skill/
 │   ├── research-papers/     #  6 files — ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent
 │   └── skill-design-methodology/ # 3 files — synthesized source index, taxonomy, principles
 │
-└── skillify/                # The skill-creator meta-skill
-    ├── SKILL.md             # Core skill definition (8 modes)
-    ├── references/          # 9 reference guides
-    │   ├── anti-patterns.md
-    │   ├── frontmatter-guide.md
-    │   ├── lifecycle-and-iteration.md
-    │   ├── mode-playbooks.md
-    │   ├── platform-compatibility.md
-    │   ├── progressive-disclosure.md
-    │   ├── security-checklist.md
-    │   ├── validation-rubric.md
-    │   └── workflow-patterns.md
-    ├── templates/           # 4 starter templates
-    │   ├── basic-skill-template.md
-    │   ├── domain-skill-template.md
-    │   ├── mcp-skill-template.md
-    │   └── audit-report-template.md
-    ├── scripts/             # 3 automation scripts
-    │   ├── init_skill.py
-    │   ├── quick_validate.py
-    │   └── check_links.py
-    └── examples/            # 3 worked examples
-        ├── create-from-scratch.md
-        ├── good-description-examples.md
-        └── skill-audit-walkthrough.md
+├── skillify/                # The skill-creator meta-skill
+│   ├── SKILL.md             # Core skill definition (8 modes)
+│   ├── references/          # 9 reference guides
+│   │   ├── anti-patterns.md
+│   │   ├── frontmatter-guide.md
+│   │   ├── lifecycle-and-iteration.md
+│   │   ├── mode-playbooks.md
+│   │   ├── platform-compatibility.md
+│   │   ├── progressive-disclosure.md
+│   │   ├── security-checklist.md
+│   │   ├── validation-rubric.md
+│   │   └── workflow-patterns.md
+│   ├── templates/           # 4 starter templates
+│   │   ├── basic-skill-template.md
+│   │   ├── domain-skill-template.md
+│   │   ├── mcp-skill-template.md
+│   │   └── audit-report-template.md
+│   ├── scripts/             # 3 automation scripts
+│   │   ├── init_skill.py
+│   │   ├── quick_validate.py
+│   │   └── check_links.py
+│   └── examples/            # 3 worked examples
+│       ├── create-from-scratch.md
+│       ├── good-description-examples.md
+│       └── skill-audit-walkthrough.md
+│
+└── treasury/                # 33 production skills in 7 categories
+    ├── README.md            # ← Skill catalog (start here)
+    └── <skill>/             # each: SKILL.md + references/ (+ templates, schemas, …)
 ```
 
 ## Core Concepts
@@ -125,6 +129,78 @@ python skillify/scripts/init_skill.py my-new-skill
 python skillify/scripts/quick_validate.py path/to/skill-folder
 python skillify/scripts/check_links.py path/to/skill-folder
 ```
+
+## Treasury — Production Skill Library
+
+The `treasury/` directory holds **33 production-grade skills** built with the `skillify` meta-skill, grouped into 7 functional categories. Every skill is a folder with its own `SKILL.md` and a `references/` tier. Full per-skill detail, asset breakdown, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
+
+### 1. Banking & Fintech Domain (5)
+
+| Skill | What it does |
+|-------|--------------|
+| [`analyzing-banking-requirements`](treasury/analyzing-banking-requirements/) | BA persona: extract raw banking requests into PRDs/API contracts with strict KYC/AML/PCI-DSS compliance mapping |
+| [`architecting-fintech-systems`](treasury/architecting-fintech-systems/) | Senior fintech architect for L1–L3 design via DDD/CQRS/event-driven on a Go/AWS/GCP stack |
+| [`eliciting-banking-brief`](treasury/eliciting-banking-brief/) | Turn raw BA input (Jira/Slack/notes) into a structured epic-plus-stories brief; governance gaps as P1 blockers |
+| [`planning-banking-tests`](treasury/planning-banking-tests/) | Convert a BA brief into a QA test plan: Gherkin scenarios, NFRs, regulatory deps, compliance, sign-off criteria |
+| [`validating-banking-implementation`](treasury/validating-banking-implementation/) | QA persona: adversarial OWASP, transactional-integrity / race / deadlock audit, chaos plan; Approve/Reject verdict |
+
+### 2. Code Implementation & Review (7)
+
+| Skill | What it does |
+|-------|--------------|
+| [`crafting-backend-code`](treasury/crafting-backend-code/) | Design, review, and safely implement backend services (Go/Node/Python/Java), pattern-first and evidence-led |
+| [`implement-backend-feature`](treasury/implement-backend-feature/) | Generate production-grade Go backend code (HTTP / CQRS / Kafka) for one feature from an approved design |
+| [`review-backend-code`](treasury/review-backend-code/) | Adversarially verify Go code vs the design and 11 banking-grade rules; approve / loop_back / human-queue verdict |
+| [`review-rust-code`](treasury/review-rust-code/) | Adversarially verify Rust code vs the design and 11 banking-grade rules recast for Rust; machine-readable verdict |
+| [`crafting-frontend-code`](treasury/crafting-frontend-code/) | Design, review, and safely implement React/TypeScript frontend with a conservative, repo-first posture |
+| [`implement-frontend-feature`](treasury/implement-frontend-feature/) | Generate production-grade React/TS from an approved UI design: WCAG 2.1 AA, no localStorage auth, PII handling |
+| [`review-frontend-code`](treasury/review-frontend-code/) | Adversarially verify React/TS vs the UI design and 12 banking-grade non-negotiables; machine-readable verdict |
+
+### 3. Agent Orchestration & Pipelines (5)
+
+| Skill | What it does |
+|-------|--------------|
+| [`agent-context-initializer`](treasury/agent-context-initializer/) | Generate a minimal AGENTS.md (100–150 lines, six sections, three-tier boundaries) plus a curation checklist |
+| [`composing-agent-pipelines`](treasury/composing-agent-pipelines/) | Compose a portable multi-agent pipeline (Plan/Gather/Analyze/Review/Validate/Decide/Compact) with versioned artifacts |
+| [`multi-agent-handoff-architect`](treasury/multi-agent-handoff-architect/) | Design inter-agent handoff APIs as versioned JSON Schema contracts; single-writer ownership, autonomy by reversibility |
+| [`orchestrating-agent-scaffold`](treasury/orchestrating-agent-scaffold/) | Orchestrate a multi-stage research-squad run on agent-scaffold: plan, pick profile/cap, monitor state.json |
+| [`orchestrating-openclaw-squad`](treasury/orchestrating-openclaw-squad/) | Orchestrate a BA/Architect/Developer/QA squad with strict human-in-the-loop gates and sandbox isolation |
+
+### 4. Agent-Scaffold Infrastructure (4)
+
+| Skill | What it does |
+|-------|--------------|
+| [`authoring-scaffold-profile`](treasury/authoring-scaffold-profile/) | Author/modify agent-scaffold `profiles/NAME.sh` (STAGES, GATED_STAGES, per-stage AGENT/MODEL) with validation |
+| [`configuring-sandbox-allowlist`](treasury/configuring-sandbox-allowlist/) | Edit the sandbox hostname allowlist; refuse wildcard/IP/metadata patterns; remind to rebuild + egress-test |
+| [`drafting-stage-prompt`](treasury/drafting-stage-prompt/) | Curate stage prompts into `prompts/library/STAGE/TOPIC.md` with why-it-works, success metric, failure mode |
+| [`reviewing-implement-gate`](treasury/reviewing-implement-gate/) | Walk a researcher through the five-question check before approving the implement gate; approve/reject + command |
+
+### 5. Security, Governance & Compliance (4)
+
+| Skill | What it does |
+|-------|--------------|
+| [`reviewing-software-security`](treasury/reviewing-software-security/) | Defensive security review for Go/Gin, Kafka, MySQL, K8s, Kong/APISIX, lending flows; mapped to OWASP/CWE/NIST/CIS |
+| [`devops-infrastructure-hardener`](treasury/devops-infrastructure-hardener/) | Audit agent CI/CD for static credentials; emit remediation + short-lived OIDC / dynamic-secrets architecture |
+| [`universal-spec-validator`](treasury/universal-spec-validator/) | CI / pre-commit gate validating agent specs for cross-model drift, unsafe command surface, breaking schema evolution |
+| [`governance-policy-generator`](treasury/governance-policy-generator/) | Emit policy-as-code: default-deny OPA/Rego allowlist plus KILLSWITCH.md (triggers, escalation, append-only audit) |
+
+### 6. Observability & Cost Governance (3)
+
+| Skill | What it does |
+|-------|--------------|
+| [`observability-telemetry-instrumenter`](treasury/observability-telemetry-instrumenter/) | Instrument agent code with OpenTelemetry GenAI conventions: invoke_agent / execute_tool spans, token histogram |
+| [`reviewing-agent-spend`](treasury/reviewing-agent-spend/) | Monday cost-review ritual: segment LiteLLM spend by user/model, flag >2σ outliers and workflows over $10 |
+| [`authoring-workflow-postmortem`](treasury/authoring-workflow-postmortem/) | Author a postmortem within 48h of a trigger event (failed stage >$1, rejected gate, cap overrun, egress fail) |
+
+### 7. Code Analysis & Productivity (5)
+
+| Skill | What it does |
+|-------|--------------|
+| [`business-logic-extractor`](treasury/business-logic-extractor/) | Extract implemented business logic from code into a traceable spec with file:line provenance + loss ledger |
+| [`generating-pseudocode`](treasury/generating-pseudocode/) | Analyze requirements or code into clean language-agnostic pseudocode plus framing and a verification note |
+| [`progressive-bug-hunter`](treasury/progressive-bug-hunter/) | Localize/diagnose a bug via minimal progressive retrieval (grep → symbol-graph → AST); ranked diagnosis report |
+| [`organizing-local-files`](treasury/organizing-local-files/) | Plan and apply safe offline file organization: inventory, JSON move plan, apply.sh, rollback.sh; never deletes |
+| [`publishing-git-review-requests`](treasury/publishing-git-review-requests/) | Publish one local change to GitHub/GitLab: prepare a commit, attach origin, push the branch, open a PR or MR |
 
 ## Literature Sources
 
