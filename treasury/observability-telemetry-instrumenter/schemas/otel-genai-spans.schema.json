@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillify.local/observability-telemetry-instrumenter/otel-genai-spans.schema.json",
+  "title": "OTel GenAI Instrumentation Spec",
+  "description": "A valid OpenTelemetry GenAI instrumentation spec object: the invoke_agent CLIENT root span, execute_tool INTERNAL child span, required gen_ai.* attributes, the gen_ai.client.token.usage histogram with the exact 14 explicit bucket boundaries, low-cardinality metric labels, and a default-off capped raw-payload capture policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "semconvOptIn",
+    "spans",
+    "tokenUsageHistogram",
+    "metricLabels",
+    "rawPayloadCapture"
+  ],
+  "properties": {
+    "semconvOptIn": {
+      "description": "Experimental GenAI conventions are Development status (began at semantic-conventions v1.36.0; breaking changes by v1.37.0); must be opted in explicitly.",
+      "const": "gen_ai_latest_experimental"
+    },
+    "spans": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invoke_agent", "execute_tool"],
+      "properties": {
+        "invoke_agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "kind", "root", "requiredAttributes"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^invoke_agent "
+            },
+            "kind": { "const": "CLIENT" },
+            "root": { "const": true },
+            "requiredAttributes": {
+              "type": "array",
+              "uniqueItems": true,
+              "minItems": 4,
+              "items": { "type": "string" },
+              "allOf": [
+                { "contains": { "const": "gen_ai.operation.name" } },
+                { "contains": { "const": "gen_ai.provider.name" } },
+                { "contains": { "const": "gen_ai.usage.input_tokens" } },
+                { "contains": { "const": "gen_ai.usage.output_tokens" } }
+              ]
+            }
+          }
+        },
+        "execute_tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "kind", "child", "parentSpan"],
+          "properties": {
+            "name": { "const": "execute_tool" },
+            "kind": { "const": "INTERNAL" },
+            "child": { "const": true },
+            "parentSpan": { "const": "invoke_agent" }
+          }
+        }
+      }
+    },
+    "tokenUsageHistogram": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metricName", "instrument", "unit", "bucketBoundaries", "tokenTypes", "report"],
+      "properties": {
+        "metricName": { "const": "gen_ai.client.token.usage" },
+        "instrument": { "const": "histogram" },
+        "unit": { "const": "{token}" },
+        "bucketBoundaries": {
+          "description": "The exact 14 explicit bucket boundaries covering 1 token to ~67M tokens.",
+          "const": [
+            1,
+            4,
+            16,
+            64,
+            256,
+            1024,
+            4096,
+            16384,
+            65536,
+            262144,
+            1048576,
+            4194304,
+            16777216,
+            67108864
+          ]
+        },
+        "tokenTypes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["input", "output"] },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "report": {
+          "description": "When a system reports both used and billable tokens, instrumentation MUST report billable.",
+          "const": "billable"
+        }
+      }
+    },
+    "metricLabels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "forbidden"],
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["model", "operation", "provider", "status"] },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "forbidden": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 2,
+          "items": { "type": "string" },
+          "allOf": [
+            { "contains": { "const": "user_id" } },
+            { "contains": { "const": "request_id" } }
+          ]
+        }
+      }
+    },
+    "rawPayloadCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["optIn", "maxChars", "objectStoragePointer"],
+      "properties": {
+        "optIn": {
+          "description": "Raw prompt/completion capture defaults OFF; never automatic.",
+          "const": false
+        },
+        "maxChars": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "objectStoragePointer": {
+          "description": "When opted in, full payload goes to object storage with only a pointer on the span.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
