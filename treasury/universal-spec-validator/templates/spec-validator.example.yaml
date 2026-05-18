@@ -1,0 +1,22 @@
+# .spec-validator.yaml — copy to repo root, tune, pass via --config.
+# Precedence: ignore -> gate_overrides -> fail_on default.
+
+compatibility_mode: backward      # backward | forward | full
+transitive: false                 # check against all prior baselines, not just last
+
+target_models: [openai, anthropic, gemini]   # informs portability P1/P2/P5
+
+# Severities that count as a blocking gate (non-zero exit). Default below.
+fail_on: [critical, high]
+
+# Risk-tier specific rules: remap a rule's gate (block | warn | info).
+gate_overrides:
+  P2: warn        # accept vendor strict-mode drift, just notify
+  C5: block       # enforce exact version pinning hard in this repo
+
+# Suppress known/accepted findings by rule id + spec path glob.
+ignore:
+  - rule: P6
+    locator: "schemas/legacy/**"
+  - rule: E0
+    locator: "**"            # silence the no-baseline info when running pre-merge
