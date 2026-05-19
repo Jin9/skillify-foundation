@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-33 production-grade skills, grouped by function. Each skill name links to its folder. Every skill ships a `references/` tier; the **Extra assets** column lists only what a skill adds on top of that.
+34 production-grade skills, grouped by function. Each skill name links to its folder. Every skill ships a `references/` tier; the **Extra assets** column lists only what a skill adds on top of that.
 
 | Category | Count |
 |----------|-------|
@@ -10,8 +10,8 @@
 | [4. Agent-Scaffold Infrastructure](#4-agent-scaffold-infrastructure-4) | 4 |
 | [5. Security, Governance & Compliance](#5-security-governance--compliance-4) | 4 |
 | [6. Observability & Cost Governance](#6-observability--cost-governance-3) | 3 |
-| [7. Code Analysis & Productivity](#7-code-analysis--productivity-5) | 5 |
-| **Total** | **33** |
+| [7. Code Analysis & Productivity](#7-code-analysis--productivity-6) | 6 |
+| **Total** | **34** |
 
 ---
 
@@ -85,9 +85,9 @@ Make agent runs observable and accountable: telemetry, spend review, and postmor
 | [`reviewing-agent-spend`](./reviewing-agent-spend/) | Monday cost-review ritual: segment LiteLLM spend by user/model, flag >2σ outliers and any workflow over $10, draft a readout. | templates |
 | [`authoring-workflow-postmortem`](./authoring-workflow-postmortem/) | Author a postmortem within 48h of a trigger event (failed stage >$1, rejected gate, cap overrun, sandbox egress failure). | templates |
 
-### 7. Code Analysis & Productivity (5)
+### 7. Code Analysis & Productivity (6)
 
-Cross-cutting analysis and delivery helpers: extract logic, plan algorithms, hunt bugs, organize files, publish reviews.
+Cross-cutting analysis and delivery helpers: extract logic, plan algorithms, hunt bugs, organize files, navigate a research vault, publish reviews.
 
 | Skill | What it does | Extra assets |
 |-------|--------------|--------------|
@@ -95,6 +95,7 @@ Cross-cutting analysis and delivery helpers: extract logic, plan algorithms, hun
 | [`generating-pseudocode`](./generating-pseudocode/) | Analyze requirements or code into clean language-agnostic pseudocode plus a problem-framing block and a verification note. | — |
 | [`progressive-bug-hunter`](./progressive-bug-hunter/) | Localize/diagnose a bug via minimal progressive retrieval (grep → symbol-graph → AST); stops at a ranked diagnosis report. | scripts · templates |
 | [`organizing-local-files`](./organizing-local-files/) | Plan and apply safe offline file organization: inventory, JSON move plan, report, apply.sh, rollback.sh; never deletes. | templates |
+| [`research-vault-librarian`](./research-vault-librarian/) | Read-only librarian for a CLAUDE.md-governed Obsidian research vault: query reports, audit MOC/wikilink/citation drift, emit a ready-to-apply intake patch. | scripts |
 | [`publishing-git-review-requests`](./publishing-git-review-requests/) | Publish one local change to GitHub/GitLab: prepare a commit, attach origin, push the branch, open a PR or MR. | templates |
 
 ---
@@ -128,6 +129,7 @@ Cross-cutting analysis and delivery helpers: extract logic, plan algorithms, hun
 | [`planning-banking-tests`](./planning-banking-tests/) | Banking & Fintech Domain |
 | [`progressive-bug-hunter`](./progressive-bug-hunter/) | Code Analysis & Productivity |
 | [`publishing-git-review-requests`](./publishing-git-review-requests/) | Code Analysis & Productivity |
+| [`research-vault-librarian`](./research-vault-librarian/) | Code Analysis & Productivity |
 | [`review-backend-code`](./review-backend-code/) | Code Implementation & Review |
 | [`review-frontend-code`](./review-frontend-code/) | Code Implementation & Review |
 | [`review-rust-code`](./review-rust-code/) | Code Implementation & Review |
