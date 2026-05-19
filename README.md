@@ -1,6 +1,6 @@
 # Skillify — AI Agent Skill Engineering Toolkit
 
-A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 55 primary and supporting sources across the Anthropic, OpenAI, GitHub Copilot, open-standard, platform-rule, and academic agent ecosystems.
+A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 56 primary and supporting sources across the Anthropic, OpenAI, GitHub Copilot, open-standard, platform-rule, and academic agent ecosystems.
 
 ## What is a Skill?
 
@@ -19,7 +19,7 @@ my-skill/
 
 ```
 .
-├── literature/              # 55 curated source documents
+├── literature/              # 56 curated source documents
 │   ├── anthropic-claude/    # 13 files — Claude Code, sub-agents, skills docs
 │   ├── codex-copilot/       #  9 files — Codex agents, GitHub Copilot skills, VS Code agents
 │   ├── openai/              #  4 files — OpenAI skill creator, API tools, cookbook
@@ -28,7 +28,7 @@ my-skill/
 │   ├── open-standard/       #  1 file  — Agent Skills specification
 │   ├── other-platforms/     # 13 files — Gemini, Cursor, Cline, OpenCode, Windsurf, and others
 │   ├── research-papers/     #  6 files — ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent
-│   └── skill-design-methodology/ # 3 files — synthesized source index, taxonomy, principles
+│   └── skill-design-methodology/ # 4 files — synthesized source index, taxonomy, principles, literature review
 │
 ├── skillify/                # The skill-creator meta-skill
 │   ├── SKILL.md             # Core skill definition (8 modes)
@@ -56,7 +56,7 @@ my-skill/
 │       ├── good-description-examples.md
 │       └── skill-audit-walkthrough.md
 │
-└── treasury/                # 33 production skills in 7 categories
+└── treasury/                # 34 production skills in 7 categories
     ├── README.md            # ← Skill catalog (start here)
     └── <skill>/             # each: SKILL.md + references/ (+ templates, schemas, …)
 ```
@@ -132,7 +132,7 @@ python skillify/scripts/check_links.py path/to/skill-folder
 
 ## Treasury — Production Skill Library
 
-The `treasury/` directory holds **33 production-grade skills** built with the `skillify` meta-skill, grouped into 7 functional categories. Every skill is a folder with its own `SKILL.md` and a `references/` tier. Full per-skill detail, asset breakdown, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
+The `treasury/` directory holds **34 production-grade skills** built with the `skillify` meta-skill, grouped into 7 functional categories. Every skill is a folder with its own `SKILL.md` and a `references/` tier. Full per-skill detail, asset breakdown, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
 
 ### 1. Banking & Fintech Domain (5)
 
@@ -192,7 +192,7 @@ The `treasury/` directory holds **33 production-grade skills** built with the `s
 | [`reviewing-agent-spend`](treasury/reviewing-agent-spend/) | Monday cost-review ritual: segment LiteLLM spend by user/model, flag >2σ outliers and workflows over $10 |
 | [`authoring-workflow-postmortem`](treasury/authoring-workflow-postmortem/) | Author a postmortem within 48h of a trigger event (failed stage >$1, rejected gate, cap overrun, egress fail) |
 
-### 7. Code Analysis & Productivity (5)
+### 7. Code Analysis & Productivity (6)
 
 | Skill | What it does |
 |-------|--------------|
@@ -200,11 +200,12 @@ The `treasury/` directory holds **33 production-grade skills** built with the `s
 | [`generating-pseudocode`](treasury/generating-pseudocode/) | Analyze requirements or code into clean language-agnostic pseudocode plus framing and a verification note |
 | [`progressive-bug-hunter`](treasury/progressive-bug-hunter/) | Localize/diagnose a bug via minimal progressive retrieval (grep → symbol-graph → AST); ranked diagnosis report |
 | [`organizing-local-files`](treasury/organizing-local-files/) | Plan and apply safe offline file organization: inventory, JSON move plan, apply.sh, rollback.sh; never deletes |
+| [`research-vault-librarian`](treasury/research-vault-librarian/) | Read-only librarian for a CLAUDE.md-governed Obsidian research vault: query reports, audit MOC/wikilink/citation drift, emit a ready-to-apply intake patch |
 | [`publishing-git-review-requests`](treasury/publishing-git-review-requests/) | Publish one local change to GitHub/GitLab: prepare a commit, attach origin, push the branch, open a PR or MR |
 
 ## Literature Sources
 
-The `literature/` directory contains the complete research corpus — 55 documents totaling ~758K words — organized by ecosystem:
+The `literature/` directory contains the complete research corpus — 56 documents totaling ~758K words — organized by ecosystem:
 
 | Category | Files | Key Sources |
 |----------|-------|-------------|
@@ -216,7 +217,7 @@ The `literature/` directory contains the complete research corpus — 55 documen
 | **Open Standard** | 1 | Open Agent Skills specification |
 | **Other Platforms** | 13 | Gemini CLI, Cursor, Cline, OpenCode, Windsurf, Spring AI, Strapi, antfu |
 | **Research Papers** | 6 | ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent |
-| **Skill Design Methodology** | 3 | Source index, reading taxonomy, synthesized design principles |
+| **Skill Design Methodology** | 4 | Source index, reading taxonomy, synthesized design principles, literature review |
 
 ## Platform Compatibility
 
