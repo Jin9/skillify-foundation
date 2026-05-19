@@ -56,7 +56,7 @@ my-skill/
 │       ├── good-description-examples.md
 │       └── skill-audit-walkthrough.md
 │
-└── treasury/                # 34 production skills in 7 categories
+└── treasury/                # 35 production skills in 7 categories
     ├── README.md            # ← Skill catalog (start here)
     └── <skill>/             # each: SKILL.md + references/ (+ templates, schemas, …)
 ```
@@ -132,7 +132,7 @@ python skillify/scripts/check_links.py path/to/skill-folder
 
 ## Treasury — Production Skill Library
 
-The `treasury/` directory holds **34 production-grade skills** built with the `skillify` meta-skill, grouped into 7 functional categories. Every skill is a folder with its own `SKILL.md` and a `references/` tier. Full per-skill detail, asset breakdown, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
+The `treasury/` directory holds **35 production-grade skills** built with the `skillify` meta-skill, grouped into 7 functional categories. Every skill is a folder with its own `SKILL.md` and a `references/` tier. Full per-skill detail, asset breakdown, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
 
 ### 1. Banking & Fintech Domain (5)
 
@@ -192,7 +192,7 @@ The `treasury/` directory holds **34 production-grade skills** built with the `s
 | [`reviewing-agent-spend`](treasury/reviewing-agent-spend/) | Monday cost-review ritual: segment LiteLLM spend by user/model, flag >2σ outliers and workflows over $10 |
 | [`authoring-workflow-postmortem`](treasury/authoring-workflow-postmortem/) | Author a postmortem within 48h of a trigger event (failed stage >$1, rejected gate, cap overrun, egress fail) |
 
-### 7. Code Analysis & Productivity (6)
+### 7. Code Analysis & Productivity (7)
 
 | Skill | What it does |
 |-------|--------------|
@@ -202,6 +202,7 @@ The `treasury/` directory holds **34 production-grade skills** built with the `s
 | [`organizing-local-files`](treasury/organizing-local-files/) | Plan and apply safe offline file organization: inventory, JSON move plan, apply.sh, rollback.sh; never deletes |
 | [`research-vault-librarian`](treasury/research-vault-librarian/) | Read-only librarian for a CLAUDE.md-governed Obsidian research vault: query reports, audit MOC/wikilink/citation drift, emit a ready-to-apply intake patch |
 | [`publishing-git-review-requests`](treasury/publishing-git-review-requests/) | Publish one local change to GitHub/GitLab: prepare a commit, attach origin, push the branch, open a PR or MR |
+| [`rendering-readable-html`](treasury/rendering-readable-html/) | Render data, a report, or session findings into one self-contained, static, JavaScript-free HTML file built for a human to read offline |
 
 ## Literature Sources
 
