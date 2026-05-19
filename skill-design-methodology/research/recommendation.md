@@ -1,3 +1,11 @@
+---
+authored_by: chinnawat.w (git author of record; GitHub Jin9)
+phase_owner: Claude Opus 4.7
+pipeline_phase: 4
+status: accepted
+provenance_dated: 2026-05-19
+---
+
 # Recommendation: Skillify Minimal One-Pass Refactor
 
 ## Recommended Edits
@@ -86,4 +94,4 @@
 - Do not edit frontmatter.
 - Do not edit platform install scripts, deployment docs, validation scripts, or templates.
 - Apply the default `init_skill.py` decision: wire it into Create rather than removing it from the script manifest.
-- Mirror the final `SKILL.md` and `mode-playbooks.md` to `/Users/IF640063/.codex/skills/skillify/`.
+- Mirror the final `SKILL.md` and `mode-playbooks.md` to `~/.codex/skills/skillify/`.
