@@ -1,3 +1,11 @@
+---
+authored_by: chinnawat.w (git author of record; GitHub Jin9)
+phase_owner: rationale (n/a)
+pipeline_phase: pre-0
+status: accepted
+provenance_dated: 2026-05-19
+---
+
 Yes. For summarizing all your collected sources and crafting them into “skillified” SKILL.md templates, I would not use only one model. Use different models by phase.
 
 Best model ranking for skillification

@@ -1,3 +1,11 @@
+---
+authored_by: chinnawat.w (git author of record; GitHub Jin9)
+phase_owner: Claude Opus 4.7
+pipeline_phase: 3
+status: accepted
+provenance_dated: 2026-05-19
+---
+
 # Phase 3 Architecture Analysis
 
 Claude Opus 4.7 rerun of Phase 3, replacing the prior Codex/GPT fallback. Grounded in the actual `skillify/` files as of 2026-05-09 (`SKILL.md` is 179 lines; references, templates, scripts, platforms, examples folders are populated).
@@ -93,4 +101,4 @@ What **not** to compact:
 - **The 50-line per-section threshold in Constraints (line 144) is unenforced.** No script measures it. Until clarified, the rule depends on agent judgment, which is a soft validation surface.
 - **The banned-docs list (5 named files) is enforced by `quick_validate.py` via filename match.** Adding a 6th banned doc requires updating both the script and the Constraints section. Consider extracting the list into a script constant that the section references.
 - **`init_skill.py` is unreferenced from any workflow step**, so it is never executed in the Create path; gate 1 will not exercise it. Either wire it into the Create workflow or accept that it is a manual bootstrap tool.
-- **Installed copy at `/Users/IF640063/.codex/skills/skillify/SKILL.md` may drift from the repo copy.** The Phase 3 plan instructs Codex to keep the installed target as the primary. Final Phase 7 validation must run against both, or pick one canonical and document the sync method.
+- **Installed copy at `~/.codex/skills/skillify/SKILL.md` may drift from the repo copy.** The Phase 3 plan instructs Codex to keep the installed target as the primary. Final Phase 7 validation must run against both, or pick one canonical and document the sync method.

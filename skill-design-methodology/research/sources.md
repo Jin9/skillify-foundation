@@ -1,3 +1,11 @@
+---
+authored_by: chinnawat.w (git author of record; GitHub Jin9)
+phase_owner: Gemini 3.1 Pro
+pipeline_phase: 1
+status: accepted
+provenance_dated: 2026-05-19
+---
+
 # Authoritative Source Index: Agent Skill Design
 
 **Location:** `skill-design-methodology/research/sources.md`

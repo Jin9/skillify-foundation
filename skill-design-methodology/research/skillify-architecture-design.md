@@ -1,9 +1,11 @@
 ---
+authored_by: chinnawat.w (git author of record; GitHub Jin9)
 document_role: phase-2-architecture-design
 pipeline_stage: 2 of 5 (Claude Opus 4.7 Max — synthesize principles + design skill architecture)
 upstream: ../../literature/skill-design-methodology/agent-skill-design-principles.md, ../cross-model-skillification-pipeline.md, ../../literature/**
 downstream: phase-3 GPT-5.5 xHigh — convert this design into the final SKILL.md framework
 status: draft v1 (2026-04-26)
+provenance_dated: 2026-05-19
 ---
 
 # Skillify — Skill-Creator Architecture Design

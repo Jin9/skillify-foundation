@@ -1,3 +1,11 @@
+---
+authored_by: chinnawat.w (git author of record; GitHub Jin9)
+phase_owner: Codex/GPT-5.5 (orchestration)
+pipeline_phase: spec (0–7)
+status: accepted
+provenance_dated: 2026-05-19
+---
+
 # Cross-Model Skillify Upgrade Plan
 
 Goal: upgrade `skillify` with a delegated research, analysis, implementation, review, and compaction workflow across Codex/GPT, Gemini, and Claude Code.
@@ -23,7 +31,7 @@ If the local Claude CLI requires a concrete Opus 4.7 model string instead of the
 ## Output Contract
 
 Primary target:
-- `/Users/IF640063/.codex/skills/skillify/SKILL.md`
+- `~/.codex/skills/skillify/SKILL.md` (Codex skills install dir; resolve against `$HOME`/`$CODEX_HOME`, do not pin an OS account)
 
 Research artifacts:
 - `skill-design-methodology/research/sources.md`
