@@ -109,7 +109,8 @@ report path + pattern
 - Self-contained: passes `scripts/check_self_contained.py` (doctype + `utf-8`
   charset, no `script`, no `on*`/`javascript:`, no remote resource load).
 - Readable: single `<h1>`, semantic structure, ~70ch column, responsive/
-  scrollable tables, print-clean — all from the template, unmodified in intent.
+  scrollable tables, print-clean, warm light theme — all from the template,
+  unmodified in intent.
 - No other files created or modified.
 
 ## Constraints & anti-patterns
