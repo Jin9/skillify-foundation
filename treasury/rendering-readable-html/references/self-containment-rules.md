@@ -26,7 +26,7 @@ step, and no companion files — on any machine, offline, and when printed.
 - **`data:` URIs** for an essential embedded image.
 - Relative/`#` fragment links within the page.
 - CSS-only theming and interactivity-free niceties already in the template
-  (`prefers-color-scheme`, `@media print`, `:focus-visible`, scrollable table
+  (`color-scheme`, `@media print`, `:focus-visible`, scrollable table
   wrapper).
 
 ## Required structure
