@@ -1,6 +1,6 @@
 ---
 name: rendering-readable-html
-description: Render structured content the agent already has - tabular data, a markdown or plain-text report, or findings produced this session - into one clean, self-contained, static HTML file made for a human to read offline. Use when the user asks to "make a simple HTML view of this", "turn this into a human-readable HTML page", "visualize this data as a simple HTML report", or "render this as a single self-contained HTML file". Produces exactly one .html file with inline CSS only, zero JavaScript, and zero external or network resource requests, so it stays portable, printable, and offline. Do NOT use to build React, production web apps, multi-page sites, or interactive dashboards (use a frontend skill instead); do NOT use to compute domain analyses such as agent-spend or postmortems - this skill only renders content that already exists.
+description: Render structured content the agent already has - tabular data, a markdown or plain-text report, or findings produced this session - into one clean, self-contained, static HTML file made for a human to read offline. Use when the user asks to "make a simple HTML view of this", "turn this into a human-readable HTML page", "visualize this data as a simple HTML report", "render this as a single self-contained HTML file", or "render this plan as a readable HTML page". Produces exactly one .html file with inline CSS only, zero JavaScript, and zero external or network resource requests, so it stays portable, printable, and offline. Do NOT use to build React, production web apps, multi-page sites, or interactive dashboards (use a frontend skill instead); do NOT use to compute domain analyses such as agent-spend or postmortems - this skill only renders content that already exists.
 ---
 
 # Rendering Readable HTML
@@ -12,8 +12,9 @@ as given — change structure, never invent or drop data.
 ## When to use
 
 - The user asks to "make a simple HTML view of this", "turn this into a
-  human-readable HTML page", "visualize this data as a simple HTML report", or
-  "render this as a single self-contained HTML file".
+  human-readable HTML page", "visualize this data as a simple HTML report",
+  "render this as a single self-contained HTML file", or "render this plan as a
+  readable HTML page".
 - There is concrete content to show: a table/dataset, a written report, or
   findings/comparisons/a plan the agent produced this session.
 
@@ -49,6 +50,35 @@ as given — change structure, never invent or drop data.
 - Optional: desired output path/filename, page title, one provenance line.
   If not given, default the path to `./<kebab-title>.html` and derive a title
   from the content; do not block on these.
+
+## How it works (at a glance)
+
+Take content you already have, wrap it in a fixed HTML shell, prove it loads
+with nothing from the network, and hand back one file. The only judgment call
+is *what kind* of content it is — a table, a document, or findings like a plan
+or comparison. The only gate is the self-containment check: don't report done
+until it passes.
+
+```text
+content
+   │
+   ▼
+detect input type ──▶ A  tabular
+   │              ├──▶ B  document
+   │              └──▶ C  findings
+   ▼
+escape every value
+   │
+   ▼
+assemble from page.html template
+   │
+   ▼
+self-contained check ──no──▶ fix line ─┐
+   │ yes                                │
+   │            ◀───────────────────────┘
+   ▼
+report path + pattern
+```
 
 ## Workflow
 
@@ -109,6 +139,7 @@ Before reporting done, verify:
 | Input-type → semantic HTML mapping, Markdown subset, the escaping table | `references/layout-patterns.md` |
 | Exact self-containment prohibitions, required structure, run checklist | `references/self-containment-rules.md` |
 | Worked CSV → HTML trace (Pattern A) | `examples/data-table-example.md` |
+| Worked plan → HTML trace (Pattern C) | `examples/plan-example.md` |
 
 ## Templates and scripts
 
