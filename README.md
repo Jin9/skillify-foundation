@@ -56,7 +56,7 @@ my-skill/
 │       ├── good-description-examples.md
 │       └── skill-audit-walkthrough.md
 │
-└── treasury/                # 35 production skills in 7 categories
+└── treasury/                # 36 production skills in 7 categories
     ├── README.md            # ← Skill catalog (start here)
     └── <skill>/             # each: SKILL.md + references/ (+ templates, schemas, …)
 ```
@@ -132,7 +132,7 @@ python skillify/scripts/check_links.py path/to/skill-folder
 
 ## Treasury — Production Skill Library
 
-The `treasury/` directory holds **35 production-grade skills** built with the `skillify` meta-skill, grouped into 7 functional categories. Every skill is a folder with its own `SKILL.md` and a `references/` tier. Full per-skill detail, asset breakdown, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
+The `treasury/` directory holds **36 production-grade skills** built with the `skillify` meta-skill, grouped into 7 functional categories. Every skill is a folder with its own `SKILL.md` and a `references/` tier. Full per-skill detail, asset breakdown, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
 
 ### 1. Banking & Fintech Domain (5)
 
@@ -144,12 +144,13 @@ The `treasury/` directory holds **35 production-grade skills** built with the `s
 | [`planning-banking-tests`](treasury/planning-banking-tests/) | Convert a BA brief into a QA test plan: Gherkin scenarios, NFRs, regulatory deps, compliance, sign-off criteria |
 | [`validating-banking-implementation`](treasury/validating-banking-implementation/) | QA persona: adversarial OWASP, transactional-integrity / race / deadlock audit, chaos plan; Approve/Reject verdict |
 
-### 2. Code Implementation & Review (7)
+### 2. Code Implementation & Review (8)
 
 | Skill | What it does |
 |-------|--------------|
 | [`crafting-backend-code`](treasury/crafting-backend-code/) | Design, review, and safely implement backend services (Go/Node/Python/Java), pattern-first and evidence-led |
 | [`implement-backend-feature`](treasury/implement-backend-feature/) | Generate production-grade Go backend code (HTTP / CQRS / Kafka) for one feature from an approved design |
+| [`implementing-go-template-requirements`](treasury/implementing-go-template-requirements/) | Apply one requirement to a go-template service by editing business logic under `app/<domain>/` plus narrow router wiring |
 | [`review-backend-code`](treasury/review-backend-code/) | Adversarially verify Go code vs the design and 11 banking-grade rules; approve / loop_back / human-queue verdict |
 | [`review-rust-code`](treasury/review-rust-code/) | Adversarially verify Rust code vs the design and 11 banking-grade rules recast for Rust; machine-readable verdict |
 | [`crafting-frontend-code`](treasury/crafting-frontend-code/) | Design, review, and safely implement React/TypeScript frontend with a conservative, repo-first posture |

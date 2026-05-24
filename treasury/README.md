@@ -1,17 +1,17 @@
 # Treasury — Production Skill Library
 
-35 production-grade skills, grouped by function. Each skill name links to its folder. Every skill ships a `references/` tier; the **Extra assets** column lists only what a skill adds on top of that.
+36 production-grade skills, grouped by function. Each skill name links to its folder. Every skill ships a `references/` tier; the **Extra assets** column lists only what a skill adds on top of that.
 
 | Category | Count |
 |----------|-------|
 | [1. Banking & Fintech Domain](#1-banking--fintech-domain-5) | 5 |
-| [2. Code Implementation & Review](#2-code-implementation--review-7) | 7 |
+| [2. Code Implementation & Review](#2-code-implementation--review-8) | 8 |
 | [3. Agent Orchestration & Pipelines](#3-agent-orchestration--pipelines-5) | 5 |
 | [4. Agent-Scaffold Infrastructure](#4-agent-scaffold-infrastructure-4) | 4 |
 | [5. Security, Governance & Compliance](#5-security-governance--compliance-4) | 4 |
 | [6. Observability & Cost Governance](#6-observability--cost-governance-3) | 3 |
 | [7. Code Analysis & Productivity](#7-code-analysis--productivity-7) | 7 |
-| **Total** | **35** |
+| **Total** | **36** |
 
 ---
 
@@ -27,7 +27,7 @@ The regulated BA → Architect → QA spine: requirements, architecture, and ver
 | [`planning-banking-tests`](./planning-banking-tests/) | Convert a BA brief into a structured QA test plan: Gherkin scenarios, NFR targets, regulatory deps, compliance, sign-off criteria. | audit · runs · schemas · scripts · tests |
 | [`validating-banking-implementation`](./validating-banking-implementation/) | QA persona: adversarial OWASP testing, transactional-integrity / race / deadlock audit, chaos plan; explicit Approve/Reject verdict. | — |
 
-### 2. Code Implementation & Review (7)
+### 2. Code Implementation & Review (8)
 
 Design, generate, and adversarially review backend (Go/Rust) and frontend (React/TS) code to banking-grade rules.
 
@@ -35,6 +35,7 @@ Design, generate, and adversarially review backend (Go/Rust) and frontend (React
 |-------|--------------|--------------|
 | [`crafting-backend-code`](./crafting-backend-code/) | Design, review, and safely implement backend services (Go/Node/Python/Java) with a pattern-first, evidence-led posture. | platforms |
 | [`implement-backend-feature`](./implement-backend-feature/) | Generate production-grade Go backend code (HTTP / CQRS / Kafka) for one feature from an approved design, banking-grade. | schemas · tests |
+| [`implementing-go-template-requirements`](./implementing-go-template-requirements/) | Apply one requirement to a go-template service by editing business logic under `app/<domain>/` plus narrow router wiring while locking scaffold files. | examples · templates |
 | [`review-backend-code`](./review-backend-code/) | Adversarially verify Go code vs the approved design and 11 banking-grade rules; machine-readable approve / loop_back / human-queue. | schemas · tests |
 | [`review-rust-code`](./review-rust-code/) | Adversarially verify Rust code vs the approved design and 11 banking-grade rules recast for Rust idioms; machine-readable verdict. | schemas · tests |
 | [`crafting-frontend-code`](./crafting-frontend-code/) | Design, review, and safely implement React/TypeScript frontend with a conservative, repo-first posture. | — |
@@ -122,6 +123,7 @@ Cross-cutting analysis and delivery helpers: extract logic, plan algorithms, hun
 | [`governance-policy-generator`](./governance-policy-generator/) | Security, Governance & Compliance |
 | [`implement-backend-feature`](./implement-backend-feature/) | Code Implementation & Review |
 | [`implement-frontend-feature`](./implement-frontend-feature/) | Code Implementation & Review |
+| [`implementing-go-template-requirements`](./implementing-go-template-requirements/) | Code Implementation & Review |
 | [`multi-agent-handoff-architect`](./multi-agent-handoff-architect/) | Agent Orchestration & Pipelines |
 | [`observability-telemetry-instrumenter`](./observability-telemetry-instrumenter/) | Observability & Cost Governance |
 | [`orchestrating-agent-scaffold`](./orchestrating-agent-scaffold/) | Agent Orchestration & Pipelines |
