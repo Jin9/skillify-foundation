@@ -39,3 +39,4 @@ this ledger is not a sufficient sign-off on its own.
 - [ ] each `not-observed`/`dead` rule adjudicated (rare path vs. dead code)
 - [ ] edge-case rows sampled against source
 - [ ] no rule asserts behavior absent from the cited span
+- [ ] every flowchart node / pseudo-code line maps to a cited branch (no invented edges, no flowchart↔pseudo-code drift)
