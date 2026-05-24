@@ -22,8 +22,9 @@ negative case, role confusion).
 symmetric risk here is asserting a rule the code does not implement. Every
 rule MUST cite `path:line(-line)` and quote/point to the actual span. If you
 cannot point at the code, the rule does not go in the spec — it goes in the
-ledger as an uncertainty. Decision/branch logic becomes a **decision table**
-(inputs → outcome) with each row cited, not a prose paragraph.
+ledger as an uncertainty. Decision/branch logic becomes a **decision-logic
+ASCII flowchart + provenance-annotated pseudo-code** (each branch a cited box/line —
+see `ascii-logic-method.md`), not a prose paragraph.
 
 ## Completeness: follow the callers
 Silent-regression evidence: agentic edits test only plan-scope and miss

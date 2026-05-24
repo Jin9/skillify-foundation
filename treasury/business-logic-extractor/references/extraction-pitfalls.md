@@ -14,7 +14,13 @@ loss ledger.
   traces to real code; no inferred APIs.
 - **Edge-case / rare-branch drop.** Tail content is the first casualty of
   compaction and the highest-value part of a rules spec. Fix: each branch is
-  its own rule or decision-table row; never merge away a guard "for brevity".
+  its own rule, flowchart node, and pseudo-code line; never merge away a guard
+  "for brevity".
+- **Hallucinated flowchart edge / representation drift.** A flowchart node,
+  arrow, or pseudo-code line with no cited branch — or the flowchart and
+  pseudo-code disagreeing about the branch set. Same defect class as an
+  invented rule. Fix: derive both from the cited decision sites, keep them in
+  parity, and cite `file:line` on every node/line (see `ascii-logic-method.md`).
 - **Recursive compaction drift.** Re-summarizing the spec compounds error.
   Fix: re-extract from source; never compact the spec onto itself.
 - **Confidently-wrong (knowledge collapse).** Fluent spec, degraded accuracy,
@@ -41,6 +47,8 @@ not spec.
 
 ## Scope guard
 Extraction only. NOT: generating code, generating/“improving” requirements
-(forward direction), writing tests, drawing architecture diagrams, or
-producing a general lossy summary/docstrings. Those are different skills; the
+(forward direction), writing tests, drawing architecture / system-topology /
+sequence diagrams (a decision-logic flowchart of the extracted rules IS in
+scope — see `ascii-logic-method.md`), or producing a general lossy
+summary/docstrings. Those are different skills; the
 deliverable here is a descriptive, traced rules spec + a loss ledger.
