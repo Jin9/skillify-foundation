@@ -136,74 +136,74 @@ The `treasury/` directory holds **36 production-grade skills** built with the `s
 
 ### 1. Banking & Fintech Domain (5)
 
-| Skill | What it does |
-|-------|--------------|
-| [`analyzing-banking-requirements`](treasury/analyzing-banking-requirements/) | BA persona: extract raw banking requests into PRDs/API contracts with strict KYC/AML/PCI-DSS compliance mapping |
-| [`architecting-fintech-systems`](treasury/architecting-fintech-systems/) | Senior fintech architect for L1–L3 design via DDD/CQRS/event-driven on a Go/AWS/GCP stack |
-| [`eliciting-banking-brief`](treasury/eliciting-banking-brief/) | Turn raw BA input (Jira/Slack/notes) into a structured epic-plus-stories brief; governance gaps as P1 blockers |
-| [`planning-banking-tests`](treasury/planning-banking-tests/) | Convert a BA brief into a QA test plan: Gherkin scenarios, NFRs, regulatory deps, compliance, sign-off criteria |
-| [`validating-banking-implementation`](treasury/validating-banking-implementation/) | QA persona: adversarial OWASP, transactional-integrity / race / deadlock audit, chaos plan; Approve/Reject verdict |
+| Skill | Role | What it does |
+|-------|------|--------------|
+| [`analyzing-banking-requirements`](treasury/analyzing-banking-requirements/) | Business Analyst | BA persona: extract raw banking requests into PRDs/API contracts with strict KYC/AML/PCI-DSS compliance mapping |
+| [`architecting-fintech-systems`](treasury/architecting-fintech-systems/) | Senior Fintech Architect | Senior fintech architect for L1–L3 design via DDD/CQRS/event-driven on a Go/AWS/GCP stack |
+| [`eliciting-banking-brief`](treasury/eliciting-banking-brief/) | Business Analyst | Turn raw BA input (Jira/Slack/notes) into a structured epic-plus-stories brief; governance gaps as P1 blockers |
+| [`planning-banking-tests`](treasury/planning-banking-tests/) | Quality Assurance Engineer | Convert a BA brief into a QA test plan: Gherkin scenarios, NFRs, regulatory deps, compliance, sign-off criteria |
+| [`validating-banking-implementation`](treasury/validating-banking-implementation/) | Quality Assurance Engineer | QA persona: adversarial OWASP, transactional-integrity / race / deadlock audit, chaos plan; Approve/Reject verdict |
 
 ### 2. Code Implementation & Review (8)
 
-| Skill | What it does |
-|-------|--------------|
-| [`crafting-backend-code`](treasury/crafting-backend-code/) | Design, review, and safely implement backend services (Go/Node/Python/Java), pattern-first and evidence-led |
-| [`implement-backend-feature`](treasury/implement-backend-feature/) | Generate production-grade Go backend code (HTTP / CQRS / Kafka) for one feature from an approved design |
-| [`implementing-go-template-requirements`](treasury/implementing-go-template-requirements/) | Apply one requirement to a go-template service by editing business logic under `app/<domain>/` plus narrow router wiring |
-| [`review-backend-code`](treasury/review-backend-code/) | Adversarially verify Go code vs the design and 11 banking-grade rules; approve / loop_back / human-queue verdict |
-| [`review-rust-code`](treasury/review-rust-code/) | Adversarially verify Rust code vs the design and 11 banking-grade rules recast for Rust; machine-readable verdict |
-| [`crafting-frontend-code`](treasury/crafting-frontend-code/) | Design, review, and safely implement React/TypeScript frontend with a conservative, repo-first posture |
-| [`implement-frontend-feature`](treasury/implement-frontend-feature/) | Generate production-grade React/TS from an approved UI design: WCAG 2.1 AA, no localStorage auth, PII handling |
-| [`review-frontend-code`](treasury/review-frontend-code/) | Adversarially verify React/TS vs the UI design and 12 banking-grade non-negotiables; machine-readable verdict |
+| Skill | Role | What it does |
+|-------|------|--------------|
+| [`crafting-backend-code`](treasury/crafting-backend-code/) | Senior Backend Engineer | Design, review, and safely implement backend services (Go/Node/Python/Java), pattern-first and evidence-led |
+| [`implement-backend-feature`](treasury/implement-backend-feature/) | Backend Software Developer | Generate production-grade Go backend code (HTTP / CQRS / Kafka) for one feature from an approved design |
+| [`implementing-go-template-requirements`](treasury/implementing-go-template-requirements/) | Backend Software Developer | Apply one requirement to a go-template service by editing business logic under `app/<domain>/` plus narrow router wiring |
+| [`review-backend-code`](treasury/review-backend-code/) | Senior Backend Engineer | Adversarially verify Go code vs the design and 11 banking-grade rules; approve / loop_back / human-queue verdict |
+| [`review-rust-code`](treasury/review-rust-code/) | Senior Rust Engineer | Adversarially verify Rust code vs the design and 11 banking-grade rules recast for Rust; machine-readable verdict |
+| [`crafting-frontend-code`](treasury/crafting-frontend-code/) | Senior Frontend Engineer | Design, review, and safely implement React/TypeScript frontend with a conservative, repo-first posture |
+| [`implement-frontend-feature`](treasury/implement-frontend-feature/) | Frontend Software Developer | Generate production-grade React/TS from an approved UI design: WCAG 2.1 AA, no localStorage auth, PII handling |
+| [`review-frontend-code`](treasury/review-frontend-code/) | Senior Frontend Engineer | Adversarially verify React/TS vs the UI design and 12 banking-grade non-negotiables; machine-readable verdict |
 
 ### 3. Agent Orchestration & Pipelines (5)
 
-| Skill | What it does |
-|-------|--------------|
-| [`agent-context-initializer`](treasury/agent-context-initializer/) | Generate a minimal AGENTS.md (100–150 lines, six sections, three-tier boundaries) plus a curation checklist |
-| [`composing-agent-pipelines`](treasury/composing-agent-pipelines/) | Compose a portable multi-agent pipeline (Plan/Gather/Analyze/Review/Validate/Decide/Compact) with versioned artifacts |
-| [`multi-agent-handoff-architect`](treasury/multi-agent-handoff-architect/) | Design inter-agent handoff APIs as versioned JSON Schema contracts; single-writer ownership, autonomy by reversibility |
-| [`orchestrating-agent-scaffold`](treasury/orchestrating-agent-scaffold/) | Orchestrate a multi-stage research-squad run on agent-scaffold: plan, pick profile/cap, monitor state.json |
-| [`orchestrating-openclaw-squad`](treasury/orchestrating-openclaw-squad/) | Orchestrate a BA/Architect/Developer/QA squad with strict human-in-the-loop gates and sandbox isolation |
+| Skill | Role | What it does |
+|-------|------|--------------|
+| [`agent-context-initializer`](treasury/agent-context-initializer/) | Agent Systems Architect | Generate a minimal AGENTS.md (100–150 lines, six sections, three-tier boundaries) plus a curation checklist |
+| [`composing-agent-pipelines`](treasury/composing-agent-pipelines/) | Agent Orchestrator | Compose a portable multi-agent pipeline (Plan/Gather/Analyze/Review/Validate/Decide/Compact) with versioned artifacts |
+| [`multi-agent-handoff-architect`](treasury/multi-agent-handoff-architect/) | Agent Integration Architect | Design inter-agent handoff APIs as versioned JSON Schema contracts; single-writer ownership, autonomy by reversibility |
+| [`orchestrating-agent-scaffold`](treasury/orchestrating-agent-scaffold/) | Agent Operations Engineer | Orchestrate a multi-stage research-squad run on agent-scaffold: plan, pick profile/cap, monitor state.json |
+| [`orchestrating-openclaw-squad`](treasury/orchestrating-openclaw-squad/) | Technical Program Manager | Orchestrate a BA/Architect/Developer/QA squad with strict human-in-the-loop gates and sandbox isolation |
 
 ### 4. Agent-Scaffold Infrastructure (4)
 
-| Skill | What it does |
-|-------|--------------|
-| [`authoring-scaffold-profile`](treasury/authoring-scaffold-profile/) | Author/modify agent-scaffold `profiles/NAME.sh` (STAGES, GATED_STAGES, per-stage AGENT/MODEL) with validation |
-| [`configuring-sandbox-allowlist`](treasury/configuring-sandbox-allowlist/) | Edit the sandbox hostname allowlist; refuse wildcard/IP/metadata patterns; remind to rebuild + egress-test |
-| [`drafting-stage-prompt`](treasury/drafting-stage-prompt/) | Curate stage prompts into `prompts/library/STAGE/TOPIC.md` with why-it-works, success metric, failure mode |
-| [`reviewing-implement-gate`](treasury/reviewing-implement-gate/) | Walk a researcher through the five-question check before approving the implement gate; approve/reject + command |
+| Skill | Role | What it does |
+|-------|------|--------------|
+| [`authoring-scaffold-profile`](treasury/authoring-scaffold-profile/) | Agent Infrastructure Engineer | Author/modify agent-scaffold `profiles/NAME.sh` (STAGES, GATED_STAGES, per-stage AGENT/MODEL) with validation |
+| [`configuring-sandbox-allowlist`](treasury/configuring-sandbox-allowlist/) | Platform Security Engineer | Edit the sandbox hostname allowlist; refuse wildcard/IP/metadata patterns; remind to rebuild + egress-test |
+| [`drafting-stage-prompt`](treasury/drafting-stage-prompt/) | Prompt Engineer | Curate stage prompts into `prompts/library/STAGE/TOPIC.md` with why-it-works, success metric, failure mode |
+| [`reviewing-implement-gate`](treasury/reviewing-implement-gate/) | Technical Lead | Walk a researcher through the five-question check before approving the implement gate; approve/reject + command |
 
 ### 5. Security, Governance & Compliance (4)
 
-| Skill | What it does |
-|-------|--------------|
-| [`reviewing-software-security`](treasury/reviewing-software-security/) | Defensive security review for Go/Gin, Kafka, MySQL, K8s, Kong/APISIX, lending flows; mapped to OWASP/CWE/NIST/CIS |
-| [`devops-infrastructure-hardener`](treasury/devops-infrastructure-hardener/) | Audit agent CI/CD for static credentials; emit remediation + short-lived OIDC / dynamic-secrets architecture |
-| [`universal-spec-validator`](treasury/universal-spec-validator/) | CI / pre-commit gate validating agent specs for cross-model drift, unsafe command surface, breaking schema evolution |
-| [`governance-policy-generator`](treasury/governance-policy-generator/) | Emit policy-as-code: default-deny OPA/Rego allowlist plus KILLSWITCH.md (triggers, escalation, append-only audit) |
+| Skill | Role | What it does |
+|-------|------|--------------|
+| [`reviewing-software-security`](treasury/reviewing-software-security/) | Security Engineer | Defensive security review for Go/Gin, Kafka, MySQL, K8s, Kong/APISIX, lending flows; mapped to OWASP/CWE/NIST/CIS |
+| [`devops-infrastructure-hardener`](treasury/devops-infrastructure-hardener/) | DevOps Engineer | Audit agent CI/CD for static credentials; emit remediation + short-lived OIDC / dynamic-secrets architecture |
+| [`universal-spec-validator`](treasury/universal-spec-validator/) | Platform Engineer | CI / pre-commit gate validating agent specs for cross-model drift, unsafe command surface, breaking schema evolution |
+| [`governance-policy-generator`](treasury/governance-policy-generator/) | Governance & Risk Officer | Emit policy-as-code: default-deny OPA/Rego allowlist plus KILLSWITCH.md (triggers, escalation, append-only audit) |
 
 ### 6. Observability & Cost Governance (3)
 
-| Skill | What it does |
-|-------|--------------|
-| [`observability-telemetry-instrumenter`](treasury/observability-telemetry-instrumenter/) | Instrument agent code with OpenTelemetry GenAI conventions: invoke_agent / execute_tool spans, token histogram |
-| [`reviewing-agent-spend`](treasury/reviewing-agent-spend/) | Monday cost-review ritual: segment LiteLLM spend by user/model, flag >2σ outliers and workflows over $10 |
-| [`authoring-workflow-postmortem`](treasury/authoring-workflow-postmortem/) | Author a postmortem within 48h of a trigger event (failed stage >$1, rejected gate, cap overrun, egress fail) |
+| Skill | Role | What it does |
+|-------|------|--------------|
+| [`observability-telemetry-instrumenter`](treasury/observability-telemetry-instrumenter/) | Observability Engineer | Instrument agent code with OpenTelemetry GenAI conventions: invoke_agent / execute_tool spans, token histogram |
+| [`reviewing-agent-spend`](treasury/reviewing-agent-spend/) | FinOps Analyst | Monday cost-review ritual: segment LiteLLM spend by user/model, flag >2σ outliers and workflows over $10 |
+| [`authoring-workflow-postmortem`](treasury/authoring-workflow-postmortem/) | Incident Response Manager | Author a postmortem within 48h of a trigger event (failed stage >$1, rejected gate, cap overrun, egress fail) |
 
 ### 7. Code Analysis & Productivity (7)
 
-| Skill | What it does |
-|-------|--------------|
-| [`business-logic-extractor`](treasury/business-logic-extractor/) | Extract implemented business logic from code into a traceable spec with file:line provenance + loss ledger |
-| [`generating-pseudocode`](treasury/generating-pseudocode/) | Analyze requirements or code into clean language-agnostic pseudocode plus framing and a verification note |
-| [`progressive-bug-hunter`](treasury/progressive-bug-hunter/) | Localize/diagnose a bug via minimal progressive retrieval (grep → symbol-graph → AST); ranked diagnosis report |
-| [`organizing-local-files`](treasury/organizing-local-files/) | Plan and apply safe offline file organization: inventory, JSON move plan, apply.sh, rollback.sh; never deletes |
-| [`research-vault-librarian`](treasury/research-vault-librarian/) | Read-only librarian for a CLAUDE.md-governed Obsidian research vault: query reports, audit MOC/wikilink/citation drift, emit a ready-to-apply intake patch |
-| [`publishing-git-review-requests`](treasury/publishing-git-review-requests/) | Publish one local change to GitHub/GitLab: prepare a commit, attach origin, push the branch, open a PR or MR |
-| [`rendering-readable-html`](treasury/rendering-readable-html/) | Render data, a report, or session findings into one self-contained, static, JavaScript-free HTML file built for a human to read offline |
+| Skill | Role | What it does |
+|-------|------|--------------|
+| [`business-logic-extractor`](treasury/business-logic-extractor/) | Requirements Analyst | Extract implemented business logic from code into a traceable spec with file:line provenance + loss ledger |
+| [`generating-pseudocode`](treasury/generating-pseudocode/) | Algorithm Designer | Analyze requirements or code into clean language-agnostic pseudocode plus framing and a verification note |
+| [`progressive-bug-hunter`](treasury/progressive-bug-hunter/) | Debugging Specialist | Localize/diagnose a bug via minimal progressive retrieval (grep → symbol-graph → AST); ranked diagnosis report |
+| [`organizing-local-files`](treasury/organizing-local-files/) | Information Architect | Plan and apply safe offline file organization: inventory, JSON move plan, apply.sh, rollback.sh; never deletes |
+| [`research-vault-librarian`](treasury/research-vault-librarian/) | Research Librarian | Read-only librarian for a CLAUDE.md-governed Obsidian research vault: query reports, audit MOC/wikilink/citation drift, emit a ready-to-apply intake patch |
+| [`publishing-git-review-requests`](treasury/publishing-git-review-requests/) | Source Control Engineer | Publish one local change to GitHub/GitLab: prepare a commit, attach origin, push the branch, open a PR or MR |
+| [`rendering-readable-html`](treasury/rendering-readable-html/) | Technical Writer | Render data, a report, or session findings into one self-contained, static, JavaScript-free HTML file built for a human to read offline |
 
 ## Literature Sources
 
