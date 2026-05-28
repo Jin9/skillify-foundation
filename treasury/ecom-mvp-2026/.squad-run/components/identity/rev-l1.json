@@ -1,0 +1,70 @@
+{
+  "template_version": "0.1.0",
+  "review_kind": "reviewer-l1",
+  "component_name": "identity",
+  "skills_invoked": ["expert-software-security-reviewer", "simplify"],
+  "verdict": "block",
+  "summary": "Phase 1 closed dry-run #1 REV-IDENT-001/002/003: bcrypt cost 12 is in place (service.go:98 GenerateFromPassword cost=12; service.go:130 CompareHashAndPassword) and tests pass. However the AUTH-007 timing-equivalence dummy compare is functionally broken: service.go:124 calls bcrypt.CompareHashAndPassword on the literal '$2a$12$dummyhashfortimingnulltarget....' which is NOT a valid bcrypt hash — the library returns ErrHashTooShort in ~40 ns, while a real CompareHashAndPassword takes ~176 ms (measured locally), so the unknown-email branch and the wrong-password branch differ by ~4 million x in wall-clock — fully reopens the user-enumeration timing oracle that AUTH-007 was meant to close. This is the one HIGH this round (REV-IDENT-101). Two MEDIUMs: REV-IDENT-102 — JWT middleware (common/middleware/auth.go:22) authenticates /profile/me without checking tokenType, and the Refresh service (service.go:141-199) likewise omits the tokenType check, so an access token can replay /auth/refresh past the JTI lookup gate (DB miss → AUTH_REVOKED, fragile defense-in-depth) and a refresh token authenticates against /profile/me (both signers in router/deps.go:35-55 use the same key); REV-IDENT-103 — no rate-limit on /auth/register (deliberate 409 EMAIL_ALREADY_REGISTERED is a designed enumeration oracle, only safe when paired with rate-limiting) or /auth/login (credential-stuffing at line speed). LOWs: HASH_PEPPER env var still required notEmpty (config/config.go:44) but never read by the bcrypt path — service crashes at boot without it, drift between docs and code; password max=128 binding (handler_register.go:14) versus bcrypt's hard 72-byte limit emits an opaque 500 with bcrypt error text on 73-128-byte passwords; deferred-rollback closure pattern in storage_refresh_token.go:42-46 captures local err, brittle against future return-edits (carry-over from REV-IDENT-010); README ID-DEC-4 still describes HASH_PEPPER as required while the Go code uses bcrypt's built-in salt (docs drift). The Phase 1 fix for the password-hash family closed REV-IDENT-001/002/003, but the dummy-compare regression undoes the AUTH-007 win and warrants a one-line fix before merge.",
+  "findings": [
+    {
+      "id": "REV-IDENT-101",
+      "severity": "high",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/identity/app/identity/service.go:124",
+      "description": "Login's AUTH-007 timing-equivalence dummy compare is non-functional: when GetByEmail returns 'user not found', the code invokes bcrypt.CompareHashAndPassword on the literal string '$2a$12$dummyhashfortimingnulltarget....' which is not a valid bcrypt hash. golang.org/x/crypto/bcrypt rejects it in ~40 ns with crypto/bcrypt: hashedSecret too short to be a bcrypted password, while a real CompareHashAndPassword at cost 12 takes ~175 ms (measured). The unknown-email branch and the wrong-password branch therefore differ by roughly four million times in wall-clock duration, restoring exactly the user-enumeration timing oracle that AUTH-007 (and design_decisions ID-DEC-4) were designed to close. The handler_login_test.go suite never measures latency, so this slipped past unit tests. Same vulnerability class as CWE-208 (Observable Timing Discrepancy); user-enumeration leakage is the canonical fintech reuse vector for credential stuffing.",
+      "recommendation": "Pre-compute one valid bcrypt(cost=12) sentinel hash at package init (e.g., var dummyHash = mustGenerateDummyHash() where the helper calls bcrypt.GenerateFromPassword once with a fixed throw-away input and panics on error) and pass it to bcrypt.CompareHashAndPassword in the unknown-email branch. The hash MUST start with a real $2a$12$<22-char-base64-salt>$<31-char-base64-hash> shape so bcrypt actually executes the 4096-iteration KDF rather than short-circuiting on length. Add a unit test login_password_compare_is_constant_time (already in TD test_strategy.negative_paths line 799) that times both branches over N iterations and asserts the means are within ~10% of each other (or simpler and stricter: assert the dummy-branch wall-clock is at least 50 ms — half the cost-12 lower bound).",
+      "cwe_refs": ["CWE-208", "CWE-203", "ASVS-V2.4.7", "ASVS-V2.1.4", "OWASP-API3:2023"]
+    },
+    {
+      "id": "REV-IDENT-102",
+      "severity": "medium",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/identity/app/identity/service.go:141-199 (Refresh) and backend/common/middleware/auth.go:22-54 (JWT middleware) and backend/services/identity/router/deps.go:35-55 (shared key)",
+      "description": "Two-sided JWT type-confusion gap. (a) Refresh verifies signature/iss/aud/exp via parser.ValidateClaims but never asserts claims.Extra['tokenType'] == 'refresh' (or 'REFRESH' per spec). (b) common/middleware/auth.go (used on /profile/me, /auth/logout, address routes) likewise accepts any signed JWT without inspecting tokenType. Combined with router/deps.go lines 35-55 which constructs both accessSigner and refreshSigner from the SAME cfg.JWT.PrivateKeyPEM (only TTL differs), an access JWT and a refresh JWT are cryptographically interchangeable. Today the only guard against access-token-as-refresh-token is the refresh_tokens DB lookup (rows==0 → AUTH_REVOKED), and there is no equivalent guard the other way (a refresh token has a JTI, but the JWT middleware never checks the table). Spec design/spec/identity-auth/refresh.md line 62 explicitly requires 'validate ... tokenType == REFRESH ... return AUTH_INVALID on any verification failure', and contracts.json cross-cutting.auth.claims tokenType enum is ACCESS|REFRESH; defense-in-depth is partially specified but not enforced. CWE-345 (insufficient verification of data authenticity), CWE-863 (incorrect authorization), OWASP API8:2023.",
+      "recommendation": "Two-line fix on each side. In service.Refresh after ValidateClaims succeeds, add: if tt, _ := claims.Extra['tokenType'].(string); !strings.EqualFold(tt, 'REFRESH') { return ..., ErrAuthInvalid }. In common/middleware/auth.go after ValidateClaims, add the inverse: !strings.EqualFold(tt, 'ACCESS') → 401 AUTH_INVALID. EqualFold lets this land before the QA-IDENT-009 case-fix without coupling. Defense-in-depth (optional, contracts.json line 45 explicitly allows it): add JWT_REFRESH_PRIVATE_KEY_PEM env var so the two signers use distinct keypairs and a stolen refresh key cannot mint accesses. Tests: refresh_with_access_token_returns_AUTH_INVALID (already in TD as QA-IDENT-005 expectation but no current test); profile_read_with_refresh_token_returns_AUTH_INVALID.",
+      "cwe_refs": ["CWE-345", "CWE-863", "ASVS-V3.5.2", "OWASP-API8:2023"]
+    },
+    {
+      "id": "REV-IDENT-103",
+      "severity": "medium",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/identity/router/router.go:25-29 (middleware chain) and router.go:60-66 (auth route group)",
+      "description": "No rate-limit middleware on /auth/register, /auth/login, or /auth/refresh. The router applies SecurityHeaders, AccessLog, Timeout — and that is the entire chain. /auth/login is open to credential-stuffing at line speed, and /auth/register's deliberate 409 DUPLICATE_EMAIL response on duplicate email (per TD register error_contract) is a designed-in enumeration oracle that is acceptable WHEN paired with rate-limiting; without rate-limiting an attacker enumerates the entire user base in minutes. AUTH-007's timing-equivalence work in login (REV-IDENT-101) is also necessary-but-not-sufficient against enumeration without a per-IP cap. CWE-307 (improper restriction of excessive authentication attempts), CWE-799 (improper control of interaction frequency), OWASP API4:2023.",
+      "recommendation": "Add a rate-limit middleware to the /api/v1/identity/auth group at e.g. 10/min for /auth/login, 5/min for /auth/register, 30/min for /auth/refresh, keyed by client IP (X-Forwarded-For first, then RemoteAddr). If common/middleware does not yet expose a rate-limit primitive, surface this as a common-lib gap to Tech-Designer for a platform-team story (use github.com/ulule/limiter/v3 — last CVE check 2025-09, no open advisories — backed by an in-process bucket for MVP and Redis for HA). In production the upstream API gateway (Kong/APISIX) is the more robust place; if that is the chosen direction, document it as a NOT-IN-SERVICE-LAYER decision in the README so reviewers stop flagging it. Smoke test: 11 rapid logins from the same IP → 11th returns 429 with Retry-After header.",
+      "cwe_refs": ["CWE-307", "CWE-799", "ASVS-V11.1.1", "OWASP-API4:2023"]
+    },
+    {
+      "id": "REV-IDENT-104",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": null,
+      "locus": "backend/services/identity/config/config.go:43-45, README.md:62, README.md:126",
+      "description": "Config.Hash.Pepper is declared with env tag HASH_PEPPER,notEmpty so the service refuses to start if HASH_PEPPER is unset. Post-Phase-1, service.go uses bcrypt.GenerateFromPassword which generates its own per-row salt and ignores the pepper entirely; Hash.Pepper is read into the struct and never consulted. The README still documents HASH_PEPPER as 'Required' and 'must be exactly 16 chars' (lines 62, 126), and ID-DEC-4 in the README still describes 'bcrypt at cost 12' without noting that the legacy pepper is dead. Two real consequences: (1) ops sets a meaningless secret and rotates it unnecessarily; (2) anyone reading the code believes there is a pepper-defense layer that does not actually exist, weakening the threat model on paper. Not exploitable; documentation/code drift only.",
+      "recommendation": "Either (a) remove Hash.Pepper from config and HASH_PEPPER from README + docker-compose.yml, OR (b) re-introduce the pepper as an HMAC-SHA256 pre-step before bcrypt (i.e., bcrypt(HMAC-SHA256(pepper, password)) so a DB-only leak still requires the pepper to crack hashes). Option (a) is the smaller diff and matches what the code actually does today. If keeping the env var for forward-compat with a future pepper, change the tag to no notEmpty and document it as 'reserved for future use; ignored in MVP'.",
+      "cwe_refs": ["CWE-1068", "CWE-1059"]
+    },
+    {
+      "id": "REV-IDENT-105",
+      "severity": "low",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": null,
+      "locus": "backend/services/identity/app/identity/handler_register.go:14 (Password binding max=128) and service.go:98 (GenerateFromPassword)",
+      "description": "registerRequest binds Password with max=128 but golang.org/x/crypto/bcrypt has a hard 72-byte input limit and returns bcrypt: password length exceeds 72 bytes for any input over 72 bytes. The handler bubbles this up via the default fall-through (handler_register.go:41-46) as 500 INTERNAL_ERROR, leaking the raw library error context (via slog) and giving the user no actionable message. TD spec line 129 explicitly notes 'bcrypt max 72 bytes — truncate-warn if > 72'. Edge-case correctness bug; a 90-char password yields 500 instead of 400. Not exploitable.",
+      "recommendation": "Pre-validate password byte length in the handler (or via a custom Gin tag) at <=72 and return 400 VALIDATION_ERROR with message 'Password must be 8-72 characters.' Alternative: HMAC-SHA256-then-bcrypt as in REV-IDENT-104 option (b) — HMAC output is always 32 bytes so bcrypt's 72-byte cap stops mattering. Add a unit test register_with_password_over_72_bytes_returns_400.",
+      "cwe_refs": ["CWE-20", "CWE-754"]
+    },
+    {
+      "id": "REV-IDENT-106",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": null,
+      "locus": "backend/services/identity/app/identity/access/storage_refresh_token.go:42-46 and storage_address.go:38-42",
+      "description": "Both transactional storage methods (RotateInTx and addressStorage.SetDefault) use the same brittle deferred-rollback pattern: defer func() { if err != nil { _ = tx.Rollback(ctx) } }(). The closure captures the local err return value. On the happy path (Commit succeeds, err==nil) rollback is correctly skipped; on the rows==0 branch each method already calls tx.Rollback explicitly before return. Net behavior is right today, but the pattern is fragile: any future edit that adds a return ..., fmt.Errorf(...) without first assigning to the named local err would skip rollback and leak a transaction. Carry-over advisory from dry-run #1 REV-IDENT-010, applies to two files now (set-default un-stubbed in Phase 1).",
+      "recommendation": "Replace with the idiomatic unconditional defer tx.Rollback(ctx) — Postgres treats rollback-after-commit as a no-op so it is safe. Remove the explicit tx.Rollback inside the rows==0 branch since the deferred call covers it. Pure robustness improvement; current behavior is correct.",
+      "cwe_refs": ["CWE-754"]
+    }
+  ]
+}

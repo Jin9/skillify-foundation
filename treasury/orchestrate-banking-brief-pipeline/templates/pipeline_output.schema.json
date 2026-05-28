@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "decomposed_banking_brief_pipeline_output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "output_type",
+    "blocks_tl_handoff",
+    "idempotency_key",
+    "scope_kind",
+    "epics",
+    "stories",
+    "processing_metadata"
+  ],
+  "properties": {
+    "output_type": { "enum": ["brief", "blocked_partial_brief"] },
+    "blocks_tl_handoff": { "type": "boolean" },
+    "idempotency_key": { "type": "string" },
+    "source_type": { "type": "string" },
+    "scope_kind": { "type": "string" },
+    "epics": { "type": "array" },
+    "stories": { "type": "array" },
+    "out_of_scope_deferred": { "type": "array" },
+    "glossary_candidates": { "type": "array" },
+    "pii_inventory": { "type": "array" },
+    "stakeholders": { "type": "array" },
+    "legal_status_by_epic": { "type": "array" },
+    "regulatory_dependencies": { "type": "array" },
+    "governance_gaps": { "type": "array" },
+    "open_questions": { "type": "array" },
+    "assumptions_made": { "type": "array" },
+    "processing_metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["pipeline_status", "stage_order"]
+    }
+  }
+}

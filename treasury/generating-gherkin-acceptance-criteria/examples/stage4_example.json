@@ -1,0 +1,81 @@
+{
+  "stage": "gherkin",
+  "stage_status": "complete",
+  "stories": [
+    {
+      "id": "EPIC-WIRE-STATUS-1",
+      "title": "Notify Customer Of Pending Wire",
+      "acceptance_criteria": [
+        {
+          "scenario_name": "Customer sees neutral pending status",
+          "scenario_type": "happy",
+          "given": ["A submitted wire transfer is pending review."],
+          "when": "The customer opens the transfer status page.",
+          "then": ["The page displays the Legal-approved neutral pending message."]
+        },
+        {
+          "scenario_name": "Status service unavailable",
+          "scenario_type": "error",
+          "given": ["A submitted wire transfer exists for the customer."],
+          "when": "The status service times out.",
+          "then": ["The page displays a neutral retry message.", "No compliance rationale is shown."]
+        },
+        {
+          "scenario_name": "Repeated status update is idempotent",
+          "scenario_type": "banking_grade_idempotency",
+          "given": ["A status update was processed with idempotency key idem-123."],
+          "when": "The same update is replayed with idempotency key idem-123.",
+          "then": ["No duplicate customer notification is sent.", "No duplicate audit event is emitted."]
+        },
+        {
+          "scenario_name": "Status change emits audit event",
+          "scenario_type": "banking_grade_audit",
+          "given": ["A wire transfer status changes from submitted to pending_review."],
+          "when": "The status change is committed.",
+          "then": ["An audit event is emitted with event, actor, ts, before, after, reason, and idem_key."]
+        }
+      ],
+      "banking_grade_concerns": {
+        "pii_fields": {
+          "status": "applies",
+          "justification": "Wire status is financial customer data.",
+          "fields_or_events": ["wire transfer status"]
+        },
+        "audit_events": {
+          "status": "applies",
+          "justification": "Status changes require audit reconstruction.",
+          "fields_or_events": ["status_changed"]
+        },
+        "idempotency": {
+          "status": "applies",
+          "justification": "Notification replay must avoid duplicate effects."
+        },
+        "reversibility": {
+          "status": "not_applicable",
+          "justification": "The story displays status and does not move funds."
+        },
+        "authn_authz": {
+          "status": "applies",
+          "justification": "Only the transfer owner may view the status."
+        },
+        "regulatory": {
+          "status": "applies",
+          "justification": "Customer wording is constrained by AML rules."
+        },
+        "tipping_off": {
+          "status": "applies",
+          "justification": "Customer copy must not reveal compliance rationale."
+        }
+      }
+    }
+  ],
+  "gherkin_quality_findings": [],
+  "processing_metadata": {
+    "ac_generation": {
+      "stories_processed": 1,
+      "idempotency_scenarios_added": 1,
+      "audit_scenarios_added": 1,
+      "tipping_off_scenarios_added": 0
+    }
+  }
+}

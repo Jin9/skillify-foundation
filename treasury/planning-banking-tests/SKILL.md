@@ -9,34 +9,35 @@ description: >
   from a structured brief. Use when sign-off criteria must be derived from BA
   governance gaps. Do NOT use to generate runnable test code, measure coverage
   on running systems, file defects, or substitute for TL Design.
-version: 1.0.0
-stage_type: analyze
-input_schema: schemas/input.json
-output_schema: schemas/output.json
-banking_grade: {idempotent: true, reversible: n/a, audit_level: enhanced, tier_default: T2, tier_adaptable: [T1, T2, T3]}
-recommended_temperature: {T1: 0.1, T2: 0.3, T3: 0.5}
-tier_review_levels: {T1: [L0, L1, L2], T2: [L0, L1, L2], T3: [L0, L1]}
-expected_duration_p95_seconds: 60
-max_retries_recommended: 2
 compatibility: [claude-code, codex, opencode]
+metadata:
+  version: 1.0.0
+  stage_type: analyze
+  input_schema: schemas/input.json
+  output_schema: schemas/output.json
+  banking_grade: {idempotent: true, reversible: n/a, audit_level: enhanced, tier_default: T2, tier_adaptable: [T1, T2, T3]}
+  recommended_temperature: {T1: 0.1, T2: 0.3, T3: 0.5}
+  tier_review_levels: {T1: [L0, L1, L2], T2: [L0, L1, L2], T3: [L0, L1]}
+  expected_duration_p95_seconds: 60
+  max_retries_recommended: 2
 ---
 
 # Planning Banking Tests
 
 ## Purpose
 
-Convert a completed BA brief into a structured test plan covering every Gherkin scenario, banking-grade concern, NFR target, regulatory dependency, and compliance requirement defined in the brief. Output is a canonical `output.json` consumed by `test-code-from-gherkin` and `qa-signoff` downstream skills, plus a deterministic markdown tree for human review.
+Convert a completed BA brief into a structured test plan covering every Gherkin scenario, banking-grade concern, NFR target, regulatory dependency, and compliance requirement defined in the brief. Output is a canonical `output.json` consumed by the downstream test-code-generation and QA-sign-off steps, plus a deterministic markdown tree for human review.
 
 The skill produces **test plans, not test code**. It surfaces coverage gaps and untestable specifications; it never silently invents test data, mock contracts, or assertion thresholds.
 
 ## When to use this skill
 
-- Use when: Stage 4c Test Design must run after a BA brief completes (`output_type ∈ {brief, blocked_partial_brief}`).
+- Use when: test design must run after a BA brief completes (`output_type ∈ {brief, blocked_partial_brief}`).
 - Use when: QA needs a per-story test roster grounded in BA `acceptance_criteria` + `banking_grade_concerns`.
 - Use when: Sign-off criteria must be derived from `governance_gaps` + `regulatory_dependencies` + tier policy.
-- Do NOT use when: generating executable test code (defer to `test-code-from-gherkin`).
+- Do NOT use when: generating executable test code (defer to the test-code-generation step).
 - Do NOT use when: measuring coverage on running systems (downstream of execution).
-- Do NOT use when: filing defects (Stage 5 concern).
+- Do NOT use when: filing defects (a later pipeline concern).
 - Do NOT use when: selecting test framework (deferred to code-generation step).
 
 ## Input contract

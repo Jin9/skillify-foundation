@@ -1,0 +1,1246 @@
+{
+  "template_version": "0.1.0",
+  "notes": {
+    "scope": "B2C E-Commerce Platform MVP — 7 backend services + Next.js frontend (identity, catalog, inventory, cart, checkout, order, payment, frontend-web). Refactored by Tech-Lead in dry-run #2 from the dry-run #1 baseline. Closes REV-L2-001 (buyerEmail dataflow), REV-L2-002 (canonical INTERNAL_SHARED_SECRET env-var name), and REV-L2-003 (constant-time secret comparison) at the contracts level.",
+    "locked_decisions_summary": [
+      "Persistence: PostgreSQL via common/database (pgx). Schema-per-service. No cross-service tables.",
+      "Route convention: POST /api/v1/{domain}/{aggregate-boundary}/{action} (revised from go-template's /api/v1/platform/{domain}/{action}; the 'platform' segment is dropped, '{aggregate-boundary}' added).",
+      "Auth (LOCKED): JWT ES256 via common/token for end-user/customer + admin authentication. Internal service-to-service authentication uses a single shared secret named INTERNAL_SHARED_SECRET (no other env-var name accepted; see cross-cutting.auth.internal_service_auth). All recipients MUST compare the supplied X-Internal-Secret value against the configured secret using crypto/subtle.ConstantTimeCompare; plain '==' / '!=' is forbidden and is a high-severity reviewer finding. Closes REV-L2-002 and REV-L2-003.",
+      "Response envelope: {code, message, data, traceId} per common/wrapper.Response[T]. TraceID is automatically taken from gin-context key wrapper.CtxTraceID (set by middleware.TraceContextTraceIDMiddleware) when the handler omits it. Resolves the BA-flagged conflict against requirement §14; orchestrator-locked envelope wins.",
+      "Stock reservation atomicity (LOCKED): Synchronous orchestration — Checkout calls inventory.reservation.create over HTTP inside a single Checkout-side transaction guarding the Order row; Inventory uses a row-level lock per SKU (SELECT ... FOR UPDATE) inside its own DB transaction. Failure to reserve aborts Order creation. Post-payment commit/release is event-driven (see §async events) via Kafka with the Outbox pattern from Payment + Order so the bus is reliable. Tradeoff: HTTP coupling at checkout-time, but transactionally tight; outbox absorbs Kafka unavailability post-payment.",
+      "Inventory lock-order (LOCKED): for any tx that locks more than one stock_levels row, locks MUST be acquired in ascending sku string order. inventory.reservation.create sorts items by sku before iterating SELECT ... FOR UPDATE. inventory.reservation.commit, .release, and .sweep-expired only ever touch a single sku per row, so they cannot deadlock — but documented here for the bulk-reservation path.",
+      "Payment callback idempotency (LOCKED): idempotency key = (paymentIntentId, providerStatus). Persisted in payment.callback_dedup table with the request-body hash + result snapshot. Window = until intent's terminal state retention (>= 30 days). Duplicate that arrives after stock-committed returns 200 with the original result envelope; never re-emits domain events.",
+      "Order state machine ownership (LOCKED): Order service is sole writer of order.status. Payment service NEVER writes order rows directly. Payment publishes payment.completed | payment.failed | payment.expired events; Order consumes and transitions. Inventory consumes the same events for reservation-commit / reservation-release.",
+      "Cart→Order boundary (LOCKED): Cart 'becomes' an Order at the moment checkout.commit succeeds and Order is created in PENDING_PAYMENT. Items moved into the order are removed from the cart in the same Checkout transaction (CHK-010). Other cart items remain.",
+      "Frontend↔backend topology (LOCKED): Direct-to-services through thin Next.js Route Handlers acting as auth-cookie→Authorization-header proxies. NO dedicated BFF service. Each service is reachable behind a gateway path; frontend never holds the JWT in JavaScript — refresh token is HttpOnly cookie, access token cached in memory by the route handler per request. Frontend MUST NEVER forward the X-Internal-Secret header or load INTERNAL_SHARED_SECRET into its environment.",
+      "buyerEmail dataflow (LOCKED — REV-L2-001 fix): Checkout fetches the customer's email via identity.profile.read (Bearer JWT, customer's own access token) inside checkout.commit step 2 and includes it as buyerEmail in the order.create-from-checkout request. Order persists buyerEmailSnapshot on order_items snapshot block so admin order search by email (order.list-admin) works after the fact and customer-facing orderDetail does not have to round-trip identity. identity.profile.read is in the contracts list as a first-class customer-JWT contract, NOT a stub."
+    ]
+  },
+  "contracts": [
+    {
+      "contract_name": "cross-cutting.response-envelope",
+      "payload_shape": {
+        "type": "object",
+        "fields": {
+          "code": "string (documented enum; see cross-cutting.error-codes)",
+          "message": "string (human-readable; localized later, English in MVP)",
+          "data": "object|array|null (handler-specific success payload; null on error)",
+          "traceId": "string (W3C-traceparent-derived; non-empty on every response, success or error)"
+        },
+        "applies_to": "every JSON response from every HTTP endpoint, success or error"
+      },
+      "semantics": "sync",
+      "idempotency_rules": "n/a (transport shape only)",
+      "failure_modes": [
+        "Handler returns wrapper.Respond with a non-CodeSuccess code → HTTP status mapped per cross-cutting.error-codes",
+        "Middleware-level panic → wrapper emits CodeInternalError envelope with traceId derived from middleware.TraceContextTraceIDMiddleware"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "cross-cutting.auth",
+      "payload_shape": {
+        "access_token_format": "JWT signed ES256 via common/token",
+        "refresh_token_format": "JWT signed ES256 via common/token (separate keypair allowed; longer expiry)",
+        "claims": {
+          "sub": "string (userId — UUID v7)",
+          "role": "string (enum: CUSTOMER | ADMIN)",
+          "iat": "int (issued-at, epoch seconds)",
+          "exp": "int (expiry, epoch seconds)",
+          "iss": "string (\"shoppilot-identity\")",
+          "aud": "string (\"shoppilot-api\")",
+          "jti": "string (UUID v4; refresh-token revocation key)",
+          "tokenType": "string (enum: ACCESS | REFRESH)"
+        },
+        "transport": "Authorization: Bearer <jwt> on every authenticated request. Frontend Next.js route handlers (which are STATELESS per-request — there is no shared in-memory cache across requests) acquire the access token freshly each call via the per-request flow described in token_acquisition_flow below.",
+        "token_acquisition_flow": {
+          "cookies": {
+            "access": "HttpOnly cookie 'access' — value is the access JWT (tokenType=ACCESS); attributes: HttpOnly, Secure, SameSite=Lax, Path=/, Max-Age = access_token_expiry (15 min suggested)",
+            "refresh": "HttpOnly cookie 'refresh' — value is the refresh JWT (tokenType=REFRESH); attributes: HttpOnly, Secure, SameSite=Lax, Path=/, Max-Age = refresh_token_expiry (14 days suggested)"
+          },
+          "per_request_steps": [
+            "1. Route handler reads the 'access' cookie from the incoming request.",
+            "2. If 'access' is present AND not expired (decode header.payload locally, check exp claim against now() with a small 30s skew tolerance) → forward Authorization: Bearer <access> to the downstream service. Return its response.",
+            "3. If 'access' is absent OR expired → read the 'refresh' cookie. If absent, respond 401 AUTH_MISSING.",
+            "4. Call identity.refresh with {refreshToken: <refresh-cookie-value>}. On 200, the response carries a NEW access token AND a NEW (rotated) refresh token; the old refresh-jti is revoked server-side.",
+            "5. Set-Cookie both cookies with rotated values (same attributes), then forward the original request as Bearer <new-access> to downstream.",
+            "6. On identity.refresh AUTH_INVALID/AUTH_REVOKED → clear both cookies (Max-Age=0) and respond 401 AUTH_REVOKED to the browser; the SPA must redirect to login."
+          ],
+          "rotation_guarantee": "Each successful identity.refresh issues a new refresh token AND revokes the old refresh-jti (single-use rotation). A replay of the old refresh-cookie outside the 5s soft-idempotency window returns AUTH_REVOKED.",
+          "no_javascript_access": "Neither cookie is readable from JavaScript (HttpOnly). The frontend SPA never sees the JWT bytes; auth state is inferred from a separate, non-sensitive 'auth-hint' cookie (or a /me probe) for UI gating."
+        },
+        "middleware_behavior": "common/middleware JWT middleware (on the BACKEND services) validates signature (ES256), iss, aud, exp; on success injects token.Claims into context via token.WithClaims; on failure responds 401 AUTH_INVALID with envelope.",
+        "role_rejection_rules": "Admin-only endpoints check claims.role == ADMIN; if CUSTOMER, respond 403 AUTH_FORBIDDEN. Public endpoints skip the JWT middleware entirely (registered outside the protected route group).",
+        "access_token_expiry": "15 minutes (suggested; identity service config; must be < refresh expiry)",
+        "refresh_token_expiry": "14 days (suggested; identity service config)",
+        "logout_behavior": "identity.logout writes the refresh-token jti into a revoked-jti store (Redis with TTL = remaining exp). Refresh attempts with a revoked jti respond 401 AUTH_REVOKED.",
+        "internal_service_auth": {
+          "scope": "Authentication for service-to-service HTTP calls inside the cluster (Checkout→Inventory, Checkout→Order, Checkout→Payment, Order→Payment cancel-on-failure). Customer/Admin requests use JWT (above); never both.",
+          "header": "X-Internal-Secret: <secret> on every internal call; the absence of this header on an internal-protected route is 401 AUTH_INVALID.",
+          "env_var_name": "INTERNAL_SHARED_SECRET (LOCKED — no other name accepted; e.g. INTERNAL_SECRET, SHARED_SECRET, SVC_SECRET are all rejected at startup with a fatal config error). All four caller/recipient services (checkout, order, inventory, payment) MUST read this exact env-var name. Closes REV-L2-002.",
+          "value_format": "ASCII string, MIN 32 bytes (256 bits of entropy). Recipient services MUST validate length at startup and refuse to boot if shorter — this prevents accidental empty-string acceptance (REV-L2-002 footnote) and trivially-short values.",
+          "comparison_rule": "Recipient services MUST use crypto/subtle.ConstantTimeCompare([]byte(supplied), []byte(secret)) == 1 to validate the supplied header value. Plain Go == / != string comparison is FORBIDDEN — short-circuit byte-by-byte compare leaks the secret over a timing oracle (CWE-208 / OWASP API2:2023 / ASVS V2.4.7). Closes REV-L2-003.",
+          "shared_helper": "Recipient services SHOULD import a single shared helper (recommended path: backend/common/middleware/internal_auth.go) so the constant-time-compare pattern, audit-log line, and rotation-overlap support live in one place. Inlined per-service implementations are permitted in MVP only if each one provably uses subtle.ConstantTimeCompare; Reviewer-L1 / Reviewer-L2 scan for plain '==' / '!=' on this header.",
+          "rotation_overlap": "INTERNAL_SHARED_SECRET MAY accept a comma-separated value (new,old) so an operator can roll the secret across all four services without a synchronized restart. Recipient services try ConstantTimeCompare against each comma-segment; first match wins. Single-value configurations remain valid.",
+          "frontend_does_not_use": "The Next.js frontend MUST NOT forward X-Internal-Secret to backend services and MUST NOT load INTERNAL_SHARED_SECRET into its env (frontend/.env.example explicitly omits it). Customer-originated requests reach backend services as Bearer JWT only. A frontend regression test asserts the absence of X-Internal-Secret on customer-originated requests.",
+          "audit_logging": "On every reject, the recipient service logs slog.Error with msg='internal_auth_reject', remoteAddr, x_forwarded_for, path, requestId. NEVER logs the supplied or expected secret value. On startup, every recipient service logs slog.Info with msg='internal_auth_configured' and sha256_prefix=hex(sha256(secret))[:8] so ops can confirm at a glance that all four services hash the same secret without ever logging the secret itself."
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "n/a (token issuance is non-idempotent by design — every login produces a fresh access+refresh pair). Refresh endpoint MAY be idempotent within a 5s rolling window keyed by refresh jti to absorb client-side retries.",
+      "failure_modes": [
+        "AUTH_INVALID — signature/exp/iss/aud check failed (HTTP 401)",
+        "AUTH_REVOKED — refresh jti revoked (HTTP 401)",
+        "AUTH_FORBIDDEN — role mismatch (HTTP 403)",
+        "AUTH_MISSING — no Authorization header on protected endpoint (HTTP 401)",
+        "AUTH_INVALID — internal-protected endpoint received a request with missing or wrong X-Internal-Secret (HTTP 401); recipient logs internal_auth_reject; never logs the supplied or expected secret value"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.2.0"
+    },
+    {
+      "contract_name": "cross-cutting.idempotency",
+      "payload_shape": {
+        "header": "Idempotency-Key: <client-supplied opaque string, max 128 chars, UUID recommended>",
+        "applies_to": "checkout.commit (CHK-009), inventory.reservation.create (server-side internal — keyed on orderId), order.create-from-checkout (server-side internal — keyed on orderId), payment.intent.create (server-side internal — keyed on orderId), payment.callback (server-side internal — keyed on (paymentIntentId, providerStatus))",
+        "server_side_store": {
+          "schema": "idempotency_keys table per service: {key (PK, scoped per endpoint), request_hash (sha256 of canonicalized body), response_envelope (jsonb), http_status (int), created_at, expires_at}",
+          "ttl": "24 hours for checkout.commit; 30 days for payment.callback (>= retention horizon for payment-provider redelivery)",
+          "scope": "per-(endpoint, customerUserId) for checkout; per-(paymentIntentId, providerStatus) for payment.callback; per-orderId for inventory.reservation.create / order.create-from-checkout / payment.intent.create"
+        },
+        "behavior": {
+          "first_call": "Process normally; persist (key, request_hash, response_envelope) inside the same DB transaction that commits the business write — atomic.",
+          "duplicate_same_payload": "Return the persisted response_envelope verbatim (same status, same body). Do NOT re-execute side-effects.",
+          "duplicate_different_payload": "Return 409 with code IDEMPOTENCY_KEY_REUSED + the originally created resource id. Do NOT honor the new payload."
+        },
+        "internal_orderId_rule": "LOCKED (closes REV-L2-006): Any internal call derived from checkout.commit (steps 6/7/8 in checkout.commit.internal_orchestration) MUST set Idempotency-Key == the new orderId UUID v7. Recipients (Inventory.reservation.create, Order.create-from-checkout, Payment.intent.create) MUST validate idempotencyKey == request.orderId at the handler boundary and return 400 VALIDATION_ERROR if they differ. The customer-facing Idempotency-Key on POST /checkout/checkout/commit is a SEPARATE scope (per-(endpoint, customerUserId) in Checkout's local DB) and is never forwarded downstream — Checkout substitutes orderId at the boundary."
+      },
+      "semantics": "sync",
+      "idempotency_rules": "self-defining contract",
+      "failure_modes": [
+        "IDEMPOTENCY_KEY_REUSED — same key, different request_hash (HTTP 409)",
+        "IDEMPOTENCY_KEY_INFLIGHT — concurrent call with same key while first is still executing (HTTP 409 with Retry-After: 1; client retries)",
+        "VALIDATION_ERROR — internal call's Idempotency-Key != orderId on a route that requires the orderId-keyed rule (HTTP 400)"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.2.0"
+    },
+    {
+      "contract_name": "cross-cutting.error-codes",
+      "payload_shape": {
+        "registry": [
+          { "code": "SUCCESS", "http": 200, "category": "success" },
+          { "code": "CREATED", "http": 201, "category": "success" },
+          { "code": "VALIDATION_ERROR", "http": 400, "category": "client" },
+          { "code": "AUTH_INVALID", "http": 401, "category": "client" },
+          { "code": "AUTH_MISSING", "http": 401, "category": "client" },
+          { "code": "AUTH_REVOKED", "http": 401, "category": "client" },
+          { "code": "AUTH_FORBIDDEN", "http": 403, "category": "client" },
+          { "code": "NOT_FOUND", "http": 404, "category": "client" },
+          { "code": "CONFLICT", "http": 409, "category": "client" },
+          { "code": "DUPLICATE_EMAIL", "http": 409, "category": "client" },
+          { "code": "DUPLICATE_SKU", "http": 409, "category": "client" },
+          { "code": "DUPLICATE_CATEGORY_NAME", "http": 409, "category": "client" },
+          { "code": "INSUFFICIENT_STOCK", "http": 409, "category": "client" },
+          { "code": "STOCK_NEGATIVE_INVARIANT", "http": 409, "category": "server" },
+          { "code": "PRODUCT_INACTIVE", "http": 409, "category": "client" },
+          { "code": "PRODUCT_DELETED", "http": 409, "category": "client" },
+          { "code": "INVALID_ORDER_STATE", "http": 409, "category": "client" },
+          { "code": "ORDER_NOT_OWNED", "http": 404, "category": "client" },
+          { "code": "ADDRESS_NOT_OWNED", "http": 403, "category": "client" },
+          { "code": "ADDRESS_INCOMPLETE", "http": 400, "category": "client" },
+          { "code": "PAYMENT_AMOUNT_MISMATCH", "http": 409, "category": "client" },
+          { "code": "PAYMENT_INTENT_NOT_FOUND", "http": 404, "category": "client" },
+          { "code": "PAYMENT_INTENT_TERMINAL", "http": 409, "category": "client" },
+          { "code": "IDEMPOTENCY_KEY_REUSED", "http": 409, "category": "client" },
+          { "code": "IDEMPOTENCY_KEY_INFLIGHT", "http": 409, "category": "client" },
+          { "code": "RESERVATION_EXPIRED", "http": 409, "category": "client" },
+          { "code": "RESERVATION_NOT_FOUND", "http": 404, "category": "client" },
+          { "code": "INTERNAL_ERROR", "http": 500, "category": "server" },
+          { "code": "DATABASE_UNAVAILABLE", "http": 503, "category": "server" },
+          { "code": "UPSTREAM_TIMEOUT", "http": 504, "category": "server" }
+        ],
+        "convention": "Codes are SCREAMING_SNAKE. New codes must be added to this registry (a contract bump) before use; Tech-Designers may not invent codes.",
+        "ba_flagged_resolution": "AUTH-007: identity.login returns the SAME code+message for invalid email and invalid password — 'AUTH_INVALID' / 'Invalid email or password.' This is the locked phrasing."
+      },
+      "semantics": "sync",
+      "idempotency_rules": "n/a",
+      "failure_modes": [
+        "Tech-Designer references a code not in the registry → Plan-Reviewer or QA-L1 must reject"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "cross-cutting.route-convention",
+      "payload_shape": {
+        "pattern": "POST /api/v1/{domain}/{aggregate-boundary}/{action}",
+        "rationale": "Verb-in-body, action in path. Mirrors go-template's POST-only style but drops 'platform' and adds an explicit aggregate-boundary segment so domain services that own multiple aggregates (e.g. identity owns user + address) keep clean URL grouping.",
+        "examples": {
+          "identity": [
+            "POST /api/v1/identity/user/register",
+            "POST /api/v1/identity/user/login",
+            "POST /api/v1/identity/user/refresh",
+            "POST /api/v1/identity/user/logout",
+            "POST /api/v1/identity/profile/read",
+            "POST /api/v1/identity/profile/update",
+            "POST /api/v1/identity/address/create",
+            "POST /api/v1/identity/address/list",
+            "POST /api/v1/identity/address/update",
+            "POST /api/v1/identity/address/delete",
+            "POST /api/v1/identity/address/set-default"
+          ],
+          "catalog": [
+            "POST /api/v1/catalog/product/list",
+            "POST /api/v1/catalog/product/detail",
+            "POST /api/v1/catalog/product/create",
+            "POST /api/v1/catalog/product/update",
+            "POST /api/v1/catalog/product/soft-delete",
+            "POST /api/v1/catalog/category/create",
+            "POST /api/v1/catalog/category/update",
+            "POST /api/v1/catalog/category/deactivate",
+            "POST /api/v1/catalog/category/list"
+          ],
+          "inventory": [
+            "POST /api/v1/inventory/stock/read",
+            "POST /api/v1/inventory/stock/bulk-read",
+            "POST /api/v1/inventory/stock/adjust",
+            "POST /api/v1/inventory/reservation/create",
+            "POST /api/v1/inventory/reservation/commit",
+            "POST /api/v1/inventory/reservation/release"
+          ],
+          "cart": [
+            "POST /api/v1/cart/cart/add-item",
+            "POST /api/v1/cart/cart/update-item",
+            "POST /api/v1/cart/cart/remove-item",
+            "POST /api/v1/cart/cart/read",
+            "POST /api/v1/cart/cart/clear-on-checkout"
+          ],
+          "checkout": [
+            "POST /api/v1/checkout/checkout/preview",
+            "POST /api/v1/checkout/checkout/commit"
+          ],
+          "order": [
+            "POST /api/v1/order/order/list-mine",
+            "POST /api/v1/order/order/detail",
+            "POST /api/v1/order/order/cancel-mine",
+            "POST /api/v1/order/order/list-admin",
+            "POST /api/v1/order/order/update-status-admin",
+            "POST /api/v1/order/internal/create-from-checkout (X-Internal-Secret only)",
+            "POST /api/v1/order/internal/cancel-on-checkout-failure (X-Internal-Secret only)"
+          ],
+          "payment": [
+            "POST /api/v1/payment/intent/create",
+            "POST /api/v1/payment/intent/simulate",
+            "POST /api/v1/payment/intent/callback"
+          ]
+        },
+        "trailing_rules": [
+          "All endpoints are POST.",
+          "GET reserved for /liveness, /readiness, /metrics (per go-template).",
+          "List-style queries are POST with body filters — paging via {page, limit}; sort via {sort: 'price_asc'|...}.",
+          "Internal service-to-service calls use the same routes; no separate /internal prefix in MVP. Authorization is tightened via reserved internal-service JWTs (separate ADMIN-like role 'SERVICE') in a future iteration; in MVP, internal calls flow over a private network plane."
+        ]
+      },
+      "semantics": "sync",
+      "idempotency_rules": "n/a",
+      "failure_modes": [
+        "Tech-Designer omits {aggregate-boundary} or invents a verb segment → Plan-Reviewer rejects"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "cross-cutting.persistence",
+      "payload_shape": {
+        "database": "PostgreSQL 15+ via common/database (pgx connection pool)",
+        "schema_layout": "One database per service (or one Postgres instance with one schema per service in MVP local Docker Compose). Each service OWNS its tables. NO cross-service joins. NO shared tables.",
+        "schemas_listing": [
+          "identity: users, refresh_tokens, addresses",
+          "catalog: products, categories, product_images, product_status_history",
+          "inventory: stock_levels (sku PK, available_qty, reserved_qty, sold_qty, version), reservations (id, order_id, sku, qty, expires_at, status), stock_adjustments (delta, reason, actor_user_id, created_at)",
+          "cart: carts (customer_user_id PK), cart_items",
+          "checkout: idempotency_keys (key, customer_user_id, request_hash, response_envelope, expires_at) — checkout DOES NOT own orders or payments; it orchestrates",
+          "order: orders, order_items (with priceSnapshot, productNameSnapshot, productImageUrlSnapshot), order_status_history, order_addresses (snapshot), outbox_events",
+          "payment: payment_intents, payment_records (mockPaymentRef, providerStatus, paidAt), callback_dedup, outbox_events"
+        ],
+        "transactional_boundaries": [
+          "checkout.commit: SINGLE Postgres transaction in checkout's idempotency_keys store + a SYNC HTTP call to inventory.reservation.create (which uses ITS OWN local FOR UPDATE tx) + a SYNC HTTP call to order.create-from-checkout (single tx writing orders + order_items + order_status_history + outbox PENDING_PAYMENT event) + a SYNC HTTP call to payment.intent.create (single tx writing payment_intents). On any sync-call failure, checkout calls inventory.reservation.release as compensation, then surfaces error to client. Net effect: at-most-one Order, at-most-one reservation, at-most-one intent.",
+          "inventory.reservation.commit (event-driven from payment.completed): single tx inside inventory: SELECT stock FOR UPDATE, decrement reserved, increment sold, mark reservation COMMITTED, write to inventory outbox if needed. Idempotent on (reservation_id, COMMITTED).",
+          "inventory.reservation.release (event-driven from payment.failed | payment.expired | order.cancelled): single tx, opposite of commit. Idempotent.",
+          "payment.callback: single tx in payment: dedup-check, then write payment_records + outbox payment.completed | payment.failed | payment.expired event. Order + Inventory consume from Kafka."
+        ],
+        "outbox_pattern": {
+          "applies_to": "order, payment",
+          "shape": "table outbox_events {id (uuid v7), aggregate_id, event_type, payload_json, created_at, published_at NULL}",
+          "publisher": "in-process goroutine polls outbox_events WHERE published_at IS NULL ORDER BY id LIMIT 100, sends to Kafka via common/kafka, marks published_at; at-least-once",
+          "consumer_idempotency": "consumers must dedupe on event_id (UUID v7 in payload header)"
+        },
+        "migrations": "each service owns its migrations under /migrations/*.sql (golang-migrate or sqlx-style); applied at service startup if MIGRATIONS_AUTO_APPLY=true (local/dev only) — manual in UAT/PROD.",
+        "concurrency": [
+          "stock_levels uses optimistic version column AND SELECT ... FOR UPDATE on the row inside reservation/commit/release transactions — belt and suspenders (the FOR UPDATE is the binding mechanism; version is a defensive check).",
+          "Negative-quantity invariant enforced via CHECK constraints: CHECK (available_qty >= 0 AND reserved_qty >= 0 AND sold_qty >= 0)."
+        ]
+      },
+      "semantics": "sync",
+      "idempotency_rules": "see cross-cutting.idempotency",
+      "failure_modes": [
+        "DATABASE_UNAVAILABLE — Postgres unreachable; service returns 503 with envelope (NF: failure_tolerance)",
+        "Outbox publisher lag — no client-visible failure; events catch up; consumers must be idempotent"
+      ],
+      "ordering_guarantees": "Outbox publisher is single-threaded per service → preserves per-aggregate event order at the producer. Kafka partition key (see per-event contracts) preserves it on consumer side.",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "cross-cutting.pricing",
+      "payload_shape": {
+        "scope": "Canonical server-side pricing formula for checkout.preview and checkout.commit. Authoritative; the cart's informational subtotal does NOT bind.",
+        "formula": {
+          "subtotal": "sum(orderItem.priceSnapshot * orderItem.qty) over all checkoutable items (PRODUCT_INACTIVE/PRODUCT_DELETED/INSUFFICIENT_STOCK lines excluded from the order entirely — see checkout.preview.blockers / checkout.commit.failure_modes)",
+          "shippingFee": "Tier rule per requirement §11.2: subtotal < 1500 THB → shippingFee = 60 THB; subtotal >= 1500 THB → shippingFee = 0 THB. Boundary is inclusive at 1500 (i.e. exactly 1500 → free shipping).",
+          "couponDiscount": "0 in this run. Coupon engine is out_of_scope; the field is reserved for future iterations and is documented as 0 wherever shippingFee is documented.",
+          "grandTotal": "subtotal + shippingFee - couponDiscount  ==  subtotal + shippingFee  (in this run, since couponDiscount=0)"
+        },
+        "currency": "THB only in MVP. All amounts are decimal-safe (server uses int64 minor units or shopspring/decimal; never float64). API surface uses 'number' representing whole-THB integers (no fractional THB in MVP).",
+        "constants": {
+          "SHIPPING_FREE_THRESHOLD_THB": 1500,
+          "FLAT_SHIPPING_FEE_THB": 60,
+          "RESERVATION_TTL_MINUTES": 15
+        },
+        "applies_to": "checkout.preview.response_data, checkout.commit.response_data, order.detail.response_data (subtotal/total fields persisted on order_items + orders at commit-time and immutable thereafter)"
+      },
+      "semantics": "sync",
+      "idempotency_rules": "n/a (formula contract; no state)",
+      "failure_modes": [
+        "VALIDATION_ERROR — subtotal < 0 (defensive; should be unreachable since per-line lineSubtotal is a non-negative integer)"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "notes": "Resolves PR-002 (BA repair §11.2) ↔ TL alignment. checkout.preview.shippingFee and checkout.commit.shippingFee MUST reference this formula. RESERVATION_TTL_MINUTES is centralized here so inventory.reservation.create's expiresAt suggestion (now+15min) and inventory.reservation.sweep-expired's scan window stay in lockstep."
+    },
+    {
+      "contract_name": "identity.register",
+      "payload_shape": {
+        "request": {
+          "email": "string (RFC5322; max 254)",
+          "password": "string (min 8, max 72; bcrypt-compatible)",
+          "name": "string (1..120)"
+        },
+        "response_data": {
+          "userId": "string (UUID v7)",
+          "email": "string",
+          "name": "string",
+          "role": "string (always CUSTOMER)",
+          "createdAt": "string (RFC3339)"
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Not idempotent. Repeat with same email returns 409 DUPLICATE_EMAIL.",
+      "failure_modes": [
+        "VALIDATION_ERROR — bad email format, password too short, name empty",
+        "DUPLICATE_EMAIL — email already registered (AUTH-001)"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.login",
+      "payload_shape": {
+        "request": { "email": "string", "password": "string" },
+        "response_data": {
+          "accessToken": "string (JWT ES256; tokenType=ACCESS)",
+          "accessTokenExpiresAt": "string (RFC3339)",
+          "refreshToken": "string (JWT ES256; tokenType=REFRESH)",
+          "refreshTokenExpiresAt": "string (RFC3339)",
+          "user": { "userId": "string", "email": "string", "name": "string", "role": "string" }
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Not idempotent (each call mints fresh tokens).",
+      "failure_modes": [
+        "AUTH_INVALID — wrong email OR wrong password; SAME code+message for both (AUTH-007 locked)"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.refresh",
+      "payload_shape": {
+        "request": { "refreshToken": "string" },
+        "response_data": {
+          "accessToken": "string",
+          "accessTokenExpiresAt": "string",
+          "refreshToken": "string (rotated; old jti revoked)",
+          "refreshTokenExpiresAt": "string"
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Soft-idempotent: same refreshToken submitted twice within 5s rolling window returns same response (single-use rotation otherwise). Reuse outside window returns AUTH_REVOKED.",
+      "failure_modes": [
+        "AUTH_INVALID — bad signature/exp/aud/iss/tokenType",
+        "AUTH_REVOKED — refresh jti previously consumed or logout-revoked"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.logout",
+      "payload_shape": {
+        "request": { "refreshToken": "string" },
+        "response_data": { "revoked": true }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent on refresh-jti: second logout for the same jti returns 200 with revoked=true.",
+      "failure_modes": [ "AUTH_INVALID — malformed token" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.profile.read",
+      "payload_shape": {
+        "request": "{} (userId from claims.sub on the customer's own access token)",
+        "response_data": {
+          "userId": "string",
+          "email": "string (immutable in MVP; load-bearing for buyerEmail snapshot — see callers)",
+          "name": "string",
+          "phone": "string|null",
+          "defaultAddressId": "string|null",
+          "createdAt": "string",
+          "updatedAt": "string"
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read; trivially idempotent.",
+      "failure_modes": [ "AUTH_MISSING", "NOT_FOUND" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.2.0",
+      "callers": "(1) frontend-web profile route (display-only); (2) checkout.commit step 2 — Checkout pulls the customer's email here using the customer's own Bearer JWT (same auth context the request arrived with — Checkout forwards the incoming Authorization header) and stores it as buyerEmail on the order.create-from-checkout request. This is a Phase-1 first-class contract, NOT a stub. Closes REV-L2-001 (the dry-run #1 buyerEmail dataflow gap that broke every checkout at order.create-from-checkout binding).",
+      "notes": "Identity is NOT permitted to put email into the access JWT extra claims to satisfy this dataflow — keeping email out of the JWT minimizes blast radius of token leakage and preserves AUTH-007 generic login error semantics. The HTTP round-trip cost is acceptable because checkout.commit is already a multi-call orchestration and the Identity DB lookup is sub-10ms on an indexed PK."
+    },
+    {
+      "contract_name": "identity.profile.update",
+      "payload_shape": {
+        "request": { "name": "string?", "phone": "string?" },
+        "response_data": "same shape as identity.profile.read"
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Last-writer-wins on (name, phone). No idempotency key required.",
+      "failure_modes": [ "VALIDATION_ERROR (name length, phone format)", "AUTH_MISSING" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.address.create",
+      "payload_shape": {
+        "request": {
+          "receiverName": "string",
+          "phone": "string",
+          "addressLine": "string",
+          "province": "string",
+          "district": "string",
+          "postalCode": "string",
+          "isDefault": "boolean (optional; if true, demotes the prior default in the same tx)"
+        },
+        "response_data": { "addressId": "string (UUID v7)", "isDefault": "boolean" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Not idempotent.",
+      "failure_modes": [ "VALIDATION_ERROR", "ADDRESS_INCOMPLETE", "AUTH_MISSING" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.address.list",
+      "payload_shape": {
+        "request": "{}",
+        "response_data": { "addresses": "Address[] (ordered isDefault DESC, createdAt DESC)" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "AUTH_MISSING" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.address.update",
+      "payload_shape": {
+        "request": { "addressId": "string", "fields...": "same as create (partial)" },
+        "response_data": "Address"
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Last-writer-wins.",
+      "failure_modes": [ "NOT_FOUND", "ADDRESS_NOT_OWNED", "VALIDATION_ERROR" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.address.delete",
+      "payload_shape": {
+        "request": { "addressId": "string" },
+        "response_data": { "deleted": true }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent: deleting an already-deleted address returns 200 deleted=true.",
+      "failure_modes": [ "ADDRESS_NOT_OWNED" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "identity.address.set-default",
+      "payload_shape": {
+        "request": { "addressId": "string" },
+        "response_data": { "addressId": "string", "isDefault": true }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent — re-setting the same default is a no-op success.",
+      "failure_modes": [ "NOT_FOUND", "ADDRESS_NOT_OWNED" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "catalog.product.list",
+      "payload_shape": {
+        "request": {
+          "page": "int (>=1, default 1)",
+          "limit": "int (1..100, default 20)",
+          "sort": "string (enum: price_asc|price_desc|name_asc|name_desc|created_desc)",
+          "filter": {
+            "categoryId": "string?",
+            "minPrice": "number?",
+            "maxPrice": "number?",
+            "inStock": "boolean? (true → join inventory.stock.bulk-read; see ordering)",
+            "search": "string?"
+          }
+        },
+        "response_data": {
+          "items": "Product[] (only ACTIVE; hides DRAFT/INACTIVE/DELETED — CAT-001, CAT-010)",
+          "total": "int",
+          "page": "int",
+          "limit": "int"
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "VALIDATION_ERROR (page<1, limit out of range, bad sort enum)" ],
+      "ordering_guarantees": "Server-side stable sort by (sort_key, productId) so pagination is deterministic.",
+      "contract_version": "0.1.0",
+      "notes": "When inStock=true, catalog calls inventory.stock.bulk-read for the candidate productIds and filters server-side. This is a sync inter-service call; catalog must tolerate inventory unavailable → 503."
+    },
+    {
+      "contract_name": "catalog.product.detail",
+      "payload_shape": {
+        "request": { "productId": "string" },
+        "response_data": {
+          "productId": "string",
+          "sku": "string",
+          "name": "string",
+          "description": "string",
+          "images": "string[]",
+          "price": "number (decimal-safe; THB)",
+          "category": { "categoryId": "string", "name": "string", "slug": "string" },
+          "stockStatus": "string (enum: IN_STOCK | LOW | OUT_OF_STOCK; computed by joining inventory)",
+          "reviewSummary": { "averageRating": null, "reviewCount": 0 },
+          "status": "string"
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "NOT_FOUND", "PRODUCT_DELETED (still resolvable for admin and historical-order paths; for guest/customer storefront returns NOT_FOUND)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "catalog.product.create",
+      "payload_shape": {
+        "request": {
+          "sku": "string (unique; case-insensitive)",
+          "name": "string",
+          "description": "string",
+          "images": "string[]?",
+          "price": "number (>0)",
+          "categoryId": "string",
+          "status": "string (enum: DRAFT|ACTIVE; default DRAFT)"
+        },
+        "response_data": { "productId": "string (UUID v7)" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Not idempotent.",
+      "failure_modes": [ "AUTH_FORBIDDEN (CUSTOMER role)", "DUPLICATE_SKU", "NOT_FOUND (categoryId)", "VALIDATION_ERROR (price<=0)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "side_effects": "Catalog publishes product.created event on outbox. Inventory consumes and seeds stock_levels(sku) with all-zero quantities. Until inventory has seeded the SKU, listing with inStock=true filters this product out."
+    },
+    {
+      "contract_name": "catalog.product.update",
+      "payload_shape": {
+        "request": { "productId": "string", "name?": "string", "description?": "string", "images?": "string[]", "price?": "number", "status?": "string (DRAFT|ACTIVE|INACTIVE)", "categoryId?": "string" },
+        "response_data": "Product"
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Last-writer-wins.",
+      "failure_modes": [ "AUTH_FORBIDDEN", "NOT_FOUND", "VALIDATION_ERROR", "DUPLICATE_SKU (if sku editable; locked: NOT editable in MVP)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "side_effects": "Records change in product_status_history (CAT-008). Publishes product.updated event."
+    },
+    {
+      "contract_name": "catalog.product.soft-delete",
+      "payload_shape": {
+        "request": { "productId": "string" },
+        "response_data": { "productId": "string", "status": "DELETED" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent — re-deleting returns 200 with status=DELETED.",
+      "failure_modes": [ "AUTH_FORBIDDEN", "NOT_FOUND" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "notes": "Storefront listing/detail filters out DELETED. Order detail still resolves snapshot fields stored on order_items (CAT-009)."
+    },
+    {
+      "contract_name": "catalog.category.create",
+      "payload_shape": {
+        "request": { "name": "string", "slug": "string", "parentCategoryId": "string?", "level": "int" },
+        "response_data": { "categoryId": "string" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Not idempotent.",
+      "failure_modes": [ "AUTH_FORBIDDEN", "DUPLICATE_CATEGORY_NAME (same level)", "CONFLICT (slug global)", "VALIDATION_ERROR" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "catalog.category.update",
+      "payload_shape": {
+        "request": { "categoryId": "string", "name?": "string", "slug?": "string" },
+        "response_data": "Category"
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Last-writer-wins.",
+      "failure_modes": [ "AUTH_FORBIDDEN", "NOT_FOUND", "DUPLICATE_CATEGORY_NAME", "CONFLICT (slug)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "catalog.category.deactivate",
+      "payload_shape": {
+        "request": { "categoryId": "string" },
+        "response_data": { "categoryId": "string", "active": false }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent.",
+      "failure_modes": [ "AUTH_FORBIDDEN", "NOT_FOUND" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "catalog.category.list",
+      "payload_shape": {
+        "request": { "activeOnly": "boolean? (default true for storefront, false for admin)" },
+        "response_data": { "categories": "Category[] (tree if level>1)" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "inventory.stock.read",
+      "payload_shape": {
+        "request": { "sku": "string" },
+        "response_data": { "sku": "string", "availableQty": "int", "reservedQty": "int", "soldQty": "int" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "NOT_FOUND" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "inventory.stock.bulk-read",
+      "payload_shape": {
+        "request": { "skus": "string[] (max 200)" },
+        "response_data": { "stocks": "Stock[] (preserving order; missing skus omitted)" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "VALIDATION_ERROR (>200 skus)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "callers": "catalog (listing inStock filter), cart (subtotal/availableQty checks), checkout (preview)"
+    },
+    {
+      "contract_name": "inventory.stock.adjust",
+      "payload_shape": {
+        "request": { "sku": "string", "delta": "int (signed; non-zero)", "reason": "string (1..255)" },
+        "response_data": { "sku": "string", "availableQty": "int", "adjustmentId": "string" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Not idempotent. Optional client-supplied Idempotency-Key honored under cross-cutting.idempotency.",
+      "failure_modes": [ "AUTH_FORBIDDEN (CUSTOMER role)", "NOT_FOUND", "STOCK_NEGATIVE_INVARIANT (delta would push availableQty<0)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "side_effects": "Writes stock_adjustments(delta, reason, actorUserId)."
+    },
+    {
+      "contract_name": "inventory.reservation.create",
+      "payload_shape": {
+        "request": {
+          "orderId": "string (UUID v7)",
+          "items": "[{sku, qty}] (non-empty)",
+          "expiresAt": "string (RFC3339; recommended now+15min)",
+          "idempotencyKey": "string (= orderId; required)"
+        },
+        "response_data": { "reservationId": "string", "items": "[{sku, qty, reserved: true}]", "expiresAt": "string" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent on orderId. Second call with same orderId + same items returns the original reservation. Different items for the same orderId → 409 IDEMPOTENCY_KEY_REUSED.",
+      "failure_modes": [
+        "INSUFFICIENT_STOCK (per-item details: {sku, requestedQty, availableQty})",
+        "PRODUCT_INACTIVE | PRODUCT_DELETED (cross-checked via catalog.product.detail before reserving)",
+        "STOCK_NEGATIVE_INVARIANT (concurrent races; should be unreachable but defended by CHECK)",
+        "VALIDATION_ERROR (empty items, qty<=0)"
+      ],
+      "ordering_guarantees": "Per-SKU serialized via row lock; reservations across SKUs in one call are atomic (single tx).",
+      "contract_version": "0.1.0",
+      "callers": "checkout"
+    },
+    {
+      "contract_name": "inventory.reservation.commit",
+      "payload_shape": {
+        "request": { "reservationId": "string", "orderId": "string" },
+        "response_data": { "reservationId": "string", "status": "COMMITTED" }
+      },
+      "semantics": "sync (also reachable via async event consumption — see payment.completed)",
+      "idempotency_rules": "Idempotent on reservationId. Re-committing returns 200 status=COMMITTED.",
+      "failure_modes": [ "RESERVATION_NOT_FOUND", "RESERVATION_EXPIRED (returns 409 — no commit; caller must reissue release flow)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "callers": "inventory's own payment.completed consumer (primary). HTTP path retained for ops tooling."
+    },
+    {
+      "contract_name": "inventory.reservation.release",
+      "payload_shape": {
+        "request": { "reservationId": "string", "orderId": "string", "reason": "string (enum: PAYMENT_FAILED|PAYMENT_EXPIRED|ORDER_CANCELLED|ADMIN_FORCE)" },
+        "response_data": { "reservationId": "string", "status": "RELEASED" }
+      },
+      "semantics": "sync (also reachable via async event consumption)",
+      "idempotency_rules": "Idempotent on reservationId.",
+      "failure_modes": [ "RESERVATION_NOT_FOUND" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "notes": "ORD-005 (admin cancel of PAID order) also routes here AFTER reservation has been COMMITTED — in that case 'release' transitions sold→available. Specifically: when the reservation is COMMITTED, release decrements soldQty and increments availableQty by the originally-reserved qty. This handles BA's soft-cancel-of-PAID stock release."
+    },
+    {
+      "contract_name": "inventory.reservation.sweep-expired",
+      "payload_shape": {
+        "trigger": "system_internal: in-process scheduler (gocron / time.Ticker) inside the inventory service. Cadence: every 30 seconds. Not an HTTP endpoint and not exposed on any route; no JWT, no caller — it is a goroutine started at service boot.",
+        "scan": {
+          "query": "SELECT id, order_id, sku, qty FROM reservations WHERE status='RESERVED' AND expires_at < NOW() ORDER BY expires_at ASC LIMIT :batch_size FOR UPDATE SKIP LOCKED",
+          "batch_size": 200,
+          "rationale": "FOR UPDATE SKIP LOCKED prevents two replicas from contending on the same expired row if inventory is scaled horizontally. Batch of 200 keeps each tick's tx short; subsequent ticks drain the backlog."
+        },
+        "per_row_action_in_single_tx": [
+          "1. SELECT stock_levels FOR UPDATE WHERE sku = reservation.sku",
+          "2. UPDATE stock_levels SET reserved_qty = reserved_qty - reservation.qty, available_qty = available_qty + reservation.qty WHERE sku = reservation.sku",
+          "3. UPDATE reservations SET status='RELEASED', released_at=NOW(), release_reason='EXPIRED' WHERE id = reservation.id",
+          "4. INSERT INTO outbox_events (event_type='reservation.expired', aggregate_id=order_id, payload_json={...}) — see events.reservation.expired",
+          "5. COMMIT"
+        ],
+        "ordering_within_tick": "Process rows ORDER BY expires_at ASC so older expirations release first; per-(orderId, sku) writes are serialized by the FOR UPDATE on stock_levels.",
+        "no_response": "Sweeper has no caller and no response shape. Observability is via logs + metrics (counter: reservations_swept_total{outcome=released|skipped|errored}; gauge: reservations_pending_expiry).",
+        "ttl_constant_reference": "Reservation expiresAt is set by inventory.reservation.create at now + cross-cutting.pricing.constants.RESERVATION_TTL_MINUTES (15 minutes)."
+      },
+      "semantics": "system_internal",
+      "idempotency_rules": "Idempotent by construction. A reservation already in RELEASED or COMMITTED state is filtered out by the WHERE status='RESERVED' clause. If the tick crashes mid-batch, the next tick re-scans uncommitted rows (the FOR UPDATE SKIP LOCKED does not persist across tx; rows return to the pool).",
+      "failure_modes": [
+        "DATABASE_UNAVAILABLE — sweeper logs and skips the tick; next tick retries. No client-facing failure (no client).",
+        "Outbox publisher lag — events.reservation.expired publication is decoupled via outbox; consumers (Order) absorb at-least-once delivery."
+      ],
+      "ordering_guarantees": "Per-orderId: at most one reservation.expired event ever emitted (the reservation row transitions RESERVED→RELEASED exactly once under the FOR UPDATE row lock). Cross-orderId ordering is not preserved and not required.",
+      "contract_version": "0.1.0",
+      "callers": "n/a (internal scheduler).",
+      "notes": "Resolves PR-001 (Option A). Closes the abandoned-checkout stock-leak hole — customer hits checkout.commit, walks away, never simulates: within 15min + sweep-cadence (30s) the reservation is released and Order is notified via events.reservation.expired."
+    },
+    {
+      "contract_name": "events.reservation.expired",
+      "payload_shape": {
+        "topic": "ecom.inventory.events",
+        "event_type": "reservation.expired",
+        "payload": {
+          "eventId": "string (UUID v7)",
+          "occurredAt": "string (RFC3339)",
+          "orderId": "string",
+          "reservationId": "string",
+          "sweptAt": "string (RFC3339; = release transaction commit time)"
+        }
+      },
+      "semantics": "async",
+      "idempotency_rules": "Consumer dedup on eventId via the per-service consumed_events table (same pattern as events.payment.completed).",
+      "failure_modes": [
+        "Order: transition PENDING_PAYMENT → PAYMENT_EXPIRED; write status_history row {fromStatus: PENDING_PAYMENT, toStatus: PAYMENT_EXPIRED, actorRole: SYSTEM, reason: 'reservation expired (TTL)'}. If order is already terminal (CANCELLED, PAYMENT_FAILED, PAYMENT_EXPIRED, PAID, etc.) → idempotent no-op (Order is state-driven; event ignored if current status not PENDING_PAYMENT).",
+        "Payment: if a REQUIRES_PAYMENT intent still exists for orderId, transition the intent to EXPIRED and emit events.payment.expired? — NO. To avoid duplicate-cancel cascades, Payment IGNORES events.reservation.expired; the intent simply ages out by its own clock or stays REQUIRES_PAYMENT until a late callback arrives (which then 409s on PAYMENT_INTENT_TERMINAL because Order has already moved). This keeps Payment's outbox cleaner."
+      ],
+      "ordering_guarantees": "Partition key = orderId. Per-order ordering preserved on consumer side. Cross-topic ordering with ecom.payment.events / ecom.order.events is NOT preserved; consumers (Order, Inventory) MUST be state-driven (read current row state, do not trust event's implicit fromStatus). See events.order.cancelled.failure_modes and events.payment.completed.failure_modes for the disambiguation rule.",
+      "contract_version": "0.1.0",
+      "producers": "inventory (via outbox written by inventory.reservation.sweep-expired)",
+      "consumers": "order"
+    },
+    {
+      "contract_name": "cart.add-item",
+      "payload_shape": {
+        "request": { "productId": "string", "qty": "int (>=1)" },
+        "response_data": { "cart": "Cart" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Same-SKU adds MERGE into one line (CART-006).",
+      "failure_modes": [ "AUTH_MISSING", "NOT_FOUND (product)", "PRODUCT_INACTIVE", "PRODUCT_DELETED", "VALIDATION_ERROR (qty<=0)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "cart.update-item",
+      "payload_shape": {
+        "request": { "cartItemId": "string", "qty": "int (>=1)" },
+        "response_data": { "cart": "Cart" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Last-writer-wins on qty.",
+      "failure_modes": [ "VALIDATION_ERROR (qty>availableQty per CART-002 — must reference availableQty in payload)", "NOT_FOUND" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "cart.remove-item",
+      "payload_shape": { "request": { "cartItemId": "string" }, "response_data": { "cart": "Cart" } },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent — removing already-removed line returns current cart.",
+      "failure_modes": [ "AUTH_MISSING" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "cart.read",
+      "payload_shape": {
+        "request": "{}",
+        "response_data": {
+          "cart": {
+            "customerUserId": "string",
+            "items": "[{cartItemId, productId, sku, name, image, currentPrice, qty, lineSubtotal, availableQty, productStatus, checkoutable}]",
+            "subtotal": "number (server-computed sum of currentPrice*qty across checkoutable=true)",
+            "updatedAt": "string"
+          }
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "AUTH_MISSING" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "notes": "BA-flagged price-source resolution: cart.read uses CURRENT product price (live from catalog). The PRICE SNAPSHOT is taken at checkout.commit and persisted on order_items. Subtotal here is informational; checkout will recompute (CHK-005)."
+    },
+    {
+      "contract_name": "cart.clear-on-checkout",
+      "payload_shape": {
+        "request": { "customerUserId": "string", "cartItemIds": "string[]", "orderId": "string (audit ref)" },
+        "response_data": { "removed": "int" }
+      },
+      "semantics": "sync (called by checkout, internal)",
+      "idempotency_rules": "Idempotent on (orderId).",
+      "failure_modes": [ "VALIDATION_ERROR" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "checkout.preview",
+      "payload_shape": {
+        "request": { "shippingAddressId": "string" },
+        "response_data": {
+          "items": "[{productId, sku, qty, currentPrice, lineSubtotal, availableQty, checkoutable}]",
+          "subtotal": "number (THB; sum of currentPrice*qty over checkoutable lines; cross-cutting.pricing.formula.subtotal)",
+          "shippingFee": "number (THB; per cross-cutting.pricing tier rule — 60 if subtotal<1500, else 0; requirement §11.2)",
+          "couponDiscount": "number (always 0 in this run — coupon engine out_of_scope)",
+          "total": "number (THB; = subtotal + shippingFee - couponDiscount per cross-cutting.pricing.formula.grandTotal)",
+          "blockers": "string[] (e.g. INSUFFICIENT_STOCK details, PRODUCT_INACTIVE)",
+          "addressSnapshot": "Address"
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read; no commit.",
+      "failure_modes": [ "AUTH_MISSING", "ADDRESS_NOT_OWNED", "ADDRESS_INCOMPLETE" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "notes": "shippingFee and total are computed server-side using cross-cutting.pricing.formula. Frontend MUST display server-returned values verbatim — never recompute client-side. Boundary at exactly 1500 THB → free shipping (inclusive)."
+    },
+    {
+      "contract_name": "checkout.commit",
+      "payload_shape": {
+        "request_headers": { "Idempotency-Key": "string (required; UUID recommended)" },
+        "request": { "shippingAddressId": "string" },
+        "response_data": {
+          "orderId": "string (UUID v7)",
+          "orderNumber": "string (ORD-YYYYMMDD-NNNNNN per ORD-008)",
+          "status": "PENDING_PAYMENT",
+          "subtotal": "number (THB; persisted on orders.subtotal — snapshot of lineSubtotal sum at commit-time)",
+          "shippingFee": "number (THB; per cross-cutting.pricing tier rule at commit-time; persisted on orders.shipping_fee and immutable thereafter — re-cancel/re-cancel-and-re-checkout would compute fresh)",
+          "couponDiscount": "number (always 0 in this run)",
+          "total": "number (THB; = subtotal + shippingFee - couponDiscount; persisted on orders.total; equals paymentIntent.amount)",
+          "paymentIntent": { "paymentIntentId": "string", "status": "REQUIRES_PAYMENT", "amount": "number (THB; = total)" }
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Required Idempotency-Key header (CHK-009). Same key + same payload → same orderId. Same key + different payload → 409 IDEMPOTENCY_KEY_REUSED (returns originally created orderId in error data). Same key still inflight → 409 IDEMPOTENCY_KEY_INFLIGHT.",
+      "failure_modes": [
+        "VALIDATION_ERROR (empty cart — CHK-001)",
+        "ADDRESS_NOT_OWNED (CHK-002)",
+        "ADDRESS_INCOMPLETE",
+        "PRODUCT_INACTIVE / PRODUCT_DELETED (CHK-003 — per-item details)",
+        "INSUFFICIENT_STOCK (CHK-004 — per-item details {productId, requestedQty, availableQty}; no order created)",
+        "IDEMPOTENCY_KEY_REUSED",
+        "DATABASE_UNAVAILABLE",
+        "UPSTREAM_TIMEOUT (inventory or payment unreachable; compensation: release any partial reservation)"
+      ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "internal_orchestration": [
+        "1. Load cart for caller (cart.read).",
+        "2. Resolve buyerEmail: call identity.profile.read using the customer's own Bearer JWT (forwarded from the inbound Authorization header). REQUIRED — feeds order.create-from-checkout's buyerEmail field (REV-L2-001 fix). Failure → 502 + UPSTREAM_TIMEOUT envelope; no state mutated.",
+        "3. Validate address (identity.address.list — caller-scoped).",
+        "4. Validate per-item product status (catalog.product.detail) and stock (inventory.stock.bulk-read) — fast preview check; returns INSUFFICIENT_STOCK pre-commit. No state mutated yet.",
+        "5. Begin checkout-tx; persist idempotency_keys row INFLIGHT.",
+        "6. Call inventory.reservation.create with X-Internal-Secret + idempotencyKey=newOrderId.",
+        "7. Call order.create-from-checkout with X-Internal-Secret + idempotencyKey=newOrderId + buyerEmail (snapshot prices + address; status PENDING_PAYMENT; status_history row).",
+        "8. Call payment.intent.create with X-Internal-Secret + idempotencyKey=newOrderId + amount=order.total.",
+        "9. Call cart.clear-on-checkout for the moved cartItemIds (CHK-010) — best-effort; failure logs WARN, does NOT roll back.",
+        "10. Update idempotency_keys with response_envelope; commit.",
+        "Compensation matrix (every compensation call carries X-Internal-Secret + the same orderId-as-idempotencyKey; all targets are idempotent):",
+        "  - failure at step 6 (inventory.reservation.create) → no state mutated; return error.",
+        "  - failure at step 7 (order.create-from-checkout) → call inventory.reservation.release reason=ORDER_CANCELLED; if release also fails, log CRITICAL + saga DEGRADED; reservation TTL (15min) is the safety net.",
+        "  - failure at step 8 (payment.intent.create) → call order.cancel-on-checkout-failure THEN inventory.reservation.release reason=ORDER_CANCELLED; on retry-exhaustion log CRITICAL + saga DEGRADED; the events.reservation.expired sweeper path drives PAYMENT_EXPIRED via the Order consumer (REV-L2-004 + REV-L2-008 require both that the consumer is shipped and that a saga reconciler surfaces DEGRADED rows).",
+        "Forwarded JWT note: when Checkout calls identity.profile.read in step 2 it forwards the inbound Authorization header (the customer's Bearer access token) — this is the ONE customer-context call in the flow. Steps 6, 7, 8, 9 use X-Internal-Secret only; Checkout does NOT forward the customer JWT into Inventory/Order/Payment because those services trust Checkout's internal-secret and apply their own per-row ownership/idempotency rules."
+      ]
+    },
+    {
+      "contract_name": "order.list-mine",
+      "payload_shape": {
+        "request": { "page": "int", "limit": "int", "status": "string?" },
+        "response_data": { "orders": "OrderSummary[]", "total": "int", "page": "int" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "AUTH_MISSING" ],
+      "ordering_guarantees": "Sort by createdAt DESC.",
+      "contract_version": "0.1.0",
+      "notes": "Server enforces customerUserId = claims.sub (ORD-001). Listing of someone else's orders is impossible by construction."
+    },
+    {
+      "contract_name": "order.detail",
+      "payload_shape": {
+        "request": { "orderId": "string" },
+        "response_data": {
+          "orderId": "string",
+          "orderNumber": "string",
+          "status": "string",
+          "items": "[{productId, sku, productNameSnapshot, productImageUrlSnapshot, priceSnapshot, qty, lineSubtotal}]",
+          "addressSnapshot": "Address",
+          "subtotal": "number",
+          "total": "number",
+          "trackingNumber": "string|null",
+          "statusHistory": "[{fromStatus, toStatus, actorUserId, actorRole, reason?, at}]",
+          "createdAt": "string",
+          "updatedAt": "string"
+        }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "AUTH_MISSING", "ORDER_NOT_OWNED (ORD-001 — return NOT_FOUND for customer; admin path uses list-admin)" ],
+      "ordering_guarantees": "statusHistory ordered by `at` ASC.",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "order.cancel-mine",
+      "payload_shape": {
+        "request": { "orderId": "string" },
+        "response_data": { "orderId": "string", "status": "CANCELLED" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Idempotent: re-cancelling a CANCELLED-by-self order returns 200.",
+      "failure_modes": [ "ORDER_NOT_OWNED", "INVALID_ORDER_STATE (only PENDING_PAYMENT cancellable by customer — ORD-004)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "side_effects": "Order writes status_history + outbox order.cancelled event. Inventory consumes and releases reservation. Payment intent transitions to CANCELLED via its own consumer."
+    },
+    {
+      "contract_name": "order.list-admin",
+      "payload_shape": {
+        "request": { "page": "int", "limit": "int", "status": "string?", "dateFrom": "string?", "dateTo": "string?", "search": "string? (orderNumber or customer email)" },
+        "response_data": { "orders": "OrderSummary[]", "total": "int" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Read.",
+      "failure_modes": [ "AUTH_FORBIDDEN" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "notes": "Search by customer email requires order to store buyerEmailSnapshot at creation time — added to order_items snapshot block."
+    },
+    {
+      "contract_name": "order.update-status-admin",
+      "payload_shape": {
+        "request": {
+          "orderId": "string",
+          "toStatus": "string (enum: PACKING|SHIPPED|DELIVERED|CANCELLED)",
+          "trackingNumber": "string? (required when toStatus=SHIPPED — ORD-006)",
+          "reason": "string? (required when toStatus=CANCELLED — ORD-005; required for both PENDING_PAYMENT→CANCELLED and PAID→CANCELLED admin paths)"
+        },
+        "transitions": {
+          "description": "Authoritative legal-transition table. Any (fromStatus, toStatus) pair NOT in this table returns 409 INVALID_ORDER_STATE. Server reads current row state under FOR UPDATE before validating; if the row's current status does not match an allowed fromStatus for the requested toStatus, the call is rejected.",
+          "allowed": [
+            { "fromStatus": "PAID", "toStatus": "PACKING", "actor": "ADMIN", "required_fields": [], "side_effects": "writes status_history; no event emission" },
+            { "fromStatus": "PACKING", "toStatus": "SHIPPED", "actor": "ADMIN", "required_fields": ["trackingNumber"], "side_effects": "writes status_history; persists trackingNumber on orders row; no event emission" },
+            { "fromStatus": "SHIPPED", "toStatus": "DELIVERED", "actor": "ADMIN", "required_fields": [], "side_effects": "writes status_history; no event emission" },
+            { "fromStatus": "PENDING_PAYMENT", "toStatus": "CANCELLED", "actor": "ADMIN", "required_fields": ["reason"], "side_effects": "writes status_history; publishes events.order.cancelled with fromStatus=PENDING_PAYMENT (audit-only — Inventory uses state-driven read); Inventory releases RESERVED reservation (reserved→available)" },
+            { "fromStatus": "PAID", "toStatus": "CANCELLED", "actor": "ADMIN", "required_fields": ["reason"], "side_effects": "writes status_history; publishes events.order.cancelled with fromStatus=PAID (audit-only); Inventory releases COMMITTED reservation (sold→available, per BA's PR-006 MVP restock policy); Payment intent is already SUCCEEDED and not transitioned (refund flow is out_of_scope for this run)" }
+          ],
+          "explicitly_disallowed_examples": [
+            { "from": "PACKING", "to": "CANCELLED", "rationale": "BA PR-005 + requirement §9.2: admin-cancel allowed only from PENDING_PAYMENT or PAID, NOT after packing has begun. Returns 409 INVALID_ORDER_STATE." },
+            { "from": "SHIPPED", "to": "CANCELLED", "rationale": "Same as above; physical fulfillment in flight. 409 INVALID_ORDER_STATE." },
+            { "from": "DELIVERED", "to": "CANCELLED", "rationale": "Terminal. Refund/return is out_of_scope. 409 INVALID_ORDER_STATE." },
+            { "from": "SHIPPED", "to": "PAID", "rationale": "Backwards transition. ORD-003. 409 INVALID_ORDER_STATE." },
+            { "from": "PENDING_PAYMENT", "to": "PACKING", "rationale": "Skips PAID. Only payment.completed (not admin) writes PAID. 409 INVALID_ORDER_STATE." },
+            { "from": "PAYMENT_FAILED|PAYMENT_EXPIRED", "to": "*", "rationale": "Terminal. Customer must re-checkout to create a new order. 409 INVALID_ORDER_STATE." }
+          ],
+          "notes": [
+            "PAID is reached only via events.payment.completed consumer (NEVER via this admin endpoint). PENDING_PAYMENT is reached only via checkout.commit. PAYMENT_FAILED/PAYMENT_EXPIRED are reached only via events.payment.failed / events.payment.expired / events.reservation.expired consumers.",
+            "Pairs with BA's PR-005 admin-cancel scope tightening: BA's in_scope wording must agree that admin-cancel is allowed from PENDING_PAYMENT and PAID only.",
+            "PAID→CANCELLED restock is the BA PR-006 MVP-locked policy (sold→available, full restock)."
+          ]
+        },
+        "response_data": { "orderId": "string", "status": "string" }
+      },
+      "semantics": "sync",
+      "idempotency_rules": "Optional Idempotency-Key for admin retries. Re-issuing the same (orderId, toStatus) when the row is already at toStatus is a 200 idempotent success (no extra status_history row, no extra event). Default behavior: last-writer-wins guarded by the FOR UPDATE row lock + the transitions table.",
+      "failure_modes": [
+        "AUTH_FORBIDDEN — caller is CUSTOMER role",
+        "INVALID_ORDER_STATE — current row status does not match an allowed fromStatus for requested toStatus per the transitions table (ORD-003 / PR-009 / requirement §9.2)",
+        "VALIDATION_ERROR — toStatus=SHIPPED without trackingNumber (ORD-006); toStatus=CANCELLED without reason (ORD-005)",
+        "NOT_FOUND — orderId does not exist"
+      ],
+      "ordering_guarantees": "Server holds SELECT orders FOR UPDATE row lock on the order during the transition to serialize concurrent admin actions and to make the (current-state read → validate → write) sequence atomic.",
+      "contract_version": "0.1.0",
+      "side_effects": "Writes status_history. For toStatus=CANCELLED (both PENDING_PAYMENT and PAID origins), publishes events.order.cancelled via outbox. For toStatus=SHIPPED, persists trackingNumber on orders.tracking_number."
+    },
+    {
+      "contract_name": "order.create-from-checkout",
+      "payload_shape": {
+        "auth": "X-Internal-Secret (constant-time compare); NOT a customer-JWT route. Caller = checkout only.",
+        "request_headers": { "X-Internal-Secret": "string", "Idempotency-Key": "string (= orderId UUID v7; recipient validates idempotencyKey == request.orderId per cross-cutting.idempotency.internal_orderId_rule)" },
+        "request": {
+          "orderId": "string (UUID v7; client-supplied by Checkout; recipient stores as orders.id)",
+          "customerUserId": "string (UUID v7; from claims.sub on Checkout's inbound JWT; Checkout passes it explicitly because internal route does not see the JWT)",
+          "buyerEmail": "string (RFC5322; from identity.profile.read step 2 of checkout.commit; required+email binding on the recipient — REV-L2-001 fix; persisted as buyer_email_snapshot on order_items snapshot block to support order.list-admin search-by-email)",
+          "addressSnapshot": {
+            "addressId": "string", "receiverName": "string", "phone": "string",
+            "addressLine": "string", "province": "string", "district": "string", "postalCode": "string"
+          },
+          "items": "[{productId, sku, productNameSnapshot, productImageUrlSnapshot, priceSnapshot (number, THB at commit-time), qty}]",
+          "subtotal": "number (THB; sum lineSubtotal across items; persisted on orders.subtotal)",
+          "shippingFee": "number (THB; per cross-cutting.pricing tier; persisted on orders.shipping_fee)",
+          "couponDiscount": "number (always 0 in MVP)",
+          "total": "number (THB; = subtotal + shippingFee - couponDiscount; equals payment intent amount)"
+        },
+        "response_data": {
+          "orderId": "string",
+          "orderNumber": "string (ORD-YYYYMMDD-NNNNNN; per ORD-008)",
+          "status": "PENDING_PAYMENT",
+          "createdAt": "string"
+        }
+      },
+      "semantics": "sync (internal — checkout → order)",
+      "idempotency_rules": "Idempotent on orderId. Recipient validates Idempotency-Key == request.orderId at the handler boundary (REV-L2-006); divergent keys return 400 VALIDATION_ERROR. Second call with the same orderId + same canonicalized body returns the original response. Different body for the same orderId → 409 IDEMPOTENCY_KEY_REUSED with the original orderNumber in the error data.",
+      "failure_modes": [
+        "AUTH_INVALID — missing or wrong X-Internal-Secret (constant-time compare)",
+        "VALIDATION_ERROR — buyerEmail missing/malformed; idempotencyKey != orderId; subtotal/total inconsistent with items",
+        "IDEMPOTENCY_KEY_REUSED",
+        "DATABASE_UNAVAILABLE"
+      ],
+      "ordering_guarantees": "Single tx writes orders + order_items + order_status_history + outbox.PENDING_PAYMENT (audit-only event for downstream observability; not subscribed by any consumer in MVP).",
+      "contract_version": "0.1.0",
+      "callers": "checkout.commit step 7",
+      "side_effects": "Writes orders row (status=PENDING_PAYMENT), order_items snapshot block (productId, sku, productNameSnapshot, productImageUrlSnapshot, priceSnapshot, qty, lineSubtotal, plus buyerEmailSnapshot on the row), order_addresses snapshot, order_status_history row, outbox event for downstream observability.",
+      "notes": "Resolves dry-run #1 AMBIG-ORD-2 / REV-L2-001 — buyerEmail is now a first-class request field with required+email binding, and Checkout populates it from identity.profile.read (step 2 of checkout.commit). Without this contract being formally authored, dry-run #1 had Checkout's outbound struct missing the field and Order's inbound struct requiring it — every commit 400'd at step 7."
+    },
+    {
+      "contract_name": "order.cancel-on-checkout-failure",
+      "payload_shape": {
+        "auth": "X-Internal-Secret (constant-time compare); caller = checkout only.",
+        "request_headers": { "X-Internal-Secret": "string", "Idempotency-Key": "string (= orderId)" },
+        "request": {
+          "orderId": "string",
+          "reason": "string (1..255; e.g. 'payment intent creation failed: <upstream code>'; persisted on the cancellation status_history row's reason field)"
+        },
+        "response_data": { "orderId": "string", "status": "CANCELLED" }
+      },
+      "semantics": "sync (internal — checkout → order)",
+      "idempotency_rules": "Idempotent on orderId: re-cancelling an already-CANCELLED-by-this-path order returns 200 with status=CANCELLED (no extra status_history row, no extra event). Calling on an order that has already moved to PAID (the post-step-8 race where payment success arrived during the compensation window) returns 409 INVALID_ORDER_STATE — Checkout's caller logic must escalate to admin-cancel at that point.",
+      "failure_modes": [
+        "AUTH_INVALID — missing or wrong X-Internal-Secret",
+        "NOT_FOUND — orderId does not exist (Checkout step 7 never succeeded; should be unreachable from the compensation matrix but defended)",
+        "INVALID_ORDER_STATE — order is no longer PENDING_PAYMENT (e.g. event-driven transition raced ahead); see idempotency_rules"
+      ],
+      "ordering_guarantees": "Single tx: SELECT orders FOR UPDATE; if status=PENDING_PAYMENT → transition to CANCELLED, write status_history row (actorRole=SYSTEM, reason from request), publish events.order.cancelled via outbox. The published event carries cancelActor=SYSTEM so Inventory's state-driven consumer applies the standard release branch (RESERVED → available, since Checkout's compensation calls inventory.reservation.release in parallel, the consumer typically sees a no-op).",
+      "contract_version": "0.1.0",
+      "callers": "checkout.commit compensation matrix (failure at step 8 — payment.intent.create)",
+      "side_effects": "Writes status_history row, publishes events.order.cancelled via outbox.",
+      "notes": "Closes the dry-run #1 REV-L2-004 dead end — without this contract being formally authored AND its handler being shipped (not stubbed), every commit-with-step-8-failure left the order in PENDING_PAYMENT until the 15-minute reservation TTL fired AND Order's events.reservation.expired consumer ran (which itself was stubbed in dry-run #1). Both halves must ship in dry-run #2."
+    },
+    {
+      "contract_name": "payment.intent.create",
+      "payload_shape": {
+        "request": { "orderId": "string", "amount": "number" },
+        "response_data": { "paymentIntentId": "string", "status": "REQUIRES_PAYMENT", "amount": "number", "expiresAt": "string" }
+      },
+      "semantics": "sync (called by checkout)",
+      "idempotency_rules": "Idempotent on orderId — second call returns the original intent.",
+      "failure_modes": [ "VALIDATION_ERROR", "CONFLICT (intent already TERMINAL for orderId)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0"
+    },
+    {
+      "contract_name": "payment.simulate",
+      "payload_shape": {
+        "request": { "paymentIntentId": "string", "outcome": "string (enum: SUCCESS|FAILED|TIMEOUT)" },
+        "response_data": { "paymentIntentId": "string", "providerStatus": "string", "mockPaymentRef": "string", "willTriggerCallback": true }
+      },
+      "semantics": "sync (customer-facing on the mock screen)",
+      "idempotency_rules": "First simulate wins. Subsequent simulate calls on a TERMINAL intent return PAYMENT_INTENT_TERMINAL.",
+      "failure_modes": [ "AUTH_MISSING", "PAYMENT_INTENT_NOT_FOUND", "PAYMENT_INTENT_TERMINAL", "AUTH_FORBIDDEN (not the order's owner)" ],
+      "ordering_guarantees": "n/a",
+      "contract_version": "0.1.0",
+      "notes": "Internally enqueues a self-callback (or invokes payment.callback synchronously inside the same service). Decoupled in spec to keep the callback contract clean."
+    },
+    {
+      "contract_name": "payment.callback",
+      "payload_shape": {
+        "request": { "paymentIntentId": "string", "providerStatus": "string (enum: SUCCEEDED|FAILED|EXPIRED)", "mockPaymentRef": "string", "amount": "number", "providerTimestamp": "string" },
+        "response_data": { "paymentIntentId": "string", "applied": "boolean", "providerStatus": "string" }
+      },
+      "semantics": "sync (webhook from mock provider; the http handler is sync, but its effect fans out via Kafka)",
+      "idempotency_rules": "STRICT idempotency on (paymentIntentId, providerStatus) — see callback_dedup table. A repeat returns the original applied=true response. A request with the same paymentIntentId but a contradicting providerStatus arriving after a TERMINAL state → 409 PAYMENT_INTENT_TERMINAL with original outcome.",
+      "failure_modes": [
+        "PAYMENT_AMOUNT_MISMATCH (PAY-006: callback amount != intent.amount; intent stays REQUIRES_PAYMENT; order stays PENDING_PAYMENT; reservation untouched)",
+        "PAYMENT_INTENT_NOT_FOUND",
+        "PAYMENT_INTENT_TERMINAL (different providerStatus than original)"
+      ],
+      "ordering_guarantees": "First callback per intent wins. Persistence is single-tx: dedup-row insert + payment_records update + outbox event write. Outbox publisher emits payment.completed | payment.failed | payment.expired downstream.",
+      "contract_version": "0.1.0",
+      "notes": "PAY-005 enforced by dedup_key = sha256(paymentIntentId || providerStatus). Duplicate insert raises a unique-constraint violation that the handler catches and treats as 'replay' → re-emit cached response, NO new outbox event."
+    },
+    {
+      "contract_name": "events.payment.completed",
+      "payload_shape": {
+        "topic": "ecom.payment.events",
+        "event_type": "payment.completed",
+        "payload": {
+          "eventId": "string (UUID v7)",
+          "occurredAt": "string",
+          "orderId": "string",
+          "paymentIntentId": "string",
+          "amount": "number",
+          "mockPaymentRef": "string"
+        }
+      },
+      "semantics": "async",
+      "idempotency_rules": "Consumers (Order, Inventory) MUST dedupe on eventId. Consumer-side dedup table per-service: consumed_events(eventId PK, consumerName, processedAt). Beyond eventId dedup, consumers are STATE-DRIVEN (see failure_modes) — they read the current row state of the affected aggregate inside the same tx that processes the event and act on actual current state, not on any implicit assumed fromStatus.",
+      "failure_modes": [
+        "consumer transient failure → at-least-once redelivery; idempotency keeps it safe",
+        "Order (state-driven): SELECT orders WHERE id=orderId FOR UPDATE; if status=PENDING_PAYMENT → transition to PAID, write status_history, commit. If status is anything else (CANCELLED, PAYMENT_EXPIRED, PAYMENT_FAILED, PAID) → log 'late payment.completed for non-PENDING_PAYMENT order'; do NOT change status; do NOT emit further events. Out-of-scope future enhancement: order.payment-arrived-too-late refund signal.",
+        "Inventory (state-driven): SELECT reservations WHERE order_id=orderId FOR UPDATE; do NOT trust any implicit fromStatus on the event. If reservation.status=RESERVED → COMMIT it (decrement reserved, increment sold). If reservation.status=COMMITTED → idempotent no-op. If reservation.status=RELEASED (the customer/admin/sweeper got there first — see PR-003 race) → DO NOT re-reserve, DO NOT re-decrement; log 'payment.completed arrived after reservation released for orderId={orderId}'; emit (informational) inventory.reservation-conflict metric counter. The Order will already have ignored the late payment.completed by the rule above, so the system stays consistent.",
+        "race PR-003: concurrent customer order.cancel-mine + payment success. If Inventory consumes payment.completed FIRST (reservation→COMMITTED), then events.order.cancelled (fromStatus=PENDING_PAYMENT) arrives — Inventory reads current state (COMMITTED, not RESERVED) and applies the COMMITTED→RELEASED branch (sold→available), regardless of the event's fromStatus field. Disambiguation = current-row-read, not event payload."
+      ],
+      "ordering_guarantees": "Partition key = orderId. All payment.* events for one order land on the same partition (topic ecom.payment.events) → strict per-order ordering preserved within this topic. Cross-topic ordering with ecom.order.events and ecom.inventory.events is NOT preserved by Kafka; consumers MUST disambiguate via state-driven reads (see failure_modes).",
+      "contract_version": "0.1.0",
+      "producers": "payment (via outbox)",
+      "consumers": "order, inventory"
+    },
+    {
+      "contract_name": "events.payment.failed",
+      "payload_shape": {
+        "topic": "ecom.payment.events",
+        "event_type": "payment.failed",
+        "payload": { "eventId": "string", "occurredAt": "string", "orderId": "string", "paymentIntentId": "string", "reason": "string" }
+      },
+      "semantics": "async",
+      "idempotency_rules": "Consumer dedup on eventId. Consumers are STATE-DRIVEN — they read current aggregate state and do not trust any implicit fromStatus on the event.",
+      "failure_modes": [
+        "Order (state-driven): SELECT orders FOR UPDATE; if status=PENDING_PAYMENT → transition PAYMENT_FAILED, write status_history. Otherwise idempotent no-op (already-cancelled / already-expired / already-paid orders are not retransitioned).",
+        "Inventory (state-driven): SELECT reservations FOR UPDATE; if status=RESERVED → release (reserved→available). If status=COMMITTED (payment was earlier successful then a late failed callback raced — should be unreachable due to payment-callback's PAYMENT_INTENT_TERMINAL guard, but defensively) → log + no-op. If status=RELEASED → idempotent no-op."
+      ],
+      "ordering_guarantees": "Partition key = orderId. Per-order ordering preserved within ecom.payment.events. Cross-topic disambiguation via state-driven reads (see PR-003 race documentation in events.payment.completed).",
+      "contract_version": "0.1.0",
+      "producers": "payment",
+      "consumers": "order, inventory"
+    },
+    {
+      "contract_name": "events.payment.expired",
+      "payload_shape": {
+        "topic": "ecom.payment.events",
+        "event_type": "payment.expired",
+        "payload": { "eventId": "string", "occurredAt": "string", "orderId": "string", "paymentIntentId": "string" }
+      },
+      "semantics": "async",
+      "idempotency_rules": "Consumer dedup on eventId. Consumers are STATE-DRIVEN.",
+      "failure_modes": [
+        "Order (state-driven): SELECT orders FOR UPDATE; if status=PENDING_PAYMENT → transition PAYMENT_EXPIRED, write status_history. Otherwise idempotent no-op. Note: the same PAYMENT_EXPIRED state may also be reached via events.reservation.expired (sweeper path); whichever arrives first wins, the second is a no-op.",
+        "Inventory (state-driven): SELECT reservations FOR UPDATE; if status=RESERVED → release (reserved→available). If COMMITTED → defensive log + no-op. If RELEASED → idempotent no-op."
+      ],
+      "ordering_guarantees": "Partition key = orderId. Per-order ordering preserved within ecom.payment.events. Cross-topic disambiguation via state-driven reads.",
+      "contract_version": "0.1.0",
+      "producers": "payment",
+      "consumers": "order, inventory"
+    },
+    {
+      "contract_name": "events.order.cancelled",
+      "payload_shape": {
+        "topic": "ecom.order.events",
+        "event_type": "order.cancelled",
+        "payload": {
+          "eventId": "string",
+          "occurredAt": "string",
+          "orderId": "string",
+          "cancelActor": "string (CUSTOMER|ADMIN|SYSTEM)",
+          "fromStatus": "string (PENDING_PAYMENT|PAID)",
+          "reason": "string?"
+        }
+      },
+      "semantics": "async",
+      "idempotency_rules": "Consumer dedup on eventId. Consumers are STATE-DRIVEN — they MUST ignore the event's fromStatus field and instead read the current reservation row by orderId to decide the action. fromStatus is informational/audit only.",
+      "failure_modes": [
+        "Inventory (state-driven; PR-003 race resolution): SELECT reservations WHERE order_id=orderId FOR UPDATE — act on CURRENT state, NOT on event.fromStatus.",
+        "  - if reservation.status=RESERVED → release (reserved→available); typical PENDING_PAYMENT customer-cancel path",
+        "  - if reservation.status=COMMITTED → release sold→available (decrement soldQty, increment availableQty by reservation.qty); typical PAID admin-cancel path AND the PR-003 race path where payment.completed was consumed before order.cancelled (event.fromStatus says PENDING_PAYMENT but reality is COMMITTED — current-row-read wins)",
+        "  - if reservation.status=RELEASED → idempotent no-op (already-released by sweeper, prior cancellation, or a prior payment.failed/expired event)",
+        "Payment (state-driven): SELECT payment_intents FOR UPDATE; if status=REQUIRES_PAYMENT → transition to CANCELLED. If TERMINAL (SUCCEEDED, FAILED, EXPIRED, CANCELLED) → no-op. Note: in the PR-003 race where payment succeeded first, intent is already SUCCEEDED, so this branch correctly does nothing — the sold→available release on Inventory is the entire stock-side compensation."
+      ],
+      "ordering_guarantees": "Partition key = orderId. Per-order ordering preserved within ecom.order.events. Cross-topic ordering with ecom.payment.events / ecom.inventory.events is NOT preserved by Kafka. Disambiguation rule (CANONICAL): Inventory and Order both read current row state inside the consumer transaction and act on actual state, never on event.fromStatus. event.fromStatus is retained in the payload purely for audit/debug.",
+      "contract_version": "0.1.0",
+      "producers": "order",
+      "consumers": "inventory, payment"
+    },
+    {
+      "contract_name": "events.product.created",
+      "payload_shape": {
+        "topic": "ecom.catalog.events",
+        "event_type": "product.created",
+        "payload": { "eventId": "string", "occurredAt": "string", "productId": "string", "sku": "string" }
+      },
+      "semantics": "async",
+      "idempotency_rules": "Consumer (inventory) dedup on eventId. Inventory upserts stock_levels(sku) with all zeros if absent.",
+      "failure_modes": [ "Inventory consumer transient failure → redelivery" ],
+      "ordering_guarantees": "Partition key = sku. Per-SKU ordering preserved.",
+      "contract_version": "0.1.0",
+      "producers": "catalog",
+      "consumers": "inventory"
+    }
+  ]
+}

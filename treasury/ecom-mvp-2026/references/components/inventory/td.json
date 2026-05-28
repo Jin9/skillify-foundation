@@ -1,0 +1,950 @@
+{
+  "template_version": "0.1.0",
+  "component_name": "inventory",
+  "required": true,
+  "complexity": "complex",
+  "complexity_rationale": "Concurrent reservation under SELECT FOR UPDATE row locks with the no-negative invariant, dual sync-HTTP + async-event paths, in-process expiry sweeper using FOR UPDATE SKIP LOCKED, outbox publisher for events.reservation.expired, five state-driven event consumers (payment.completed/failed/expired, order.cancelled, product.created), and a documented multi-SKU lock-order pin (ADR-005). State-driven consumer rule (ADR-009) is load-bearing for the PR-003 cross-topic race resolution.",
+  "skills_invoked": [
+    "crafting-backend-code",
+    "generating-pseudocode (sweeper algorithm + state-driven consumer branches)"
+  ],
+
+  "scaffold": {
+    "from_template": "B2C E-Commerce Platform/backend/go-template",
+    "service_path": "B2C E-Commerce Platform/backend/services/inventory",
+    "go_module": "github.com/example/shoppilot/inventory",
+    "common_lib_import": "B2C E-Commerce Platform/backend/common (wrapper, middleware, token, database, kafka, validator)",
+    "service_name": "inventory",
+    "language": "Go",
+    "directory_layout": {
+      "cmd/inventory/main.go": "Service entrypoint; wires DI; loads INTERNAL_SHARED_SECRET (≥32 bytes) and validates length; starts HTTP server, Kafka consumers, sweeper goroutine, outbox-relay goroutine.",
+      "router/router.go": "Registers POST /api/v1/inventory/* routes per cross-cutting.route-convention. Public health under GET /liveness, /readiness, /metrics. Internal-secret-only routes use common/middleware/internal_auth (constant-time compare per ADR-008); admin route uses common/middleware/jwt with role==ADMIN.",
+      "config/config.go": "Env-driven config; binds RESERVATION_TTL_MINUTES (default 15, source-of-truth = cross-cutting.pricing.constants), SWEEPER_CADENCE_SECONDS (default 30), SWEEPER_BATCH_SIZE (default 200), OUTBOX_RELAY_CADENCE_SECONDS (default 5), MIGRATIONS_AUTO_APPLY (dev only). Refuses to boot if INTERNAL_SHARED_SECRET is unset or <32 bytes.",
+      "app/stock/": "stock_levels read paths + admin adjust handler.",
+      "app/reservation/": "reservation create handler + reservation release handler + internal commit/release functions + sweeper goroutine.",
+      "app/consumer/": "Kafka consumers for events.payment.{completed,failed,expired}, events.order.cancelled, events.product.created.",
+      "app/outbox/": "outbox row writer (used inside business txs) + relayer goroutine (publishes to Kafka).",
+      "app/access/": "pgx repositories for stock_levels, reservations, stock_adjustments, outbox_events, consumed_events, idempotency_keys.",
+      "migrations/": "SQL files applied at boot when MIGRATIONS_AUTO_APPLY=true (local/dev only)."
+    }
+  },
+
+  "persistence": {
+    "schema_owner": "inventory",
+    "database": "PostgreSQL 15+ via common/database (pgx)",
+    "schema": "inventory",
+    "tables": [
+      {
+        "name": "stock_levels",
+        "primary_key": "sku (TEXT)",
+        "columns": [
+          {"name": "sku", "type": "TEXT", "nullable": false, "pk": true},
+          {"name": "available_qty", "type": "INTEGER", "nullable": false, "default": 0},
+          {"name": "reserved_qty", "type": "INTEGER", "nullable": false, "default": 0},
+          {"name": "sold_qty", "type": "INTEGER", "nullable": false, "default": 0},
+          {"name": "version", "type": "INTEGER", "nullable": false, "default": 0, "purpose": "OPTLOCK defensive check; SELECT FOR UPDATE row lock is the binding mechanism per cross-cutting.persistence.concurrency"},
+          {"name": "updated_at", "type": "TIMESTAMPTZ", "nullable": false, "default": "NOW()"}
+        ],
+        "constraints": [
+          "CHECK (available_qty >= 0)",
+          "CHECK (reserved_qty >= 0)",
+          "CHECK (sold_qty >= 0)"
+        ],
+        "indexes": ["PRIMARY KEY (sku)"],
+        "owner_aggregate": "StockLevel",
+        "notes": "INV-008 no-negative invariant is enforced at three layers (tx-level guard, CHECK constraint, optimistic version)."
+      },
+      {
+        "name": "reservations",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          {"name": "id", "type": "UUID", "nullable": false, "pk": true, "default": "uuid v7 (app-generated)"},
+          {"name": "order_id", "type": "UUID", "nullable": false},
+          {"name": "sku", "type": "TEXT", "nullable": false, "fk": "stock_levels(sku) — within-schema FK enforced"},
+          {"name": "qty", "type": "INTEGER", "nullable": false},
+          {"name": "status", "type": "TEXT (enum)", "nullable": false, "enum": ["RESERVED", "COMMITTED", "RELEASED", "EXPIRED"], "default": "'RESERVED'"},
+          {"name": "expires_at", "type": "TIMESTAMPTZ", "nullable": false},
+          {"name": "created_at", "type": "TIMESTAMPTZ", "nullable": false, "default": "NOW()"},
+          {"name": "released_at", "type": "TIMESTAMPTZ", "nullable": true},
+          {"name": "release_reason", "type": "TEXT", "nullable": true, "enum_when_present": ["PAYMENT_FAILED", "PAYMENT_EXPIRED", "ORDER_CANCELLED", "ADMIN_FORCE", "EXPIRED", "PAID_SOFT_CANCEL"]}
+        ],
+        "constraints": [
+          "CHECK (qty > 0)",
+          "CHECK (status IN ('RESERVED','COMMITTED','RELEASED','EXPIRED'))",
+          "FK (sku) REFERENCES stock_levels(sku)"
+        ],
+        "indexes": [
+          "PRIMARY KEY (id)",
+          "INDEX idx_reservations_order_id (order_id)",
+          "PARTIAL INDEX idx_reservations_sweeper (status, expires_at) WHERE status = 'RESERVED'   -- drives sweeper SCAN cheaply"
+        ],
+        "owner_aggregate": "Reservation",
+        "notes": [
+          "(order_id) is the natural lookup key for state-driven event consumers; one orderId may have multiple rows (one per SKU). Lookup uses idx_reservations_order_id and re-locks every row FOR UPDATE inside the consumer tx.",
+          "EXPIRED is written by the sweeper (release_reason='EXPIRED'). RELEASED is written by event-driven release paths and the HTTP release endpoint.",
+          "COMMITTED rows that are later released via PR-006 admin-cancel-of-PAID transition COMMITTED→RELEASED with release_reason='PAID_SOFT_CANCEL' to make audit grepping easy."
+        ]
+      },
+      {
+        "name": "stock_adjustments",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          {"name": "id", "type": "UUID", "nullable": false, "pk": true},
+          {"name": "sku", "type": "TEXT", "nullable": false, "fk": "stock_levels(sku) — within-schema FK enforced"},
+          {"name": "delta", "type": "INTEGER", "nullable": false},
+          {"name": "reason", "type": "TEXT", "nullable": false},
+          {"name": "actor_user_id", "type": "UUID", "nullable": false},
+          {"name": "created_at", "type": "TIMESTAMPTZ", "nullable": false, "default": "NOW()"}
+        ],
+        "constraints": ["CHECK (delta <> 0)", "CHECK (length(reason) BETWEEN 1 AND 255)"],
+        "indexes": ["PRIMARY KEY (id)", "INDEX idx_stock_adjustments_sku (sku, created_at DESC)"],
+        "owner_aggregate": "StockLevel",
+        "notes": "INV-007 admin audit row; written in the same tx as the stock_levels mutation."
+      },
+      {
+        "name": "outbox_events",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          {"name": "id", "type": "UUID", "nullable": false, "pk": true},
+          {"name": "aggregate_id", "type": "TEXT", "nullable": false, "purpose": "= orderId for events.reservation.expired (per partition-key contract)"},
+          {"name": "event_type", "type": "TEXT", "nullable": false},
+          {"name": "payload_json", "type": "JSONB", "nullable": false},
+          {"name": "created_at", "type": "TIMESTAMPTZ", "nullable": false, "default": "NOW()"},
+          {"name": "published_at", "type": "TIMESTAMPTZ", "nullable": true}
+        ],
+        "indexes": [
+          "PRIMARY KEY (id)",
+          "PARTIAL INDEX idx_outbox_unpublished (id) WHERE published_at IS NULL"
+        ],
+        "owner_aggregate": "Reservation (sweeper writes only; relayer consumes)",
+        "notes": "Per cross-cutting.persistence.outbox_pattern + ADR-004. Single-threaded relayer goroutine polls every 5s, ORDER BY id ASC, LIMIT 100; publishes via common/kafka with key=aggregate_id (orderId); marks published_at on success. At-least-once delivery — consumers dedup on payload.eventId."
+      },
+      {
+        "name": "consumed_events",
+        "primary_key": "(event_id, consumer_name)",
+        "columns": [
+          {"name": "event_id", "type": "UUID", "nullable": false},
+          {"name": "consumer_name", "type": "TEXT", "nullable": false},
+          {"name": "processed_at", "type": "TIMESTAMPTZ", "nullable": false, "default": "NOW()"}
+        ],
+        "indexes": ["PRIMARY KEY (event_id, consumer_name)"],
+        "owner_aggregate": "(cross-cutting consumer dedup)",
+        "notes": "Per-service consumer dedup table. INSERT ... ON CONFLICT DO NOTHING inside the same tx that applies the event side-effect; zero rows-affected on the dedup INSERT means duplicate — early-return idempotent no-op."
+      },
+      {
+        "name": "idempotency_keys",
+        "primary_key": "(key, endpoint)",
+        "columns": [
+          {"name": "key", "type": "TEXT", "nullable": false, "purpose": "= orderId for inventory.reservation.create per cross-cutting.idempotency.applies_to (internal_orderId_rule)"},
+          {"name": "endpoint", "type": "TEXT", "nullable": false},
+          {"name": "request_hash", "type": "TEXT", "nullable": false, "purpose": "sha256 of canonicalized request body"},
+          {"name": "response_envelope", "type": "JSONB", "nullable": false},
+          {"name": "http_status", "type": "INTEGER", "nullable": false},
+          {"name": "created_at", "type": "TIMESTAMPTZ", "nullable": false, "default": "NOW()"},
+          {"name": "expires_at", "type": "TIMESTAMPTZ", "nullable": false, "purpose": "created_at + 24h per cross-cutting.idempotency.server_side_store.ttl"}
+        ],
+        "indexes": [
+          "PRIMARY KEY (key, endpoint)",
+          "INDEX idx_idem_expires (expires_at)"
+        ],
+        "owner_aggregate": "(cross-cutting idempotency)",
+        "notes": "Server-side idempotency-key store. FOR UPDATE on this row serializes concurrent same-key callers; second waiter takes the replay branch."
+      }
+    ],
+    "migrations": [
+      {"file": "0001_init_stock_levels.up.sql", "summary": "CREATE TABLE stock_levels with CHECK constraints."},
+      {"file": "0002_init_reservations.up.sql", "summary": "CREATE TABLE reservations + FK(sku) + idx_reservations_order_id + partial idx_reservations_sweeper."},
+      {"file": "0003_init_stock_adjustments.up.sql", "summary": "CREATE TABLE stock_adjustments + idx + FK(sku)."},
+      {"file": "0004_init_outbox_events.up.sql", "summary": "CREATE TABLE outbox_events + partial idx_outbox_unpublished."},
+      {"file": "0005_init_consumed_events.up.sql", "summary": "CREATE TABLE consumed_events with composite PK."},
+      {"file": "0006_init_idempotency_keys.up.sql", "summary": "CREATE TABLE idempotency_keys + idx_idem_expires."}
+    ],
+    "concurrency_model": {
+      "lock_ordering_pin": "ALWAYS lock stock_levels(sku) FIRST, THEN reservations(id) inside any state-mutating tx. Within a single multi-SKU reservation.create call, lock SKUs in lexicographic order (ORDER BY sku ASC) before any reservation INSERT. This is the single canonical lock-order pin (per ADR-005) — preventing deadlocks under concurrent multi-SKU checkouts.",
+      "row_lock_primitive": "SELECT ... FOR UPDATE on stock_levels(sku) and reservations(id). The sweeper's candidate-scan additionally uses FOR UPDATE SKIP LOCKED to allow horizontal-replica scaling without contention on the same expired row.",
+      "no_negative_invariant_layers": [
+        "Layer 1 (tx-level guard): handler computes (current.available_qty - requested) under the FOR UPDATE row lock; if negative, ROLLBACK and return 409.",
+        "Layer 2 (Postgres CHECK constraint): CHECK (available_qty >= 0) on stock_levels — defense in depth; fires STOCK_NEGATIVE_INVARIANT (mapped from PG error 23514) if any path slips past Layer 1.",
+        "Layer 3 (optimistic version): stock_levels.version is incremented on every mutating UPDATE; mismatch is panic-class log + 500 (should be unreachable since FOR UPDATE serializes writers)."
+      ],
+      "expected_hot_rows": "Top-selling SKUs (flash-sale items). Mitigation if needed: shard hot SKUs across multiple stock_levels rows (deferred to v2)."
+    }
+  },
+
+  "endpoints": [
+    {
+      "name": "stock.read",
+      "endpoint_id": "inventory.stock.read",
+      "contract_ref": "inventory.stock.read",
+      "method_path": "POST /api/v1/inventory/stock/read",
+      "auth_required": "internal_secret",
+      "auth_notes": "Service-to-service only. Recipient validates X-Internal-Secret via crypto/subtle.ConstantTimeCompare per ADR-008. Callers per connectivity.md: catalog (rare; bulk-read preferred), checkout (preview), order (admin views).",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sku"],
+        "properties": {
+          "sku": {"type": "string", "minLength": 1, "maxLength": 64}
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "required": ["sku", "availableQty", "reservedQty", "soldQty"],
+            "properties": {
+              "sku": {"type": "string"},
+              "availableQty": {"type": "integer", "minimum": 0},
+              "reservedQty": {"type": "integer", "minimum": 0},
+              "soldQty": {"type": "integer", "minimum": 0}
+            }
+          },
+          "traceId": {"type": "string"}
+        }
+      },
+      "validation_rules": [
+        "sku non-empty, max 64 chars via common/validator binding tag",
+        "X-Internal-Secret header present and matches configured INTERNAL_SHARED_SECRET (constant-time compare)"
+      ],
+      "error_contract": [
+        {"code": "VALIDATION_ERROR", "http_status": 400, "trigger": "sku missing/empty/too-long"},
+        {"code": "AUTH_INVALID", "http_status": 401, "trigger": "X-Internal-Secret missing or mismatched"},
+        {"code": "NOT_FOUND", "http_status": 404, "trigger": "no stock_levels row for sku"},
+        {"code": "DATABASE_UNAVAILABLE", "http_status": 503, "trigger": "Postgres unreachable"}
+      ],
+      "edge_behavior": {
+        "idempotency": "n/a (read)",
+        "side_effects": [],
+        "transactionality": "single-row read; no tx required (pgx auto-committed read)"
+      },
+      "implementation_hints": [
+        "common/middleware.InternalAuth(secret) on the route group",
+        "common/database.Querier.QueryRow",
+        "common/wrapper.Respond(c, code, data) for envelope",
+        "Map pgx.ErrNoRows → NOT_FOUND"
+      ]
+    },
+    {
+      "name": "stock.bulk-read",
+      "endpoint_id": "inventory.stock.bulk-read",
+      "contract_ref": "inventory.stock.bulk-read",
+      "method_path": "POST /api/v1/inventory/stock/bulk-read",
+      "auth_required": "internal_secret",
+      "auth_notes": "Callers per contract: catalog (inStock filter on listing), cart (subtotal/availableQty checks), checkout (preview).",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["skus"],
+        "properties": {
+          "skus": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {"type": "string", "minLength": 1, "maxLength": 64}
+          }
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["stocks"],
+            "properties": {
+              "stocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["sku", "availableQty", "reservedQty", "soldQty"],
+                  "properties": {
+                    "sku": {"type": "string"},
+                    "availableQty": {"type": "integer", "minimum": 0},
+                    "reservedQty": {"type": "integer", "minimum": 0},
+                    "soldQty": {"type": "integer", "minimum": 0}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "len(skus) in [1, 200] → else 400 VALIDATION_ERROR (>200 capped)",
+        "each sku non-empty, max 64 chars",
+        "X-Internal-Secret valid (constant-time compare)"
+      ],
+      "error_contract": [
+        {"code": "VALIDATION_ERROR", "http_status": 400, "trigger": "empty skus, >200 skus, or any sku invalid"},
+        {"code": "AUTH_INVALID", "http_status": 401, "trigger": "X-Internal-Secret missing or mismatched"},
+        {"code": "DATABASE_UNAVAILABLE", "http_status": 503, "trigger": "Postgres unreachable"}
+      ],
+      "edge_behavior": {
+        "idempotency": "n/a (read)",
+        "side_effects": [],
+        "transactionality": "single SELECT WHERE sku = ANY($1)",
+        "ordering": "Result preserves the input order; missing SKUs are omitted (not zeroed) per contract."
+      },
+      "implementation_hints": [
+        "Repo.GetMany(skus) — single SELECT WHERE sku = ANY($1)",
+        "Reorder result in-memory to match request order; drop missing",
+        "Reuse common/database pgx pool"
+      ]
+    },
+    {
+      "name": "stock.adjust",
+      "endpoint_id": "inventory.stock.adjust",
+      "contract_ref": "inventory.stock.adjust",
+      "method_path": "POST /api/v1/inventory/stock/adjust",
+      "auth_required": "admin_jwt",
+      "auth_notes": "ADMIN-only. CUSTOMER token → 403 AUTH_FORBIDDEN per cross-cutting.auth.role_rejection_rules. Public-internet-reachable through gateway (admin uses curl/Postman per BA out_of_scope on admin UI).",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sku", "delta", "reason"],
+        "properties": {
+          "sku": {"type": "string", "minLength": 1, "maxLength": 64},
+          "delta": {"type": "integer", "not": {"const": 0}},
+          "reason": {"type": "string", "minLength": 1, "maxLength": 255}
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["sku", "availableQty", "adjustmentId"],
+            "properties": {
+              "sku": {"type": "string"},
+              "availableQty": {"type": "integer", "minimum": 0},
+              "adjustmentId": {"type": "string", "format": "uuid"}
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "delta != 0 (binding tag: ne=0)",
+        "len(reason) in [1, 255]",
+        "claims.role == ADMIN (else 403 AUTH_FORBIDDEN)"
+      ],
+      "error_contract": [
+        {"code": "VALIDATION_ERROR", "http_status": 400, "trigger": "delta=0, reason missing/empty/too-long, or sku invalid"},
+        {"code": "AUTH_INVALID", "http_status": 401, "trigger": "JWT missing/expired/invalid"},
+        {"code": "AUTH_FORBIDDEN", "http_status": 403, "trigger": "claims.role != ADMIN"},
+        {"code": "NOT_FOUND", "http_status": 404, "trigger": "no stock_levels row for sku"},
+        {"code": "STOCK_NEGATIVE_INVARIANT", "http_status": 409, "trigger": "current.available_qty + delta < 0"},
+        {"code": "DATABASE_UNAVAILABLE", "http_status": 503, "trigger": "Postgres unreachable"}
+      ],
+      "edge_behavior": {
+        "idempotency": "Optional client-supplied Idempotency-Key honored per cross-cutting.idempotency (scope per-(endpoint, actorUserId)). Replay returns persisted envelope verbatim. Same key + different request_hash → 409 IDEMPOTENCY_KEY_REUSED.",
+        "side_effects": [
+          "UPDATE stock_levels SET available_qty = available_qty + delta, version = version + 1, updated_at = NOW()",
+          "INSERT stock_adjustments (id, sku, delta, reason, actor_user_id) — same tx"
+        ],
+        "transactionality": "Single Postgres tx: SELECT FOR UPDATE → guard → UPDATE → INSERT audit row → COMMIT"
+      },
+      "behavior_pseudocode": [
+        "BEGIN TX",
+        "  validate(delta != 0, len(reason) in [1,255]) → VALIDATION_ERROR",
+        "  row = SELECT * FROM stock_levels WHERE sku = $1 FOR UPDATE",
+        "  if row is null → ROLLBACK; NOT_FOUND",
+        "  if row.available_qty + delta < 0 → ROLLBACK; STOCK_NEGATIVE_INVARIANT",
+        "  UPDATE stock_levels SET available_qty = available_qty + delta, version = version + 1, updated_at = NOW() WHERE sku = $1",
+        "  adjustmentId = uuidv7()",
+        "  INSERT INTO stock_adjustments (id, sku, delta, reason, actor_user_id) VALUES (adjustmentId, $1, delta, reason, claims.sub)",
+        "  if Idempotency-Key header present: persist response_envelope into idempotency_keys atomically",
+        "COMMIT",
+        "return SUCCESS {sku, availableQty: row.available_qty + delta, adjustmentId}"
+      ],
+      "implementation_hints": [
+        "common/middleware.JWT() then role-check helper (claims.role == 'ADMIN')",
+        "common/database.WithTx for the single tx",
+        "common/wrapper.Respond for envelope",
+        "Map PG error 23514 (CHECK violation) → STOCK_NEGATIVE_INVARIANT (defensive; layer-1 guard should reject first)"
+      ]
+    },
+    {
+      "name": "reservation.create",
+      "endpoint_id": "inventory.reservation.create",
+      "contract_ref": "inventory.reservation.create",
+      "method_path": "POST /api/v1/inventory/reservation/create",
+      "auth_required": "internal_secret",
+      "auth_notes": "Called by Checkout (step 6 of checkout.commit) over the private network plane with X-Internal-Secret + Idempotency-Key=newOrderId per cross-cutting.idempotency.internal_orderId_rule.",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId", "items", "expiresAt", "idempotencyKey"],
+        "properties": {
+          "orderId": {"type": "string", "format": "uuid"},
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["sku", "qty"],
+              "properties": {
+                "sku": {"type": "string", "minLength": 1, "maxLength": 64},
+                "qty": {"type": "integer", "minimum": 1}
+              }
+            }
+          },
+          "expiresAt": {"type": "string", "format": "date-time", "description": "RFC3339; recommended now + RESERVATION_TTL_MINUTES (15)"},
+          "idempotencyKey": {"type": "string", "format": "uuid", "description": "MUST equal orderId per internal_orderId_rule"}
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["reservationId", "items", "expiresAt"],
+            "properties": {
+              "reservationId": {"type": "string", "format": "uuid", "description": "First-row id (deterministic by ORDER BY sku ASC); informational/audit only — all consumer/release lookups are by orderId."},
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["sku", "qty", "reserved"],
+                  "properties": {
+                    "sku": {"type": "string"},
+                    "qty": {"type": "integer"},
+                    "reserved": {"type": "boolean", "const": true}
+                  }
+                }
+              },
+              "expiresAt": {"type": "string", "format": "date-time"}
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "orderId is UUID v7; items non-empty (1..50); every qty>=1",
+        "idempotencyKey == orderId (else 400 VALIDATION_ERROR per cross-cutting.idempotency.internal_orderId_rule)",
+        "X-Internal-Secret valid (constant-time compare)"
+      ],
+      "error_contract": [
+        {"code": "VALIDATION_ERROR", "http_status": 400, "trigger": "empty items, qty<=0, idempotencyKey != orderId, or expiresAt malformed"},
+        {"code": "AUTH_INVALID", "http_status": 401, "trigger": "X-Internal-Secret missing or mismatched"},
+        {"code": "INSUFFICIENT_STOCK", "http_status": 409, "trigger": "any item.qty > stock.available_qty (response carries per-item details: [{sku, requestedQty, availableQty}])"},
+        {"code": "STOCK_NEGATIVE_INVARIANT", "http_status": 409, "trigger": "defensive — concurrent racer slipped past FOR UPDATE; CHECK constraint fires"},
+        {"code": "IDEMPOTENCY_KEY_REUSED", "http_status": 409, "trigger": "same orderId + different request_hash"},
+        {"code": "DATABASE_UNAVAILABLE", "http_status": 503, "trigger": "Postgres unreachable"}
+      ],
+      "edge_behavior": {
+        "idempotency": "Server-side keyed on (key=orderId, endpoint='inventory.reservation.create'). First-call persists envelope inside the same tx as the business writes. Replay (same key + same request_hash) returns persisted envelope verbatim. Same key + different request_hash → 409 IDEMPOTENCY_KEY_REUSED. Concurrent same-key callers serialize via FOR UPDATE on idempotency_keys; second waiter takes the replay branch.",
+        "side_effects": [
+          "INSERT idempotency_keys (key=orderId, endpoint, request_hash, response_envelope, http_status, expires_at = NOW() + 24h)",
+          "UPDATE stock_levels SET available_qty -= qty, reserved_qty += qty, version += 1 — once per item (in lex sku order)",
+          "INSERT reservations (id, order_id, sku, qty, status='RESERVED', expires_at) — once per item"
+        ],
+        "transactionality": "Single Postgres tx covering: idempotency check → multi-SKU FOR UPDATE (lex sku order — ADR-005) → per-SKU validate → per-SKU UPDATE stock + INSERT reservation → idempotency_keys persist → COMMIT.",
+        "lock_order": "stock_levels(sku) FIRST in lex sku order, THEN reservations(id) inserts. Single canonical pin — see ADR-005."
+      },
+      "behavior_pseudocode": [
+        "validate(orderId UUID, items non-empty, every qty>=1, idempotencyKey == orderId, expiresAt is RFC3339) → VALIDATION_ERROR",
+        "request_hash = sha256(canonical_json({orderId, items[sorted by sku]}))",
+        "BEGIN TX",
+        "  -- IDEMPOTENCY (cross-cutting.idempotency.behavior)",
+        "  existing = SELECT * FROM idempotency_keys WHERE key=orderId AND endpoint='inventory.reservation.create' FOR UPDATE",
+        "  if existing AND existing.request_hash == request_hash → COMMIT; return existing.response_envelope (replay)",
+        "  if existing AND existing.request_hash != request_hash → ROLLBACK; return 409 IDEMPOTENCY_KEY_REUSED",
+        "",
+        "  -- LOCK ORDER PIN (ADR-005): stock_levels first, in ascending sku order, BEFORE any reservation insert",
+        "  sortedSkus = sort_unique(items[].sku)",
+        "  stockRows = SELECT sku, available_qty, reserved_qty, version FROM stock_levels WHERE sku = ANY(sortedSkus) ORDER BY sku ASC FOR UPDATE",
+        "",
+        "  -- per-SKU validation",
+        "  insufficientList = []",
+        "  for each item in items:",
+        "    row = stockRows[item.sku]",
+        "    if row is null → insufficientList += {sku: item.sku, requestedQty: item.qty, availableQty: 0}   -- treat as INSUFFICIENT_STOCK",
+        "    elif row.available_qty < item.qty → insufficientList += {sku, requestedQty: item.qty, availableQty: row.available_qty}",
+        "  if insufficientList non-empty → ROLLBACK; return 409 INSUFFICIENT_STOCK with details: insufficientList",
+        "",
+        "  -- mutate per sku in deterministic ORDER BY sku ASC; rows are already locked",
+        "  reservationIds = []",
+        "  for each item in items (ORDER BY sku ASC):",
+        "    UPDATE stock_levels SET available_qty = available_qty - item.qty, reserved_qty = reserved_qty + item.qty, version = version + 1, updated_at = NOW() WHERE sku = item.sku",
+        "    rid = uuidv7()",
+        "    INSERT INTO reservations (id, order_id, sku, qty, status, expires_at) VALUES (rid, orderId, item.sku, item.qty, 'RESERVED', expiresAt)",
+        "    reservationIds += rid",
+        "",
+        "  responseData = {reservationId: reservationIds[0], items: items.map(reserved=true), expiresAt}",
+        "  envelope = {code: 'SUCCESS', message: 'reserved', data: responseData, traceId}",
+        "  INSERT INTO idempotency_keys (key=orderId, endpoint='inventory.reservation.create', request_hash, response_envelope=envelope, http_status=200, expires_at=NOW()+24h)",
+        "COMMIT",
+        "return envelope"
+      ],
+      "implementation_hints": [
+        "common/middleware.InternalAuth(secret)",
+        "common/database.WithTx for the single tx",
+        "common/validator binding tags for nested struct validation",
+        "Map PG error 23514 → STOCK_NEGATIVE_INVARIANT (defensive)",
+        "Map PG error 23505 (unique violation) on idempotency_keys → race-with-self (FOR UPDATE should prevent; defensive)",
+        "Use sort.Slice on items by sku BEFORE the SELECT FOR UPDATE — sorting at the application level keeps the SQL simple"
+      ],
+      "callers": ["checkout (sync HTTP from checkout.commit step 6)"]
+    },
+    {
+      "name": "reservation.release",
+      "endpoint_id": "inventory.reservation.release",
+      "contract_ref": "inventory.reservation.release",
+      "method_path": "POST /api/v1/inventory/reservation/release",
+      "auth_required": "internal_secret",
+      "auth_notes": "Called by Checkout as compensation on post-step-6 failure of checkout.commit per cross-cutting.persistence.transactional_boundaries (ADR-007). NOT used by event consumers — they call ReservationService.Release directly to avoid loopback overhead.",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId", "reason"],
+        "properties": {
+          "orderId": {"type": "string", "format": "uuid"},
+          "reservationId": {"type": "string", "format": "uuid", "description": "Optional; informational. Lookup is by orderId — one orderId may have multiple reservation rows."},
+          "reason": {"type": "string", "enum": ["PAYMENT_FAILED", "PAYMENT_EXPIRED", "ORDER_CANCELLED", "ADMIN_FORCE"]}
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["reservationId", "status"],
+            "properties": {
+              "reservationId": {"type": "string", "format": "uuid"},
+              "status": {"type": "string", "const": "RELEASED"}
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "orderId is UUID; reason in enum",
+        "X-Internal-Secret valid"
+      ],
+      "error_contract": [
+        {"code": "VALIDATION_ERROR", "http_status": 400, "trigger": "orderId malformed or reason not in enum"},
+        {"code": "AUTH_INVALID", "http_status": 401, "trigger": "X-Internal-Secret missing or mismatched"},
+        {"code": "RESERVATION_NOT_FOUND", "http_status": 404, "trigger": "no reservation row for order_id"},
+        {"code": "DATABASE_UNAVAILABLE", "http_status": 503, "trigger": "Postgres unreachable"}
+      ],
+      "edge_behavior": {
+        "idempotency": "Idempotent on order_id (per-row idempotent on reservations.id). Re-invocation on already-RELEASED/EXPIRED rows is a no-op. COMMITTED rows transition sold→available with release_reason='PAID_SOFT_CANCEL' (BA PR-006 MVP policy).",
+        "side_effects": [
+          "UPDATE stock_levels per sku (available_qty += qty; reserved_qty -= qty OR sold_qty -= qty depending on prior state)",
+          "UPDATE reservations SET status='RELEASED', released_at=NOW(), release_reason=<reason or 'PAID_SOFT_CANCEL'>"
+        ],
+        "transactionality": "Single Postgres tx covering: SELECT reservations FOR UPDATE ORDER BY sku ASC → per-row state-driven branch → COMMIT.",
+        "lock_order": "stock_levels(sku) BEFORE reservations(id); reservations rows iterated ORDER BY sku ASC."
+      },
+      "behavior_pseudocode": [
+        "validate(orderId UUID, reason in {PAYMENT_FAILED, PAYMENT_EXPIRED, ORDER_CANCELLED, ADMIN_FORCE}) → VALIDATION_ERROR",
+        "BEGIN TX",
+        "  rows = SELECT * FROM reservations WHERE order_id = $1 ORDER BY sku ASC FOR UPDATE",
+        "  if rows is empty → ROLLBACK; RESERVATION_NOT_FOUND",
+        "  for each r in rows:",
+        "    if r.status == 'RELEASED' or r.status == 'EXPIRED' → continue (idempotent no-op)",
+        "    if r.status == 'RESERVED':",
+        "      stock = SELECT * FROM stock_levels WHERE sku = r.sku FOR UPDATE",
+        "      UPDATE stock_levels SET available_qty = available_qty + r.qty, reserved_qty = reserved_qty - r.qty, version = version + 1 WHERE sku = r.sku",
+        "      UPDATE reservations SET status = 'RELEASED', released_at = NOW(), release_reason = $reason WHERE id = r.id",
+        "    if r.status == 'COMMITTED':   -- PR-006 soft-cancel-of-PAID branch (also reachable via order.cancelled consumer)",
+        "      stock = SELECT * FROM stock_levels WHERE sku = r.sku FOR UPDATE",
+        "      UPDATE stock_levels SET sold_qty = sold_qty - r.qty, available_qty = available_qty + r.qty, version = version + 1 WHERE sku = r.sku",
+        "      UPDATE reservations SET status = 'RELEASED', released_at = NOW(), release_reason = 'PAID_SOFT_CANCEL' WHERE id = r.id",
+        "COMMIT",
+        "return SUCCESS {reservationId: rows[0].id, status: 'RELEASED'}"
+      ],
+      "implementation_hints": [
+        "common/middleware.InternalAuth(secret)",
+        "common/database.WithTx for the single tx",
+        "Reuse internal ReservationService.Release for both the HTTP path and the event-consumer path — keeps state-driven branching in one function"
+      ],
+      "callers": ["checkout (compensation on post-step-6 failure of checkout.commit per cross-cutting.persistence.transactional_boundaries / ADR-007)"]
+    }
+  ],
+
+  "system_internal_jobs": [
+    {
+      "name": "reservation.sweep-expired",
+      "endpoint_id": "inventory.reservation.sweep-expired",
+      "contract_ref": "inventory.reservation.sweep-expired",
+      "type": "SYSTEM_INTERNAL (NO HTTP route, NO JWT, NO caller)",
+      "trigger": "in-process scheduler (time.Ticker) inside the inventory service, started at boot from cmd/inventory/main.go",
+      "named_constants": {
+        "SWEEPER_CADENCE_SECONDS": {"default": 30, "config_env": "SWEEPER_CADENCE_SECONDS", "purpose": "ticker fire interval; named in code as reservation.sweepCadence"},
+        "SWEEPER_BATCH_SIZE": {"default": 200, "config_env": "SWEEPER_BATCH_SIZE", "purpose": "per-tick LIMIT; named in code as reservation.sweepBatchSize"},
+        "RESERVATION_TTL_MINUTES": {"default": 15, "source": "cross-cutting.pricing.constants.RESERVATION_TTL_MINUTES", "purpose": "TTL anchor; sweeper reads expires_at directly; constant referenced by reservation.create stays in lockstep"}
+      },
+      "algorithm_pseudocode": [
+        "// runs in a single goroutine; ticker fires every SWEEPER_CADENCE_SECONDS",
+        "// horizontal scaling: FOR UPDATE SKIP LOCKED on the candidate scan ensures replicas pick disjoint sets",
+        "loop forever:",
+        "  <-ticker.C",
+        "  expiredCount, errCount := 0, 0",
+        "",
+        "  // ── PHASE 1: pick candidates (short tx; SKIP LOCKED for replica safety) ─────────",
+        "  BEGIN TX_scan",
+        "    candidates = SELECT id, order_id, sku, qty FROM reservations",
+        "                 WHERE status = 'RESERVED' AND expires_at < NOW()",
+        "                 ORDER BY expires_at ASC",
+        "                 LIMIT SWEEPER_BATCH_SIZE",
+        "                 FOR UPDATE SKIP LOCKED",
+        "  COMMIT TX_scan   -- releases scan locks; per-row tx below re-locks individually",
+        "",
+        "  // ── PHASE 2: per-row release tx ────────────────────────────────────────────────",
+        "  for each c in candidates:",
+        "    BEGIN TX_row",
+        "      -- canonical lock-order pin: stock_levels FIRST, then reservations (ADR-005)",
+        "      stock = SELECT * FROM stock_levels WHERE sku = c.sku FOR UPDATE",
+        "      r     = SELECT * FROM reservations WHERE id = c.id FOR UPDATE",
+        "      if r.status != 'RESERVED' → ROLLBACK; continue   -- another path moved the row (commit/release/prior tick)",
+        "      UPDATE stock_levels",
+        "         SET reserved_qty = reserved_qty - r.qty,",
+        "             available_qty = available_qty + r.qty,",
+        "             version = version + 1,",
+        "             updated_at = NOW()",
+        "         WHERE sku = r.sku",
+        "      UPDATE reservations SET status = 'EXPIRED', released_at = NOW(), release_reason = 'EXPIRED' WHERE id = r.id",
+        "      INSERT INTO outbox_events (id, aggregate_id = r.order_id, event_type = 'reservation.expired',",
+        "                                 payload_json = {",
+        "                                   eventId:        uuidv7(),",
+        "                                   occurredAt:     NOW(),",
+        "                                   orderId:        r.order_id,",
+        "                                   reservationId:  r.id,",
+        "                                   sweptAt:        NOW()",
+        "                                 })",
+        "    COMMIT TX_row",
+        "    expiredCount += 1",
+        "",
+        "  // ── PHASE 3: metrics ───────────────────────────────────────────────────────────",
+        "  counter reservations_swept_total{outcome='released'} += expiredCount",
+        "  counter reservations_swept_total{outcome='errored'}  += errCount",
+        "  // periodic gauge sample (every Nth tick) to avoid query-per-tick cost",
+        "  gauge   reservations_pending_expiry = SELECT COUNT(*) FROM reservations WHERE status='RESERVED' AND expires_at < NOW()"
+      ],
+      "ordering_within_tick": "ORDER BY expires_at ASC — older expirations release first.",
+      "horizontal_scaling": "FOR UPDATE SKIP LOCKED on PHASE 1 scan ensures two inventory replicas never contend on the same row. PHASE 2 per-row tx re-locks individually — bounded tx-time, fault-isolated.",
+      "failure_modes": [
+        "DATABASE_UNAVAILABLE — log + skip tick; next tick retries.",
+        "Outbox publisher lag — events.reservation.expired publication is decoupled via outbox (ADR-004); consumers (Order) absorb at-least-once delivery + dedup on eventId.",
+        "Crash mid-batch — partial rows are committed per-row (PHASE 2 is per-row tx); remaining candidates re-scanned next tick (their FOR UPDATE locks evaporated with the rolled-back tx)."
+      ],
+      "observability": [
+        "counter reservations_swept_total{outcome=released|errored}",
+        "gauge reservations_pending_expiry (alert if backlog > 1000 for 10min)",
+        "log structured fields: tick_started_at, candidate_count, released_count, errored_count, tick_duration_ms"
+      ]
+    }
+  ],
+
+  "event_consumers": [
+    {
+      "consumer_id": "inventory.consumer.payment-completed",
+      "event_contract_ref": "events.payment.completed",
+      "topic": "ecom.payment.events",
+      "event_type": "payment.completed",
+      "partition_key": "orderId",
+      "consumer_group": "inventory.payment-completed.v1",
+      "state_driven": true,
+      "dispatch_function": "app/consumer/payment_completed.go::Handle",
+      "idempotency_strategy": "Two-layer dedup: (1) consumed_events INSERT ... ON CONFLICT DO NOTHING — zero rows-affected → already processed, ack and return; (2) state-driven SELECT reservations FOR UPDATE — branch on CURRENT row state per ADR-009, ignore event.fromStatus.",
+      "behavior_pseudocode": [
+        "BEGIN TX",
+        "  // LAYER 1: consumed_events dedup",
+        "  rowsAffected = INSERT INTO consumed_events (event_id, consumer_name) VALUES ($eventId, 'inventory.payment-completed') ON CONFLICT DO NOTHING",
+        "  if rowsAffected == 0 → COMMIT; ack (idempotent replay)",
+        "",
+        "  // LAYER 2: state-driven (ADR-009) — read current state, ignore implicit fromStatus",
+        "  rows = SELECT * FROM reservations WHERE order_id = $orderId ORDER BY sku ASC FOR UPDATE",
+        "  for each r in rows:",
+        "    branch on CURRENT r.status:",
+        "      RESERVED  →",
+        "        stock = SELECT * FROM stock_levels WHERE sku = r.sku FOR UPDATE",
+        "        UPDATE stock_levels SET reserved_qty -= r.qty, sold_qty += r.qty, version += 1 WHERE sku = r.sku",
+        "        UPDATE reservations SET status = 'COMMITTED' WHERE id = r.id",
+        "      COMMITTED →",
+        "        no-op (idempotent re-delivery)",
+        "      RELEASED  →",
+        "        log warn 'payment.completed arrived after reservation released for orderId={}' (PR-003 race)",
+        "        counter inventory_reservation_conflict_total += 1",
+        "        no mutation",
+        "      EXPIRED   →",
+        "        same as RELEASED (sweeper got there first)",
+        "COMMIT (ack on success only; transient failure → at-least-once redelivery)"
+      ]
+    },
+    {
+      "consumer_id": "inventory.consumer.payment-failed",
+      "event_contract_ref": "events.payment.failed",
+      "topic": "ecom.payment.events",
+      "event_type": "payment.failed",
+      "partition_key": "orderId",
+      "consumer_group": "inventory.payment-failed.v1",
+      "state_driven": true,
+      "dispatch_function": "app/consumer/payment_failed.go::Handle",
+      "idempotency_strategy": "Two-layer: consumed_events PK + state-driven SELECT FOR UPDATE.",
+      "behavior_pseudocode": [
+        "BEGIN TX",
+        "  if INSERT consumed_events ... ON CONFLICT DO NOTHING returns 0 rows → ack and return",
+        "  rows = SELECT * FROM reservations WHERE order_id = $orderId ORDER BY sku ASC FOR UPDATE",
+        "  for each r in rows:",
+        "    RESERVED  →",
+        "      stock = SELECT * FROM stock_levels WHERE sku = r.sku FOR UPDATE",
+        "      UPDATE stock_levels SET available_qty += r.qty, reserved_qty -= r.qty, version += 1 WHERE sku = r.sku",
+        "      UPDATE reservations SET status='RELEASED', released_at=NOW(), release_reason='PAYMENT_FAILED' WHERE id = r.id",
+        "    COMMITTED → defensive log 'payment.failed arrived for COMMITTED reservation (should be unreachable due to PAYMENT_INTENT_TERMINAL guard)'; no-op",
+        "    RELEASED → no-op (idempotent)",
+        "    EXPIRED  → no-op (sweeper got there first)",
+        "COMMIT"
+      ]
+    },
+    {
+      "consumer_id": "inventory.consumer.payment-expired",
+      "event_contract_ref": "events.payment.expired",
+      "topic": "ecom.payment.events",
+      "event_type": "payment.expired",
+      "partition_key": "orderId",
+      "consumer_group": "inventory.payment-expired.v1",
+      "state_driven": true,
+      "dispatch_function": "app/consumer/payment_expired.go::Handle",
+      "idempotency_strategy": "Two-layer: consumed_events PK + state-driven SELECT FOR UPDATE.",
+      "behavior_pseudocode": [
+        "// Identical to payment.failed for inventory's purposes (per contract)",
+        "BEGIN TX",
+        "  if dedup-insert returns 0 rows → ack and return",
+        "  rows = SELECT * FROM reservations WHERE order_id = $orderId ORDER BY sku ASC FOR UPDATE",
+        "  for each r in rows:",
+        "    RESERVED  → release; release_reason = 'PAYMENT_EXPIRED'",
+        "    COMMITTED → defensive log; no-op",
+        "    RELEASED  → no-op",
+        "    EXPIRED   → no-op (the sweeper-driven path that often DROVE this event in the first place; idempotent)",
+        "COMMIT"
+      ]
+    },
+    {
+      "consumer_id": "inventory.consumer.order-cancelled",
+      "event_contract_ref": "events.order.cancelled",
+      "topic": "ecom.order.events",
+      "event_type": "order.cancelled",
+      "partition_key": "orderId",
+      "consumer_group": "inventory.order-cancelled.v1",
+      "state_driven": true,
+      "dispatch_function": "app/consumer/order_cancelled.go::Handle",
+      "idempotency_strategy": "Two-layer: consumed_events PK + state-driven SELECT FOR UPDATE. CANONICAL state-driven branch per ADR-009 + contracts.json:events.order.cancelled.failure_modes (PR-003 + PR-006). MUST NOT branch on event.fromStatus.",
+      "behavior_pseudocode": [
+        "// CANONICAL state-driven (ADR-009) — IGNORE event.fromStatus; read current row state",
+        "BEGIN TX",
+        "  if dedup-insert returns 0 rows → ack and return",
+        "  rows = SELECT * FROM reservations WHERE order_id = $orderId ORDER BY sku ASC FOR UPDATE",
+        "  for each r in rows:",
+        "    RESERVED  →",
+        "      stock = SELECT * FROM stock_levels WHERE sku = r.sku FOR UPDATE",
+        "      UPDATE stock_levels SET available_qty += r.qty, reserved_qty -= r.qty, version += 1 WHERE sku = r.sku",
+        "      UPDATE reservations SET status='RELEASED', released_at=NOW(), release_reason='ORDER_CANCELLED' WHERE id = r.id",
+        "      // typical PENDING_PAYMENT customer-cancel path",
+        "    COMMITTED → ",
+        "      stock = SELECT * FROM stock_levels WHERE sku = r.sku FOR UPDATE",
+        "      UPDATE stock_levels SET sold_qty -= r.qty, available_qty += r.qty, version += 1 WHERE sku = r.sku",
+        "      UPDATE reservations SET status='RELEASED', released_at=NOW(), release_reason='PAID_SOFT_CANCEL' WHERE id = r.id",
+        "      // covers (a) admin-cancel of PAID order per BA PR-006 MVP policy AND (b) PR-003 race where payment.completed was consumed before order.cancelled",
+        "    RELEASED  → no-op (already released by sweeper, prior cancellation, or prior payment.failed/expired)",
+        "    EXPIRED   → no-op",
+        "COMMIT"
+      ],
+      "notes": "MUST NEVER read event.fromStatus to decide its branch. event.fromStatus is informational/audit only per ADR-009."
+    },
+    {
+      "consumer_id": "inventory.consumer.product-created",
+      "event_contract_ref": "events.product.created",
+      "topic": "ecom.catalog.events",
+      "event_type": "product.created",
+      "partition_key": "sku",
+      "consumer_group": "inventory.product-created.v1",
+      "state_driven": false,
+      "dispatch_function": "app/consumer/product_created.go::Handle",
+      "idempotency_strategy": "Two-layer: consumed_events PK + natural idempotency via INSERT ... ON CONFLICT (sku) DO NOTHING (no state-mutation conflict possible).",
+      "behavior_pseudocode": [
+        "BEGIN TX",
+        "  if INSERT consumed_events ... ON CONFLICT DO NOTHING returns 0 rows → ack and return",
+        "  INSERT INTO stock_levels (sku, available_qty, reserved_qty, sold_qty, version)",
+        "       VALUES ($sku, 0, 0, 0, 0)",
+        "       ON CONFLICT (sku) DO NOTHING",
+        "COMMIT"
+      ],
+      "notes": "Initial qty seeded to 0 per TL contract (payload carries no initial_qty); admin uses inventory.stock.adjust to set initial inventory. Until inventory has seeded the SKU, listing with inStock=true filters this product out (per catalog contract)."
+    }
+  ],
+
+  "event_producers": [
+    {
+      "producer_id": "inventory.producer.reservation-expired",
+      "event_contract_ref": "events.reservation.expired",
+      "topic": "ecom.inventory.events",
+      "event_type": "reservation.expired",
+      "partition_key": "orderId",
+      "emit_path": "outbox_events table → in-process relayer goroutine → Kafka via common/kafka",
+      "outbox_table": "inventory.outbox_events",
+      "relayer": {
+        "cadence_seconds": 5,
+        "batch_size": 100,
+        "query": "SELECT id, aggregate_id, event_type, payload_json FROM outbox_events WHERE published_at IS NULL ORDER BY id ASC LIMIT 100",
+        "publish_then_mark": "for each row: producer.Send(topic='ecom.inventory.events', key=aggregate_id, value=payload_json) → on success UPDATE outbox_events SET published_at = NOW() WHERE id = $1",
+        "delivery_semantics": "at-least-once (per ADR-004); consumers dedup on payload.eventId",
+        "panic_recovery": "outer recover() per tick; one bad row never kills the loop"
+      },
+      "payload_shape": {
+        "eventId": "string (UUID v7)",
+        "occurredAt": "string (RFC3339)",
+        "orderId": "string (UUID)",
+        "reservationId": "string (UUID)",
+        "sweptAt": "string (RFC3339; = release tx commit time)"
+      },
+      "produced_by": "inventory.reservation.sweep-expired (writes outbox row in same tx as the EXPIRED transition)",
+      "consumers_per_contract": ["order"]
+    }
+  ],
+
+  "internal_modules": {
+    "domain_pkg": "app",
+    "key_files": [
+      "app/stock/handler_read.go",
+      "app/stock/handler_bulk_read.go",
+      "app/stock/handler_adjust.go",
+      "app/stock/service.go",
+      "app/reservation/handler_create.go",
+      "app/reservation/handler_release.go",
+      "app/reservation/service.go",
+      "app/reservation/sweeper.go",
+      "app/consumer/payment_completed.go",
+      "app/consumer/payment_failed.go",
+      "app/consumer/payment_expired.go",
+      "app/consumer/order_cancelled.go",
+      "app/consumer/product_created.go",
+      "app/outbox/relayer.go",
+      "app/outbox/writer.go",
+      "app/access/storage_stock_levels.go",
+      "app/access/storage_reservations.go",
+      "app/access/storage_stock_adjustments.go",
+      "app/access/storage_outbox_events.go",
+      "app/access/storage_consumed_events.go",
+      "app/access/storage_idempotency_keys.go",
+      "app/common/idempotency.go"
+    ],
+    "module_responsibilities": {
+      "app/stock/service.go": ["read paths (Get, GetMany)", "admin adjust + audit row write inside one tx"],
+      "app/reservation/service.go": ["create handler", "release handler (HTTP)", "internal Commit() function (called from payment.completed consumer)", "internal Release() function (called from event consumers and from the HTTP release handler — single function, single state-driven branch table)"],
+      "app/reservation/sweeper.go": ["expiry scan goroutine + per-row tx loop + outbox write"],
+      "app/consumer/*.go": ["state-driven event handlers; layer-1 consumed_events dedup + layer-2 SELECT FOR UPDATE + branch on current row state"],
+      "app/outbox/relayer.go": ["single-threaded poll-publish-mark loop per ADR-004"],
+      "app/outbox/writer.go": ["INSERT outbox_events helper used inside business txs"],
+      "app/access/": ["pgx repos for all six tables"],
+      "app/common/idempotency.go": ["server-side idempotency-key store helpers per cross-cutting.idempotency"]
+    }
+  },
+
+  "test_strategy": {
+    "unit": "table-driven tests per handler with pgxmock or testcontainers Postgres; mockery for kafka producer interface",
+    "integration": "docker-compose up; smoke through reservation.create → consume payment.completed → assert stock_levels columns; verify state-driven branches via crafted Kafka events",
+    "happy_paths": [
+      "stock_read_returns_envelope_with_zero_qtys_for_seeded_sku",
+      "stock_bulk_read_preserves_input_order_drops_missing",
+      "stock_adjust_admin_increments_and_writes_audit_row",
+      "reservation_create_happy_path_decrements_available_increments_reserved",
+      "reservation_create_idempotent_replay_returns_persisted_envelope",
+      "reservation_release_idempotent_on_already_released",
+      "payment_completed_consumer_reserved_to_committed",
+      "order_cancelled_consumer_committed_to_sold_minus_available_plus (PR-006 + PR-003)",
+      "sweeper_expires_abandoned_reservation_emits_outbox_event"
+    ],
+    "negative_paths": [
+      "reservation_create_returns_INSUFFICIENT_STOCK_with_per_item_details",
+      "reservation_create_idempotency_key_reused_with_different_items_returns_409",
+      "reservation_create_validation_idempotencyKey_must_equal_orderId",
+      "stock_adjust_customer_token_returns_AUTH_FORBIDDEN",
+      "stock_adjust_negative_invariant_rejects_and_persists_no_audit",
+      "stock_bulk_read_201_skus_returns_VALIDATION_ERROR",
+      "x_internal_secret_missing_returns_AUTH_INVALID_with_audit_log_no_secret_value",
+      "payment_completed_consumer_late_after_release_increments_conflict_metric_no_mutation",
+      "order_cancelled_consumer_ignores_event_fromStatus_uses_current_state (PR-003)",
+      "sweeper_skip_locked_replicas_pick_disjoint_sets",
+      "sweeper_idempotent_on_already_committed_or_released_rows"
+    ],
+    "additional_test_groups": {
+      "concurrency_integration": [
+        "reservation_no_negative_concurrent_race_two_goroutines_compete_for_last_unit_one_succeeds_one_INSUFFICIENT_STOCK_never_negative",
+        "reservation_multi_sku_lock_order_two_concurrent_overlapping_sku_sets_in_opposite_request_order_no_deadlock"
+      ],
+      "consumer_integration": [
+        "pr003_race_payment_completed_first_then_order_cancelled_with_fromStatus_PENDING_PAYMENT_consumer_reads_current_COMMITTED_and_applies_sold_to_available",
+        "redelivery_after_success_kafka_rebalance_redelivers_already_processed_event_consumed_events_PK_blocks"
+      ],
+      "sweeper_integration": [
+        "sweeper_BA_edge_case_PR008_abandoned_checkout_15min_TTL_30s_cadence_releases_stock_emits_event",
+        "sweeper_crash_mid_batch_resume_no_double_release"
+      ],
+      "envelope_contract": [
+        "every_endpoint_returns_envelope_with_traceId_on_success_and_every_listed_error_code"
+      ],
+      "performance_smoke": [
+        "bulk_read_200_skus_under_50ms_p95_within_checkout_500ms_budget"
+      ]
+    }
+  },
+
+  "ba_acceptance_mapping": [
+    {"story_id": "STORY_INVENTORY_RESERVE_AND_CONVERT", "ac_id": "INV-001", "ac_text": "Each SKU tracks availableQty/reservedQty/soldQty as non-negative integers", "endpoint": "stock.read / stock.bulk-read / reservation.create / event consumers", "covered_by": ["persistence.tables.stock_levels CHECK >=0 on all three columns", "test: reservation_no_negative_concurrent_race", "test: stock_adjust_negative_invariant"]},
+    {"story_id": "STORY_INVENTORY_RESERVE_AND_CONVERT", "ac_id": "INV-002", "ac_text": "Adding to cart does NOT reserve stock; reservation only at checkout", "endpoint": "reservation.create", "covered_by": ["reservation.create is the SOLE write path that decrements available + increments reserved", "test: reservation_create_happy_path"]},
+    {"story_id": "STORY_INVENTORY_RESERVE_AND_CONVERT", "ac_id": "INV-003", "ac_text": "Reservation rows persisted with order_id linkage", "endpoint": "reservation.create", "covered_by": ["persistence.tables.reservations idx_reservations_order_id", "test: reservation_create_happy_path"]},
+    {"story_id": "STORY_INVENTORY_SWEEP_EXPIRED", "ac_id": "INV-004", "ac_text": "Reservations carry expiry; on expiry stock is released back to available", "endpoint": "reservation.sweep-expired (system_internal)", "covered_by": ["system_internal_jobs.sweep-expired", "producer events.reservation.expired", "test: sweeper_expires_abandoned_reservation_emits_outbox_event", "test: sweeper_BA_edge_case_PR008"]},
+    {"story_id": "STORY_INVENTORY_RESERVE_AND_CONVERT", "ac_id": "INV-005", "ac_text": "Payment success: availableQty unchanged-from-post-reserve, reserved↓, sold↑", "endpoint": "consumer events.payment.completed", "covered_by": ["consumer payment-completed RESERVED→COMMITTED branch", "test: payment_completed_consumer_reserved_to_committed"]},
+    {"story_id": "STORY_INVENTORY_RELEASE_ON_FAILURE", "ac_id": "INV-006", "ac_text": "Payment failure or timeout releases the reservation: reserved↓, available↑", "endpoint": "consumer events.payment.failed + events.payment.expired + reservation.release HTTP", "covered_by": ["consumer payment-failed", "consumer payment-expired", "endpoint reservation.release", "tests: payment_failed_release, payment_expired_release"]},
+    {"story_id": "STORY_INVENTORY_ADMIN_ADJUST", "ac_id": "INV-007", "ac_text": "Admin adjusts stock; system writes stock_adjustments(delta, reason, actorUserId)", "endpoint": "stock.adjust", "covered_by": ["endpoint stock.adjust", "persistence.tables.stock_adjustments", "test: stock_adjust_admin_increments_and_writes_audit_row"]},
+    {"story_id": "STORY_INVENTORY_RESERVE_AND_CONVERT + STORY_INVENTORY_ADMIN_ADJUST", "ac_id": "INV-008", "ac_text": "Every stock op enforces the no-negative invariant", "endpoint": "all write paths", "covered_by": ["persistence.concurrency_model.no_negative_invariant_layers (3-layer defense)", "stock_levels CHECK constraints", "tests: reservation_no_negative_concurrent_race, stock_adjust_negative_invariant, reservation_multi_sku_lock_order"]},
+    {"story_id": "STORY_INVENTORY_RESERVE_AND_CONVERT (edge)", "ac_id": "BA edge: 'Two concurrent reservations on the last unit'", "ac_text": "exactly one succeeds; the other returns 409 INSUFFICIENT_STOCK; availableQty never goes negative", "endpoint": "reservation.create", "covered_by": ["persistence.concurrency_model.lock_ordering_pin (ADR-005)", "test: reservation_no_negative_concurrent_race"]},
+    {"story_id": "STORY_INVENTORY_SWEEP_EXPIRED (edge BA PR-008)", "ac_id": "BA edge PR-008: 'Customer hits checkout.commit but never simulates payment'", "ac_text": "Within reservation TTL, order moves PENDING_PAYMENT→PAYMENT_EXPIRED; reserved stock released back to availableQty; status_history row written (Order side)", "endpoint": "reservation.sweep-expired + producer events.reservation.expired", "covered_by": ["sweeper TTL=15min via cross-cutting.pricing.constants.RESERVATION_TTL_MINUTES; cadence 30s", "producer events.reservation.expired (consumed by Order to drive PENDING_PAYMENT→PAYMENT_EXPIRED transition)", "test: sweeper_BA_edge_case_PR008"]},
+    {"story_id": "STORY_INVENTORY_RELEASE_ON_FAILURE (BA narrative PR-006)", "ac_id": "BA narrative: 'admin-cancel of PAID order auto-restocks (sold→available)'", "ac_text": "PR-006 MVP policy", "endpoint": "consumer events.order.cancelled (COMMITTED branch) + reservation.release HTTP (COMMITTED branch)", "covered_by": ["consumer order-cancelled COMMITTED branch", "endpoint reservation.release COMMITTED branch", "test: order_cancelled_consumer_committed_to_sold_minus_available_plus"]},
+    {"story_id": "(cross-cutting PR-003)", "ac_id": "PR-003 race resolution", "ac_text": "Inventory MUST be state-driven, ignoring event.fromStatus (ADR-009)", "endpoint": "all event consumers", "covered_by": ["consumer order-cancelled (notes: ignores fromStatus)", "consumer payment-completed (acts on current row state)", "test: pr003_race_payment_completed_first_then_order_cancelled"]},
+    {"story_id": "(cross-cutting envelope)", "ac_id": "every API", "ac_text": "{code, message, data, traceId} on every response, success or error", "endpoint": "all", "covered_by": ["envelope wrapper from common/wrapper", "test: every_endpoint_returns_envelope_with_traceId"]},
+    {"story_id": "(cross-cutting auth)", "ac_id": "REV-L2-003", "ac_text": "Internal calls use X-Internal-Secret with crypto/subtle.ConstantTimeCompare; never plain ==/!=", "endpoint": "stock.read, stock.bulk-read, reservation.create, reservation.release", "covered_by": ["common/middleware/internal_auth (constant-time compare)", "test: x_internal_secret_missing_returns_AUTH_INVALID_with_audit_log_no_secret_value"]}
+  ],
+
+  "td_ambiguity_notes": [
+    {
+      "topic": "inventory.reservation.commit HTTP exposure",
+      "tl_contract_says": "callers: 'inventory's own payment.completed consumer (primary). HTTP path retained for ops tooling.'",
+      "td_decision": "DROP the HTTP route in MVP. Reservation commit is implemented as INTERNAL_FUNCTION (ReservationService.Commit) called only from the events.payment.completed consumer. Rationale: (a) no production caller exists; (b) per the user's TD instruction the inventory HTTP surface is 'stock.read, stock.bulk-read, stock.adjust, reservation.create, reservation.release' — commit is intentionally not exposed; (c) cross-cutting.route-convention.examples.inventory still LISTS POST /reservation/commit, so this is a TD-level deviation flagged for Plan-Reviewer. Ops tooling, if needed later, can be added as an admin-scoped endpoint.",
+      "owner_to_decide": "Plan-Reviewer (TD elects 'do not expose'; surface flagged ready to flip if reviewer disagrees)"
+    },
+    {
+      "topic": "inventory.reservation.release auth tier (JWT vs internal_secret)",
+      "tl_contract_says": "cross-cutting.persistence.transactional_boundaries: 'On any sync-call failure, checkout calls inventory.reservation.release as compensation' AND connectivity.md auth-boundaries table lists '/api/v1/inventory/reservation/create|commit|release' under X-Internal-Secret.",
+      "td_decision": "internal_secret (X-Internal-Secret with constant-time compare). Aligns with connectivity.md and the user's instruction ('Internal HTTP: reservation.create ... reservation.release (compensation)'). The earlier td.json variant suggesting CUSTOMER-JWT for customer-cancel is INCORRECT — customer-cancel flows from the user via order.cancel-mine; Inventory then handles the release via the events.order.cancelled consumer, not via a customer-facing HTTP call.",
+      "owner_to_decide": "settled per connectivity.md + user instruction"
+    },
+    {
+      "topic": "events.product.created initial qty",
+      "tl_contract_says": "payload only carries {productId, sku} — no initial_qty.",
+      "td_decision": "Seed stock_levels with zeros (available=0, reserved=0, sold=0). Admin uses inventory.stock.adjust to set initial inventory. Consumer uses ON CONFLICT (sku) DO NOTHING for natural idempotency. Until a positive delta lands via stock.adjust, catalog's inStock filter omits the product.",
+      "owner_to_decide": "settled; flagged for visibility"
+    },
+    {
+      "topic": "reservationId returned by reservation.create (one row per SKU vs. one group id)",
+      "tl_contract_says": "response_data.reservationId is singular but reservation table is one row per SKU.",
+      "td_decision": "Return reservationIds[0] (the first inserted row's UUID v7, deterministic by ORDER BY sku ASC). All reservation lookups in event consumers / release / commit are by order_id (NOT reservationId), so the returned id is informational/audit-only. If TL prefers a separate group-id column, schema change is local to inventory.",
+      "owner_to_decide": "Plan-Reviewer (cosmetic; current implementation is consistent)"
+    },
+    {
+      "topic": "IDEMPOTENCY_KEY_INFLIGHT for reservation.create",
+      "tl_contract_says": "cross-cutting.idempotency.failure_modes lists IDEMPOTENCY_KEY_INFLIGHT for concurrent same-key calls.",
+      "td_decision": "Use Postgres FOR UPDATE on idempotency_keys to serialize concurrent same-key calls (waiter blocks until the first commit then takes the replay branch). Do NOT return IDEMPOTENCY_KEY_INFLIGHT under default config — Checkout will rarely double-fire with the same orderId. Reserve the code for a future config-tunable lock-timeout.",
+      "owner_to_decide": "Reviewer-L1 (acceptable trade-off; documented)"
+    }
+  ]
+}

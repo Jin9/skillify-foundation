@@ -1,0 +1,62 @@
+{
+  "stage": "compliance",
+  "stage_status": "complete",
+  "pii_inventory": [
+    {
+      "story_id": "EPIC-WIRE-STATUS-1",
+      "field": "wire transfer status",
+      "category": "financial",
+      "status": "applies",
+      "treatment": "Mask sensitive transfer details in customer-facing output.",
+      "retention_rule": "Retain per banking record policy.",
+      "residency_rule": "Keep in approved banking data region.",
+      "masking_rule": "Show only neutral status label.",
+      "access_audit": "Audit support and operations access."
+    }
+  ],
+  "stakeholders": [
+    {
+      "role": "Business Owner",
+      "type": "owner",
+      "decision_authority": "Owns feature scope",
+      "authority_mode": "proposal",
+      "status": "active"
+    },
+    {
+      "role": "Legal",
+      "type": "approver",
+      "decision_authority": "Approves customer-facing compliance language",
+      "status": "absent",
+      "engagement_required_for": "Tipping-off-safe wording sign-off"
+    }
+  ],
+  "legal_status_by_epic": [
+    {
+      "epic_id": "EPIC-WIRE-STATUS",
+      "legal_status": "absent",
+      "evidence": ["No Legal utterance or approval found in source."]
+    }
+  ],
+  "regulatory_dependencies": [
+    {
+      "regulator": "Internal AML policy",
+      "code": "AML-COMMS",
+      "citation_status": "pending",
+      "promisor": "Compliance"
+    }
+  ],
+  "governance_gaps": [
+    {
+      "type": "legal_absent_on_regulatory",
+      "severity": "P1",
+      "evidence": ["Customer-facing wire status touches AML/tipping-off language."],
+      "required_action": "Schedule Legal review before TL handoff.",
+      "blocks_tl_handoff": true
+    }
+  ],
+  "tipping_off_scan": {
+    "status": "clean",
+    "violations": []
+  },
+  "blocks_tl_handoff": true
+}

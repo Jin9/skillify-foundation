@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS catalog.categories CASCADE;
+DROP SCHEMA IF EXISTS catalog CASCADE;

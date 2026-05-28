@@ -1,0 +1,974 @@
+{
+  "template_version": "0.1.0",
+  "component_name": "order",
+  "required": true,
+  "complexity": "complex",
+  "complexity_rationale": "Sole writer of orders.status (ADR-003) AND owner of the §9.2 state machine across 8 states + 14 allowed transitions + 14 explicitly forbidden ones AND consumer of 4 cross-topic events (events.payment.completed/failed/expired + events.reservation.expired) AND producer of events.order.cancelled via outbox AND recipient of two formally-authored internal endpoints (order.create-from-checkout, order.cancel-on-checkout-failure) per ADR-007's checkout compensation matrix. State-driven consumer rule (ADR-009: read current row state via SELECT FOR UPDATE; ignore event.fromStatus) is load-bearing for the PR-003 cross-topic race; mis-implementing it permanently corrupts orders.",
+  "owner_role": "tech-designer",
+  "spec_version": "0.2.0",
+
+  "summary": {
+    "responsibility": "Sole writer of order lifecycle state. Owns orders + order_items (immutable price/name/image snapshots per ORD-007), per-transition order_status_history (ORD-009), human-readable order numbers (ORD-008), the outbox emission for events.order.cancelled, and the four state-driven inbound event consumers. Consumes payment + inventory events to drive the §9.2 state machine.",
+    "sole_writer_invariant": "Per ADR-003 + contracts.json notes.locked_decisions_summary line 12 + PR-003 race resolution: Order is the ONLY service that writes orders.status. Payment, Inventory, and Checkout never UPDATE orders.status directly. Checkout creates the row in PENDING_PAYMENT via the internal endpoint order.create-from-checkout; thereafter every status mutation passes through Order's state-machine guard (SELECT ... FOR UPDATE -> validate transition table -> write status_history -> maybe emit outbox).",
+    "skills_invoked": ["crafting-backend-code", "generating-pseudocode"]
+  },
+
+  "scaffold": {
+    "from_template": "B2C E-Commerce Platform/backend/go-template",
+    "service_path": "B2C E-Commerce Platform/backend/services/order",
+    "go_module": "github.com/example/shoppilot/order",
+    "common_lib_import": "B2C E-Commerce Platform/backend/common"
+  },
+
+  "persistence": {
+    "schema_owner": "order",
+    "database": "PostgreSQL 15+ via common/database (pgx). Schema-per-service: schema 'order' (ADR-001).",
+    "migrations": [
+      "001_orders.up.sql",
+      "002_order_items.up.sql",
+      "003_order_status_history.up.sql",
+      "004_outbox_events.up.sql",
+      "005_consumed_events.up.sql",
+      "006_admin_action_log.up.sql",
+      "007_order_number_seq.up.sql"
+    ],
+    "tables": [
+      {
+        "name": "orders",
+        "purpose": "Aggregate root. One row per customer order. Sole-writer of orders.status (ADR-003).",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          { "name": "id", "type": "UUID", "constraints": ["PK"], "notes": "UUID v7 client-supplied by Checkout (per cross-cutting.idempotency.internal_orderId_rule). Recipient stores as-is; does NOT call uuid_generate_v7() on this column. Sortable by creation time." },
+          { "name": "order_number", "type": "TEXT", "constraints": ["UNIQUE", "NOT NULL"], "notes": "Human-readable per ORD-008. Format: ORD-YYYYMMDD-NNNNNN. See order_number_strategy below. Allocated server-side at create-from-checkout time." },
+          { "name": "user_id", "type": "UUID", "constraints": ["NOT NULL", "INDEX"], "notes": "Owner; supplied as customerUserId by Checkout (claims.sub from Checkout's inbound JWT). Used by order.list-mine and ownership check on order.detail / order.cancel-mine." },
+          { "name": "status", "type": "TEXT", "constraints": ["NOT NULL", "CHECK (status IN ('PENDING_PAYMENT','PAID','PAYMENT_FAILED','PAYMENT_EXPIRED','PACKING','SHIPPED','DELIVERED','CANCELLED'))"], "notes": "ADR-003 sole-writer field. Modified ONLY by service/order_lifecycle inside SELECT ... FOR UPDATE tx. Code comment at every UPDATE: '// ADR-003 sole-writer of orders.status'." },
+          { "name": "subtotal", "type": "BIGINT", "constraints": ["NOT NULL", "CHECK (subtotal >= 0)"], "notes": "Whole-THB integer (cross-cutting.pricing currency rule). Snapshot at commit; immutable thereafter." },
+          { "name": "shipping_fee", "type": "BIGINT", "constraints": ["NOT NULL", "CHECK (shipping_fee >= 0)"], "notes": "Snapshot at commit. Per cross-cutting.pricing tier rule (1500 THB inclusive boundary -> free; otherwise 60 THB)." },
+          { "name": "coupon_discount", "type": "BIGINT", "constraints": ["NOT NULL", "DEFAULT 0", "CHECK (coupon_discount = 0)"], "notes": "Coupon engine out_of_scope; reserved field, must be 0 in this run (defensive CHECK)." },
+          { "name": "grand_total", "type": "BIGINT", "constraints": ["NOT NULL", "CHECK (grand_total >= 0)"], "notes": "= subtotal + shipping_fee - coupon_discount per cross-cutting.pricing.formula. Snapshot; equals payment intent amount." },
+          { "name": "currency", "type": "TEXT", "constraints": ["NOT NULL", "DEFAULT 'THB'", "CHECK (currency = 'THB')"], "notes": "MVP THB-only; CHECK is defensive." },
+          { "name": "address_snapshot", "type": "JSONB", "constraints": ["NOT NULL"], "notes": "Frozen Address payload at commit-time {addressId, receiverName, phone, addressLine, province, district, postalCode}. Used by order.detail; never re-resolved from identity.address.list. ORD-007 immutability." },
+          { "name": "buyer_email_snapshot", "type": "TEXT", "constraints": ["NOT NULL"], "notes": "Per contract order.list-admin.notes (contracts.json line 985) and Plan-Reviewer PR-002 advisory: SNAPSHOT IS PER-ORDER, NOT PER-LINE-ITEM. Captured at create-from-checkout time from the buyerEmail request field (Checkout sourced via identity.profile.read in checkout.commit step 2 — REV-L2-001 fix). Backs admin search-by-email." },
+          { "name": "tracking_number", "type": "TEXT", "constraints": ["NULL"], "notes": "Set on PACKING->SHIPPED transition; required for that transition (ORD-006). NULL until SHIPPED." },
+          { "name": "idempotency_key", "type": "TEXT", "constraints": ["NULL", "INDEX"], "notes": "Replay correlation. Equals Idempotency-Key header == orderId per cross-cutting.idempotency.internal_orderId_rule. Stored for trace/debug; the de-facto idempotency key is orders.id itself (so duplicate INSERT raises a PK violation that the handler treats as a replay)." },
+          { "name": "version", "type": "INT", "constraints": ["NOT NULL", "DEFAULT 0"], "notes": "Optimistic-lock column (OPTLOCK). Bumped on every UPDATE. Belt-and-suspenders alongside SELECT ... FOR UPDATE; the FOR UPDATE is the binding mechanism (cross-cutting.persistence.concurrency)." },
+          { "name": "created_at", "type": "TIMESTAMPTZ", "constraints": ["NOT NULL", "DEFAULT now()"] },
+          { "name": "updated_at", "type": "TIMESTAMPTZ", "constraints": ["NOT NULL", "DEFAULT now()"], "notes": "Bumped on every UPDATE in the repo write path." }
+        ],
+        "indexes": [
+          "CREATE INDEX idx_orders_user_id_created_at_desc ON orders (user_id, created_at DESC) -- backs order.list-mine sort+filter.",
+          "CREATE INDEX idx_orders_status_created_at_desc ON orders (status, created_at DESC) -- backs order.list-admin status filter.",
+          "CREATE UNIQUE INDEX idx_orders_order_number ON orders (order_number).",
+          "CREATE INDEX idx_orders_buyer_email_lower ON orders (LOWER(buyer_email_snapshot)) -- case-insensitive admin search-by-email."
+        ],
+        "owner_aggregate": "Order"
+      },
+      {
+        "name": "order_items",
+        "purpose": "Line items. Snapshot fields are IMMUTABLE per ORD-007.",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          { "name": "id", "type": "UUID", "constraints": ["PK", "DEFAULT uuid_generate_v7()"] },
+          { "name": "order_id", "type": "UUID", "constraints": ["NOT NULL", "FK -> orders.id ON DELETE RESTRICT", "INDEX"] },
+          { "name": "product_id", "type": "UUID", "constraints": ["NOT NULL"] },
+          { "name": "sku", "type": "TEXT", "constraints": ["NOT NULL"] },
+          { "name": "qty", "type": "INT", "constraints": ["NOT NULL", "CHECK (qty > 0)"] },
+          { "name": "name_snapshot", "type": "TEXT", "constraints": ["NOT NULL"], "notes": "Frozen at commit; product later soft-deleted still resolves here (CAT-009)." },
+          { "name": "image_url_snapshot", "type": "TEXT", "constraints": ["NULL"], "notes": "Frozen at commit. NULL acceptable — products may have no image." },
+          { "name": "price_snapshot", "type": "BIGINT", "constraints": ["NOT NULL", "CHECK (price_snapshot >= 0)"], "notes": "Whole-THB integer; the price at commit-time. ORD-007 immutability invariant — repo exposes no Update method." },
+          { "name": "line_subtotal", "type": "BIGINT", "constraints": ["NOT NULL", "CHECK (line_subtotal >= 0)"], "notes": "= price_snapshot * qty; persisted (denormalized) for audit/replay independence from arithmetic drift." },
+          { "name": "created_at", "type": "TIMESTAMPTZ", "constraints": ["NOT NULL", "DEFAULT now()"] }
+        ],
+        "indexes": [
+          "INDEX idx_order_items_order_id ON order_items (order_id) -- backs order.detail JOIN."
+        ],
+        "owner_aggregate": "Order",
+        "immutability_enforcement": "Repo layer exposes NO Update method (ORD-007). Defensive Postgres trigger on UPDATE/DELETE raises 'order_items rows are immutable per ORD-007' (deferred — repo discipline + code review covers MVP)."
+      },
+      {
+        "name": "order_status_history",
+        "purpose": "Append-only audit row per transition (ORD-009). Written in the SAME tx as the orders.status UPDATE (or, for the initial PENDING_PAYMENT row, the orders INSERT).",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          { "name": "id", "type": "UUID", "constraints": ["PK", "DEFAULT uuid_generate_v7()"] },
+          { "name": "order_id", "type": "UUID", "constraints": ["NOT NULL", "FK -> orders.id", "INDEX"] },
+          { "name": "from_status", "type": "TEXT", "constraints": ["NULL"], "notes": "NULL only for the initial PENDING_PAYMENT row written by order.create-from-checkout." },
+          { "name": "to_status", "type": "TEXT", "constraints": ["NOT NULL"] },
+          { "name": "actor_user_id", "type": "UUID", "constraints": ["NULL"], "notes": "NULL when actor_role='SYSTEM' (event-driven transitions or checkout-compensation)." },
+          { "name": "actor_role", "type": "TEXT", "constraints": ["NOT NULL", "CHECK (actor_role IN ('CUSTOMER','ADMIN','SYSTEM'))"] },
+          { "name": "reason", "type": "TEXT", "constraints": ["NULL"], "notes": "Required by app logic when to_status='CANCELLED' (admin path) or for SYSTEM transitions where the origin event id is recorded ('reservation expired (TTL) eventId=...' / 'payment.failed eventId=...' / 'payment intent creation failed: <upstream code>')." },
+          { "name": "occurred_at", "type": "TIMESTAMPTZ", "constraints": ["NOT NULL", "DEFAULT now()"] }
+        ],
+        "indexes": [
+          "INDEX idx_order_status_history_order_occurred ON order_status_history (order_id, occurred_at ASC) -- backs order.detail.statusHistory ordering."
+        ],
+        "owner_aggregate": "Order"
+      },
+      {
+        "name": "outbox_events",
+        "purpose": "Per ADR-004 outbox pattern + cross-cutting.persistence.outbox_pattern. Written in the SAME tx as the status mutation when emitting events.order.cancelled OR (per contracts.json line 1067) the audit-only PENDING_PAYMENT event on creation.",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          { "name": "id", "type": "UUID", "constraints": ["PK"], "notes": "UUID v7; doubles as event_id in the published payload." },
+          { "name": "aggregate_id", "type": "UUID", "constraints": ["NOT NULL"], "notes": "= orders.id. Becomes the Kafka partition key (events.order.cancelled.ordering_guarantees: partition_key = orderId)." },
+          { "name": "event_type", "type": "TEXT", "constraints": ["NOT NULL"], "notes": "MVP: 'order.cancelled' (consumed by inventory + payment) and 'order.created' (audit-only PENDING_PAYMENT signal — no consumer in MVP)." },
+          { "name": "payload_json", "type": "JSONB", "constraints": ["NOT NULL"], "notes": "Conforms to events.order.cancelled.payload {eventId, occurredAt, orderId, cancelActor, fromStatus, reason?} for cancel events; audit-only payload for the create event." },
+          { "name": "created_at", "type": "TIMESTAMPTZ", "constraints": ["NOT NULL", "DEFAULT now()"] },
+          { "name": "published_at", "type": "TIMESTAMPTZ", "constraints": ["NULL"], "notes": "NULL until the publisher goroutine sends to Kafka." }
+        ],
+        "indexes": [
+          "CREATE INDEX outbox_events_pending ON outbox_events (id) WHERE published_at IS NULL -- partial index for the publisher polling query (ADR-004)."
+        ],
+        "owner_aggregate": "Order"
+      },
+      {
+        "name": "consumed_events",
+        "purpose": "Per-service idempotency table for inbound Kafka events (events.payment.completed | events.payment.failed | events.payment.expired | events.reservation.expired). PK on event_id; INSERT ... ON CONFLICT DO NOTHING absorbs at-least-once redelivery (ADR-004).",
+        "primary_key": "event_id",
+        "columns": [
+          { "name": "event_id", "type": "UUID", "constraints": ["PK"], "notes": "Conflict on insert = duplicate; consumer treats as already-processed and acks." },
+          { "name": "consumer_name", "type": "TEXT", "constraints": ["NOT NULL"], "notes": "e.g. 'order.payment.completed' / 'order.payment.failed' / 'order.payment.expired' / 'order.reservation.expired'." },
+          { "name": "event_type", "type": "TEXT", "constraints": ["NOT NULL"] },
+          { "name": "order_id", "type": "UUID", "constraints": ["NOT NULL", "INDEX"], "notes": "For debug; the actual transition uses the order_id from the event payload." },
+          { "name": "processed_at", "type": "TIMESTAMPTZ", "constraints": ["NOT NULL", "DEFAULT now()"] }
+        ],
+        "indexes": [
+          "INDEX idx_consumed_events_order_id ON consumed_events (order_id) -- debug/forensics."
+        ],
+        "owner_aggregate": "Order"
+      },
+      {
+        "name": "admin_action_log",
+        "purpose": "Local audit log for admin endpoints per Reviewer-L1 quality bar. Audit-as-its-own-service is out_of_scope (BA out_of_scope line 76); admin endpoints still log to a local table; the row is written in-tx with the status mutation.",
+        "primary_key": "id (UUID v7)",
+        "columns": [
+          { "name": "id", "type": "UUID", "constraints": ["PK", "DEFAULT uuid_generate_v7()"] },
+          { "name": "actor_user_id", "type": "UUID", "constraints": ["NOT NULL"] },
+          { "name": "endpoint", "type": "TEXT", "constraints": ["NOT NULL"], "notes": "e.g. 'order.update-status-admin' / 'order.list-admin'." },
+          { "name": "order_id", "type": "UUID", "constraints": ["NULL"], "notes": "NULL for endpoints that don't act on a specific order (list-admin)." },
+          { "name": "request_summary", "type": "JSONB", "constraints": ["NOT NULL"], "notes": "{toStatus?, trackingNumber?, reason?, filters?} -- never includes the JWT or auth header (security review item)." },
+          { "name": "outcome_code", "type": "TEXT", "constraints": ["NOT NULL"], "notes": "From cross-cutting.error-codes registry (e.g. SUCCESS, INVALID_ORDER_STATE)." },
+          { "name": "occurred_at", "type": "TIMESTAMPTZ", "constraints": ["NOT NULL", "DEFAULT now()"] }
+        ],
+        "indexes": [
+          "INDEX idx_admin_action_log_order_occurred ON admin_action_log (order_id, occurred_at DESC) WHERE order_id IS NOT NULL -- forensics."
+        ],
+        "owner_aggregate": "Order"
+      }
+    ],
+    "order_number_strategy": {
+      "format": "ORD-YYYYMMDD-NNNNNN",
+      "chosen_implementation": "Single global Postgres sequence formatted into a date prefix at allocation time.",
+      "ddl": "CREATE SEQUENCE order_number_seq START 1 INCREMENT 1 NO CYCLE;",
+      "rationale": "A per-day sequence requires either DDL at midnight or a sequence-per-day naming scheme (operationally noisy in MVP). A single global sequence formatted with NNNNNN zero-padded to 6 digits (overflow tolerated as 7+ once we cross 10^6 orders) keeps allocation a single, race-free SELECT nextval(...) and meets ORD-008's only stated requirement (human-readable, includes a date). Trade-off: NNNNNN does not reset to 000001 at midnight, but ORD-008 does not require that — only the ORD-YYYYMMDD-NNNNNN shape.",
+      "allocation": "Inside order.create-from-checkout tx: SELECT nextval('order_number_seq'); format as fmt.Sprintf('ORD-%s-%06d', time.Now().UTC().Format('20060102'), seq). Race-free by sequence semantics; UNIQUE constraint on order_number is the safety net.",
+      "alternatives_considered_and_rejected": [
+        "(b) per-day sequence: needs a daily DDL job or table-driven counter under FOR UPDATE -- extra complexity for no MVP benefit.",
+        "(c) UUID v7 as order_number: not human-readable; violates ORD-008 spirit.",
+        "(d) snowflake-style ID inside Order: adds a clock-skew failure mode; sequence is the simplest safe pick."
+      ]
+    }
+  },
+
+  "endpoints": [
+    {
+      "name": "list-mine",
+      "endpoint_id": "order.list-mine",
+      "contract_ref": "order.list-mine",
+      "method_path": "POST /api/v1/order/order/list-mine",
+      "actor": "CUSTOMER",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "page":   { "type": "integer", "minimum": 1, "default": 1 },
+          "limit":  { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "status": { "type": "string", "enum": ["PENDING_PAYMENT","PAID","PAYMENT_FAILED","PAYMENT_EXPIRED","PACKING","SHIPPED","DELIVERED","CANCELLED"] }
+        }
+      },
+      "response_schema": { "type": "object", "required": ["code","message","data","traceId"], "properties": { "data": { "type": "object", "required": ["orders","total","page"] } } },
+      "validation_rules": [
+        "page integer >= 1 (default 1)",
+        "limit integer in [1, 100] (default 20)",
+        "status (optional) must match the 8-value enum"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR", "http_status": 400, "trigger": "page/limit out of bounds; status not in enum" },
+        { "code": "AUTH_MISSING",     "http_status": 401, "trigger": "no Authorization header" },
+        { "code": "AUTH_INVALID",     "http_status": 401, "trigger": "JWT signature/exp/iss/aud invalid" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Read; naturally idempotent.",
+        "side_effects": [],
+        "transactionality": "single SELECT; no tx needed."
+      },
+      "ownership_scope": "WHERE user_id = claims.sub. Status filter optional. Sort createdAt DESC. Server NEVER honors a client-supplied user filter (ORD-001).",
+      "ac_mapping": ["ORD-001"],
+      "implementation_hints": [
+        "common/middleware JWT (ES256) extracts claims.sub via token.WithClaims",
+        "common/database pgx with prepared SELECT ... WHERE user_id=$1 AND ($2 IS NULL OR status=$2) ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+        "common/wrapper.Success envelope"
+      ]
+    },
+    {
+      "name": "detail",
+      "endpoint_id": "order.detail",
+      "contract_ref": "order.detail",
+      "method_path": "POST /api/v1/order/order/detail",
+      "actor": "CUSTOMER (own order) | ADMIN (any order)",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId"],
+        "properties": { "orderId": { "type": "string", "format": "uuid" } }
+      },
+      "response_schema": { "type": "object", "required": ["code","message","data","traceId"] },
+      "validation_rules": ["orderId must be UUID v7-shaped string"],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR", "http_status": 400, "trigger": "orderId missing/malformed" },
+        { "code": "AUTH_MISSING",     "http_status": 401, "trigger": "no Authorization header" },
+        { "code": "AUTH_INVALID",     "http_status": 401, "trigger": "JWT invalid" },
+        { "code": "ORDER_NOT_OWNED",  "http_status": 404, "trigger": "claims.role=CUSTOMER and (id not found OR id not owned by claims.sub) -- 404 to prevent enumeration. NEVER 403; preserves no-existence-leak rule." },
+        { "code": "NOT_FOUND",        "http_status": 404, "trigger": "claims.role=ADMIN and id not found" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Read.",
+        "side_effects": [],
+        "transactionality": "Two-statement read (orders + order_items + status_history); no write tx required."
+      },
+      "ownership_scope": "If claims.role=CUSTOMER: WHERE id=$1 AND user_id=claims.sub; on miss return ORDER_NOT_OWNED (HTTP 404 — never disclose existence per contract failure_modes; ORD-001). If claims.role=ADMIN: WHERE id=$1; on miss return NOT_FOUND.",
+      "response_data_shape": "see contracts.order.detail.payload_shape.response_data verbatim — orderNumber, status, items[] (with all snapshots per ORD-007), addressSnapshot, subtotal, total, trackingNumber, statusHistory[] (sorted by occurred_at ASC), createdAt, updatedAt.",
+      "ac_mapping": ["ORD-001", "ORD-002", "ORD-007", "ORD-009", "CAT-009"],
+      "implementation_hints": [
+        "repo.OrdersFindByIdScopedToUser(id, userId) for CUSTOMER; repo.OrdersFindById(id) for ADMIN",
+        "repo.OrderItemsListByOrderId(orderId) — all snapshots returned as-is",
+        "repo.StatusHistoryListByOrderIdAsc(orderId) — order BY occurred_at ASC"
+      ]
+    },
+    {
+      "name": "cancel-mine",
+      "endpoint_id": "order.cancel-mine",
+      "contract_ref": "order.cancel-mine",
+      "method_path": "POST /api/v1/order/order/cancel-mine",
+      "actor": "CUSTOMER",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId"],
+        "properties": { "orderId": { "type": "string", "format": "uuid" } }
+      },
+      "response_schema": { "type": "object", "required": ["code","message","data","traceId"] },
+      "validation_rules": ["orderId must be UUID v7-shaped"],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR",     "http_status": 400, "trigger": "orderId missing/malformed" },
+        { "code": "AUTH_MISSING",         "http_status": 401, "trigger": "no Authorization header" },
+        { "code": "AUTH_INVALID",         "http_status": 401, "trigger": "JWT invalid" },
+        { "code": "ORDER_NOT_OWNED",      "http_status": 404, "trigger": "id not found OR not owned by claims.sub" },
+        { "code": "INVALID_ORDER_STATE",  "http_status": 409, "trigger": "current status != PENDING_PAYMENT (ORD-004; e.g. attempting to cancel a PAID order via this endpoint)" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Re-cancelling a CANCELLED-by-self order returns 200 (per contract idempotency_rules + AMBIG-ORD-3 resolution). The handler checks the latest status_history row's actor_user_id == claims.sub; if so, 200 idempotent. If the latest cancel was by ADMIN, the customer gets 409 INVALID_ORDER_STATE because they no longer own the action.",
+        "side_effects": [
+          "UPDATE orders SET status='CANCELLED', version+=1, updated_at=now()  // ADR-003 sole-writer of orders.status",
+          "INSERT order_status_history (from_status='PENDING_PAYMENT', to_status='CANCELLED', actor_role='CUSTOMER', actor_user_id=claims.sub)",
+          "INSERT outbox_events (event_type='order.cancelled', payload {eventId, occurredAt, orderId, cancelActor:'CUSTOMER', fromStatus:'PENDING_PAYMENT'})"
+        ],
+        "transactionality": "Single tx; SELECT FOR UPDATE on the orders row before validating + writing."
+      },
+      "transition_guarded": "PENDING_PAYMENT -> CANCELLED only (ORD-004). Any other current status returns INVALID_ORDER_STATE.",
+      "transaction_steps": [
+        "1. BEGIN;",
+        "2. SELECT * FROM orders WHERE id=$1 AND user_id=claims.sub FOR UPDATE; — combined ownership + lock. NOT FOUND -> ROLLBACK; 404 ORDER_NOT_OWNED (do NOT 403; preserves enumeration resistance).",
+        "3. If status='CANCELLED': read most-recent status_history row; if its actor_user_id = claims.sub -> COMMIT; return 200 (idempotent re-cancel by self per AMBIG-ORD-3 resolution). Else ROLLBACK; 409 INVALID_ORDER_STATE.",
+        "4. If status != 'PENDING_PAYMENT' -> ROLLBACK; 409 INVALID_ORDER_STATE.",
+        "5. UPDATE orders SET status='CANCELLED', version=version+1, updated_at=now() WHERE id=$1 AND version=$old_version; -- ADR-003 sole-writer.",
+        "6. INSERT INTO order_status_history (order_id, from_status='PENDING_PAYMENT', to_status='CANCELLED', actor_user_id=claims.sub, actor_role='CUSTOMER', reason=NULL);",
+        "7. INSERT INTO outbox_events (id=uuidv7(), aggregate_id=order_id, event_type='order.cancelled', payload_json={eventId:id, occurredAt:now(), orderId:order_id, cancelActor:'CUSTOMER', fromStatus:'PENDING_PAYMENT', reason:null});",
+        "8. COMMIT;"
+      ],
+      "side_effects_summary": "status_history row + outbox order.cancelled with fromStatus=PENDING_PAYMENT. Inventory consumes and releases reservation (RESERVED->available). Payment intent transitions to CANCELLED via its own state-driven consumer.",
+      "ac_mapping": ["ORD-004", "ORD-009"],
+      "implementation_hints": [
+        "service/order_lifecycle.CancelByCustomer(ctx, orderId, claimsSub)",
+        "common/database tx with begin/commit; SELECT FOR UPDATE inside the tx",
+        "outbox row INSERT in same tx — outbox publisher goroutine (transport/outbox_publisher) ships it later"
+      ]
+    },
+    {
+      "name": "list-admin",
+      "endpoint_id": "order.list-admin",
+      "contract_ref": "order.list-admin",
+      "method_path": "POST /api/v1/order/order/list-admin",
+      "actor": "ADMIN",
+      "auth_required": "admin_jwt",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "page":     { "type": "integer", "minimum": 1, "default": 1 },
+          "limit":    { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "status":   { "type": "string", "enum": ["PENDING_PAYMENT","PAID","PAYMENT_FAILED","PAYMENT_EXPIRED","PACKING","SHIPPED","DELIVERED","CANCELLED"] },
+          "dateFrom": { "type": "string", "format": "date" },
+          "dateTo":   { "type": "string", "format": "date" },
+          "search":   { "type": "string", "maxLength": 254, "description": "matches order_number prefix OR buyer_email_snapshot LOWER-exact" }
+        }
+      },
+      "response_schema": { "type": "object", "required": ["code","message","data","traceId"] },
+      "validation_rules": [
+        "dateFrom <= dateTo when both provided (else VALIDATION_ERROR)",
+        "search if present is trimmed; if it parses as ORD-* prefix, prefix-match orders.order_number; else LOWER(search) exact-match orders.buyer_email_snapshot"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR",  "http_status": 400, "trigger": "dateFrom > dateTo; status/page/limit out of bounds" },
+        { "code": "AUTH_MISSING",      "http_status": 401, "trigger": "no Authorization header" },
+        { "code": "AUTH_INVALID",      "http_status": 401, "trigger": "JWT invalid" },
+        { "code": "AUTH_FORBIDDEN",    "http_status": 403, "trigger": "claims.role != ADMIN (AUTH-003)" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Read.",
+        "side_effects": ["INSERT admin_action_log {endpoint:'order.list-admin', request_summary:{filters}, outcome_code:'SUCCESS'}"],
+        "transactionality": "Single SELECT + single audit-row INSERT in a small tx."
+      },
+      "ac_mapping": ["ADM-003", "ADM-004"],
+      "notes": "Search by customer email leverages buyer_email_snapshot (idx_orders_buyer_email_lower). Search by orderNumber uses prefix match on the unique index. Audit row written in-tx so the audit log can never report fewer reads than actually happened.",
+      "implementation_hints": [
+        "transport/http admin-role decorator before binding",
+        "repo.OrdersListAdmin(filters) returns page",
+        "repo.AdminActionLogInsert(tx, entry) inside the same audit tx"
+      ]
+    },
+    {
+      "name": "update-status-admin",
+      "endpoint_id": "order.update-status-admin",
+      "contract_ref": "order.update-status-admin",
+      "method_path": "POST /api/v1/order/order/update-status-admin",
+      "actor": "ADMIN",
+      "auth_required": "admin_jwt",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId","toStatus"],
+        "properties": {
+          "orderId":        { "type": "string", "format": "uuid" },
+          "toStatus":       { "type": "string", "enum": ["PACKING","SHIPPED","DELIVERED","CANCELLED"] },
+          "trackingNumber": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "reason":         { "type": "string", "minLength": 1, "maxLength": 255 }
+        },
+        "allOf": [
+          { "if": { "properties": { "toStatus": { "const": "SHIPPED" } } },   "then": { "required": ["trackingNumber"] } },
+          { "if": { "properties": { "toStatus": { "const": "CANCELLED" } } }, "then": { "required": ["reason"] } }
+        ]
+      },
+      "response_schema": { "type": "object", "required": ["code","message","data","traceId"] },
+      "validation_rules": [
+        "trackingNumber required when toStatus=SHIPPED (ORD-006)",
+        "reason required when toStatus=CANCELLED (ORD-005); 1..255 chars",
+        "toStatus is admin-allowed enum only (PACKING|SHIPPED|DELIVERED|CANCELLED) — admin cannot drive PAID/PAYMENT_FAILED/PAYMENT_EXPIRED via this endpoint"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR",     "http_status": 400, "trigger": "missing trackingNumber on SHIPPED; missing reason on CANCELLED; toStatus not in enum (ORD-005, ORD-006)" },
+        { "code": "AUTH_MISSING",         "http_status": 401, "trigger": "no Authorization header" },
+        { "code": "AUTH_INVALID",         "http_status": 401, "trigger": "JWT invalid" },
+        { "code": "AUTH_FORBIDDEN",       "http_status": 403, "trigger": "claims.role != ADMIN (AUTH-003)" },
+        { "code": "NOT_FOUND",            "http_status": 404, "trigger": "orderId does not exist" },
+        { "code": "INVALID_ORDER_STATE",  "http_status": 409, "trigger": "(currentStatus, toStatus, ADMIN) not in state_machine.allowed_transitions; e.g. PACKING->CANCELLED, SHIPPED->PAID, DELIVERED->CANCELLED, PENDING_PAYMENT->PACKING (ORD-003, PR-005, requirement §9.3)" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Re-issuing the same (orderId, toStatus) when row is already at toStatus -> 200 idempotent (no extra status_history row, no extra outbox row). Optional Idempotency-Key per contract; if supplied, the standard idempotency_keys store applies (out-of-band; not implemented in MVP since the FOR UPDATE + status-comparison achieves the same property).",
+        "side_effects": [
+          "UPDATE orders SET status=?, [tracking_number=? if SHIPPED], version+=1  // ADR-003 sole-writer",
+          "INSERT order_status_history (from_status=current, to_status=?, actor_role='ADMIN', actor_user_id=claims.sub, reason?)",
+          "If toStatus=CANCELLED: INSERT outbox_events (event_type='order.cancelled', payload {fromStatus:current, cancelActor:'ADMIN', reason})",
+          "INSERT admin_action_log row in same tx"
+        ],
+        "transactionality": "Single tx with SELECT FOR UPDATE on the orders row."
+      },
+      "transition_table_reference": "state_machine.allowed_transitions filtered to ADMIN-actor rows (5 rows). The handler validates the (currentStatus, toStatus) pair against this table AFTER acquiring the row lock, NEVER from a stale read.",
+      "transaction_steps": [
+        "1. Validate role=ADMIN (transport/http admin decorator); reject CUSTOMER with 403 AUTH_FORBIDDEN.",
+        "2. Validate request shape: trackingNumber when toStatus=SHIPPED; reason when toStatus=CANCELLED. Else 400 VALIDATION_ERROR.",
+        "3. BEGIN;",
+        "4. SELECT * FROM orders WHERE id=$1 FOR UPDATE; NOT FOUND -> ROLLBACK; 404 NOT_FOUND.",
+        "5. If status = toStatus already (idempotent retry per contract idempotency_rules) -> INSERT admin_action_log {outcome_code='SUCCESS', request_summary:{idempotent:true}}; COMMIT no-op (no extra status_history row, no extra outbox row); return 200.",
+        "6. Look up (current_status, toStatus, ADMIN) in state_machine.allowed_transitions. Miss -> INSERT admin_action_log {outcome_code='INVALID_ORDER_STATE', ...}; COMMIT (audit even on rejection); return 409 INVALID_ORDER_STATE.",
+        "7. Apply side_effects per the transition row: UPDATE orders SET status=$2, tracking_number=$3 if SHIPPED, version=version+1; INSERT order_status_history; if toStatus=CANCELLED INSERT outbox_events (event_type='order.cancelled', payload {fromStatus:current_status, cancelActor:'ADMIN', reason}).",
+        "8. INSERT admin_action_log {outcome_code='SUCCESS', ...}.",
+        "9. COMMIT."
+      ],
+      "ac_mapping": ["ORD-003", "ORD-005", "ORD-006", "ORD-009", "PR-005", "PR-006", "AUTH-003"],
+      "notes": "PAID is reachable only via events.payment.completed consumer; PENDING_PAYMENT only via order.create-from-checkout; PAYMENT_FAILED/PAYMENT_EXPIRED only via the corresponding event consumers. This admin endpoint cannot synthesize those states — see explicitly_disallowed examples in state_machine.",
+      "implementation_hints": [
+        "service/order_lifecycle.UpdateStatusByAdmin(ctx, orderId, toStatus, trackingNumber?, reason?, claimsSub)",
+        "domain/transitions.ValidateTransition(currentStatus, toStatus, 'ADMIN') — pure-fn lookup against the table",
+        "Audit row written even on rejection (rejection-path traceability)"
+      ]
+    },
+    {
+      "name": "create-from-checkout",
+      "endpoint_id": "order.create-from-checkout",
+      "contract_ref": "order.create-from-checkout",
+      "method_path": "POST /api/v1/order/internal/create-from-checkout",
+      "actor": "INTERNAL (Checkout service only)",
+      "auth_required": "internal_secret",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId","customerUserId","buyerEmail","addressSnapshot","items","subtotal","shippingFee","couponDiscount","total"],
+        "properties": {
+          "orderId":         { "type": "string", "format": "uuid", "description": "UUID v7; client-supplied by Checkout; recipient stores as orders.id." },
+          "customerUserId":  { "type": "string", "format": "uuid" },
+          "buyerEmail":      { "type": "string", "format": "email", "maxLength": 254, "description": "From identity.profile.read step 2 of checkout.commit; required (REV-L2-001 fix)." },
+          "addressSnapshot": {
+            "type": "object", "required": ["addressId","receiverName","phone","addressLine","province","district","postalCode"],
+            "properties": {
+              "addressId":    { "type": "string", "format": "uuid" },
+              "receiverName": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "phone":        { "type": "string", "minLength": 1, "maxLength": 32 },
+              "addressLine":  { "type": "string", "minLength": 1 },
+              "province":     { "type": "string", "minLength": 1 },
+              "district":     { "type": "string", "minLength": 1 },
+              "postalCode":   { "type": "string", "minLength": 1, "maxLength": 16 }
+            }
+          },
+          "items": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object", "required": ["productId","sku","productNameSnapshot","priceSnapshot","qty"],
+              "properties": {
+                "productId":              { "type": "string", "format": "uuid" },
+                "sku":                    { "type": "string", "minLength": 1 },
+                "productNameSnapshot":    { "type": "string", "minLength": 1 },
+                "productImageUrlSnapshot":{ "type": ["string","null"] },
+                "priceSnapshot":          { "type": "integer", "minimum": 0 },
+                "qty":                    { "type": "integer", "minimum": 1 }
+              }
+            }
+          },
+          "subtotal":        { "type": "integer", "minimum": 0 },
+          "shippingFee":     { "type": "integer", "minimum": 0 },
+          "couponDiscount":  { "type": "integer", "const": 0 },
+          "total":           { "type": "integer", "minimum": 0 }
+        }
+      },
+      "request_headers": {
+        "X-Internal-Secret": "string (constant-time-compared against INTERNAL_SHARED_SECRET; ADR-008)",
+        "Idempotency-Key":   "string (MUST equal request.orderId per cross-cutting.idempotency.internal_orderId_rule)"
+      },
+      "response_schema": { "type": "object", "required": ["code","message","data","traceId"] },
+      "validation_rules": [
+        "Idempotency-Key header MUST equal request.orderId; mismatch -> 400 VALIDATION_ERROR (REV-L2-006)",
+        "buyerEmail required + RFC5322 (REV-L2-001 fix; without this Checkout->Order returns 400 and breaks every commit)",
+        "subtotal == sum(items[i].priceSnapshot * items[i].qty)  — defensive recompute; mismatch -> 400 VALIDATION_ERROR",
+        "total == subtotal + shippingFee - couponDiscount  — defensive recompute; mismatch -> 400 VALIDATION_ERROR",
+        "couponDiscount === 0 in MVP",
+        "items min 1, each qty >=1, priceSnapshot >=0",
+        "Idempotency-Key length <= 128 chars (cross-cutting.idempotency.payload_shape.header)"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR",        "http_status": 400, "trigger": "buyerEmail missing/malformed; idempotencyKey != orderId; subtotal/total inconsistent with items; required field missing" },
+        { "code": "AUTH_INVALID",            "http_status": 401, "trigger": "missing or wrong X-Internal-Secret (constant-time compare via crypto/subtle.ConstantTimeCompare; ADR-008)" },
+        { "code": "IDEMPOTENCY_KEY_REUSED",  "http_status": 409, "trigger": "same orderId + DIFFERENT canonicalized body (recipient compares request_hash). Returns the original orderNumber in error data so the caller can recover." },
+        { "code": "DATABASE_UNAVAILABLE",    "http_status": 503, "trigger": "Postgres unreachable" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Idempotent on orderId. The orders.id PK is the de-facto idempotency key — duplicate INSERT with the SAME body returns the cached envelope (read by selecting orders + order_items by id and reconstructing the response). Different body for the same orderId raises a structured 409 IDEMPOTENCY_KEY_REUSED with the original orderNumber.",
+        "side_effects": [
+          "INSERT INTO orders (id=$orderId, order_number, user_id=$customerUserId, status='PENDING_PAYMENT', subtotal, shipping_fee, coupon_discount, grand_total, currency='THB', address_snapshot, buyer_email_snapshot, idempotency_key=$orderId, version=0) — ADR-003 sole-writer.",
+          "INSERT INTO order_items (one row per request.items[i]; price_snapshot/name_snapshot/image_url_snapshot frozen).",
+          "INSERT INTO order_status_history (from_status=NULL, to_status='PENDING_PAYMENT', actor_role='SYSTEM', actor_user_id=NULL, reason='checkout.commit step 7').",
+          "INSERT INTO outbox_events (event_type='order.created', aggregate_id=order_id, payload {audit-only PENDING_PAYMENT signal — not subscribed by any consumer in MVP per contracts.json line 1067})."
+        ],
+        "transactionality": "SINGLE tx writes orders + order_items + order_status_history + outbox.order.created (audit). All-or-nothing; PK violation on orders.id is caught and treated as idempotent replay."
+      },
+      "transaction_steps": [
+        "0. Middleware: constant-time-compare X-Internal-Secret against INTERNAL_SHARED_SECRET (or comma-segmented rotation overlap). Reject -> 401 AUTH_INVALID; log internal_auth_reject.",
+        "1. Validate Idempotency-Key == request.orderId; mismatch -> 400 VALIDATION_ERROR (REV-L2-006).",
+        "2. Validate body against schema; recompute subtotal + total; mismatch -> 400 VALIDATION_ERROR.",
+        "3. BEGIN;",
+        "4. Try INSERT INTO orders (id=$orderId, ...) ON CONFLICT (id) DO NOTHING RETURNING id;",
+        "5. If no row returned (duplicate orderId): SELECT existing row + order_items; compute request_hash and compare to stored idempotency_key + body. If equal body -> COMMIT; return original 200 envelope. If different body -> ROLLBACK; 409 IDEMPOTENCY_KEY_REUSED with originalOrderNumber.",
+        "6. Else (fresh INSERT succeeded): SELECT nextval('order_number_seq') -> format ORD-YYYYMMDD-NNNNNN. UPDATE orders SET order_number=$1 WHERE id=$2.",
+        "7. INSERT INTO order_items (one row per request.items[i]; price_snapshot/name_snapshot/image_url_snapshot frozen here).",
+        "8. INSERT INTO order_status_history (from_status=NULL, to_status='PENDING_PAYMENT', actor_role='SYSTEM', actor_user_id=NULL, reason='checkout.commit step 7').",
+        "9. INSERT INTO outbox_events (event_type='order.created', aggregate_id=$orderId, payload_json={audit-only PENDING_PAYMENT signal}). [Per contracts.json line 1067 — no consumer in MVP.]",
+        "10. COMMIT;",
+        "11. Return 201 CREATED envelope {orderId, orderNumber, status:'PENDING_PAYMENT', createdAt}."
+      ],
+      "auth_note": "MVP: X-Internal-Secret with constant-time compare via crypto/subtle.ConstantTimeCompare against INTERNAL_SHARED_SECRET (ADR-008). MIN 32 bytes. Comma-separated rotation overlap supported. Recipient logs 'internal_auth_reject' on every reject (never logs the supplied/expected secret). Order MUST reject CUSTOMER and ADMIN tokens on this endpoint (a customer fabricating an order body would bypass server-priced checkout). Frontend MUST NOT load INTERNAL_SHARED_SECRET nor forward X-Internal-Secret (REV-L2-013).",
+      "ac_mapping": ["CHK-007", "CHK-008", "ORD-007", "ORD-008", "ORD-009"],
+      "internal_caller": "checkout.commit step 7",
+      "implementation_hints": [
+        "common/middleware/internal_auth.go (per ADR-008 — constant-time compare; rotation overlap)",
+        "service/order_creator.CreateFromCheckout(ctx, req)",
+        "service/order_number_allocator.NextOrderNumber(tx, now)",
+        "common/database tx wraps INSERTs atomically; ON CONFLICT (id) DO NOTHING for idempotent replay"
+      ],
+      "sequence_diagram_required": true
+    },
+    {
+      "name": "cancel-on-checkout-failure",
+      "endpoint_id": "order.cancel-on-checkout-failure",
+      "contract_ref": "order.cancel-on-checkout-failure",
+      "method_path": "POST /api/v1/order/internal/cancel-on-checkout-failure",
+      "actor": "INTERNAL (Checkout service only — compensation path per ADR-007 / checkout.commit compensation matrix step 8)",
+      "auth_required": "internal_secret",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId","reason"],
+        "properties": {
+          "orderId": { "type": "string", "format": "uuid" },
+          "reason":  { "type": "string", "minLength": 1, "maxLength": 255 }
+        }
+      },
+      "request_headers": {
+        "X-Internal-Secret": "string (constant-time-compared; ADR-008)",
+        "Idempotency-Key":   "string (= orderId; cross-cutting.idempotency.internal_orderId_rule)"
+      },
+      "response_schema": { "type": "object", "required": ["code","message","data","traceId"] },
+      "validation_rules": [
+        "Idempotency-Key == orderId (else 400 VALIDATION_ERROR)",
+        "reason 1..255 chars (persisted on the cancellation status_history row's reason)"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR",     "http_status": 400, "trigger": "orderId missing/malformed; reason missing/empty; idempotencyKey != orderId" },
+        { "code": "AUTH_INVALID",         "http_status": 401, "trigger": "missing or wrong X-Internal-Secret (constant-time compare; ADR-008)" },
+        { "code": "NOT_FOUND",            "http_status": 404, "trigger": "orderId does not exist (defensive — should be unreachable in the compensation matrix, but defended)" },
+        { "code": "INVALID_ORDER_STATE",  "http_status": 409, "trigger": "current status is not PENDING_PAYMENT and not CANCELLED-by-this-path (e.g. event-driven transition raced ahead to PAID before compensation arrived); Checkout's caller logic must escalate to admin-cancel" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Re-cancelling an already-CANCELLED-by-this-path order returns 200 (no extra status_history row, no extra outbox event). Detection: latest status_history row has actor_role='SYSTEM' AND reason matches the compensation-path pattern.",
+        "side_effects": [
+          "UPDATE orders SET status='CANCELLED', version+=1  // ADR-003 sole-writer",
+          "INSERT order_status_history (from_status='PENDING_PAYMENT', to_status='CANCELLED', actor_role='SYSTEM', actor_user_id=NULL, reason=$request.reason)",
+          "INSERT outbox_events (event_type='order.cancelled', payload {fromStatus:'PENDING_PAYMENT', cancelActor:'SYSTEM', reason:$request.reason})"
+        ],
+        "transactionality": "Single tx with SELECT FOR UPDATE."
+      },
+      "transition_guarded": "PENDING_PAYMENT -> CANCELLED only (state machine SYSTEM-actor row). If already CANCELLED-by-this-path, idempotent 200. If any other state -> 409 INVALID_ORDER_STATE (defensive — should be unreachable in MVP since this only fires within the synchronous checkout-commit window before any consumer can transition).",
+      "transaction_steps": [
+        "0. Middleware: constant-time-compare X-Internal-Secret. Reject -> 401 AUTH_INVALID.",
+        "1. Validate Idempotency-Key == orderId; mismatch -> 400 VALIDATION_ERROR.",
+        "2. BEGIN; SELECT * FROM orders WHERE id=$1 FOR UPDATE.",
+        "3. If not found -> ROLLBACK; 404 NOT_FOUND.",
+        "4. If status='CANCELLED' AND most-recent status_history.actor_role='SYSTEM' -> COMMIT no-op; 200 (idempotent replay of compensation).",
+        "5. If status != 'PENDING_PAYMENT' -> ROLLBACK; 409 INVALID_ORDER_STATE.",
+        "6. UPDATE orders SET status='CANCELLED', version=version+1. -- ADR-003 sole-writer.",
+        "7. INSERT order_status_history (from_status='PENDING_PAYMENT', to_status='CANCELLED', actor_role='SYSTEM', actor_user_id=NULL, reason=$request.reason).",
+        "8. INSERT outbox_events (event_type='order.cancelled', payload {eventId, occurredAt, orderId, cancelActor:'SYSTEM', fromStatus:'PENDING_PAYMENT', reason:$request.reason}).",
+        "9. COMMIT;",
+        "10. Return 200 {orderId, status:'CANCELLED'}."
+      ],
+      "ac_mapping": ["CHK-009 compensation", "ORD-003", "ORD-009"],
+      "internal_caller": "checkout.commit step 8 compensation matrix",
+      "notes": "Required by checkout.commit.internal_orchestration line 920 ('failure at step 8 (payment.intent.create) -> call order.cancel-on-checkout-failure THEN inventory.reservation.release'). This handler MUST be a real handler, not a 501 stub (REV-L2-004 closure; ADR-007 explicit requirement). Without it the compensation path is undefined and the order sits in PENDING_PAYMENT until the 15-min reservation TTL fires.",
+      "implementation_hints": [
+        "common/middleware/internal_auth.go",
+        "service/order_lifecycle.CancelOnCheckoutFailure(ctx, orderId, reason)",
+        "Reuse the same outbox-write helper as cancel-mine — single canonical path"
+      ]
+    }
+  ],
+
+  "event_consumers": [
+    {
+      "consumer_id": "order.payment.completed",
+      "event_contract_ref": "events.payment.completed",
+      "topic": "ecom.payment.events",
+      "event_type": "payment.completed",
+      "kafka_consumer_group": "order-svc",
+      "transition": "PENDING_PAYMENT -> PAID",
+      "actor_role_recorded": "SYSTEM",
+      "state_driven": true,
+      "idempotency_strategy": "Two layers: (1) consumed_events PK on event_id (Kafka redelivery dedup; INSERT ON CONFLICT DO NOTHING). (2) State-driven check inside FOR UPDATE — if status != PENDING_PAYMENT -> log + no-op. Absorbs cross-topic interleavings (ADR-009).",
+      "pseudocode": [
+        "function on_event(evt):  // ADR-009 state-driven consumer",
+        "  BEGIN tx",
+        "    INSERT INTO consumed_events(event_id=evt.eventId, consumer_name='order.payment.completed', event_type='payment.completed', order_id=evt.orderId)",
+        "      ON CONFLICT (event_id) DO NOTHING RETURNING event_id",
+        "    if no row returned: COMMIT; ack; return  // dedup hit, already processed",
+        "    SELECT * FROM orders WHERE id=evt.orderId FOR UPDATE",
+        "    if not found: COMMIT; log_warn('payment.completed for unknown orderId'); ack; return  // defensive — order schema is sole owner",
+        "    if status != 'PENDING_PAYMENT':",
+        "      log_info('late payment.completed for non-PENDING_PAYMENT order, status=' + status)",
+        "      metric order_consumer_late_event_total{event_type='payment.completed', current_status=status} += 1",
+        "      COMMIT; ack; return  // state-driven no-op per events.payment.completed.failure_modes Order branch",
+        "    UPDATE orders SET status='PAID', version=version+1, updated_at=now() WHERE id=evt.orderId  // ADR-003 sole-writer",
+        "    INSERT INTO order_status_history (order_id, from_status='PENDING_PAYMENT', to_status='PAID', actor_role='SYSTEM', actor_user_id=NULL, reason='payment.completed eventId=' + evt.eventId)",
+        "  COMMIT tx",
+        "  ack"
+      ],
+      "no_event_emitted": true,
+      "ac_mapping": ["ORD-003", "ORD-009", "PR-003"]
+    },
+    {
+      "consumer_id": "order.payment.failed",
+      "event_contract_ref": "events.payment.failed",
+      "topic": "ecom.payment.events",
+      "event_type": "payment.failed",
+      "kafka_consumer_group": "order-svc",
+      "transition": "PENDING_PAYMENT -> PAYMENT_FAILED",
+      "actor_role_recorded": "SYSTEM",
+      "state_driven": true,
+      "idempotency_strategy": "consumed_events PK + state-driven guard (status != PENDING_PAYMENT -> no-op).",
+      "pseudocode": [
+        "function on_event(evt):  // ADR-009 state-driven",
+        "  BEGIN tx",
+        "    INSERT consumed_events(event_id, consumer_name='order.payment.failed', event_type='payment.failed', order_id) ON CONFLICT DO NOTHING RETURNING event_id",
+        "    if dup: COMMIT; ack; return",
+        "    SELECT * FROM orders WHERE id=evt.orderId FOR UPDATE",
+        "    if not found: COMMIT; log_warn; ack; return",
+        "    if status == 'PENDING_PAYMENT':",
+        "      UPDATE orders SET status='PAYMENT_FAILED', version+=1  // ADR-003 sole-writer",
+        "      INSERT order_status_history (from='PENDING_PAYMENT', to='PAYMENT_FAILED', actor_role='SYSTEM', reason='payment.failed eventId=' + evt.eventId + ' (' + evt.reason + ')')",
+        "    else:",
+        "      log_info('late payment.failed for non-PENDING_PAYMENT order, status=' + status)",
+        "      metric order_consumer_late_event_total{event_type='payment.failed', current_status=status} += 1",
+        "  COMMIT tx",
+        "  ack"
+      ],
+      "no_event_emitted": true,
+      "ac_mapping": ["ORD-003", "ORD-009"]
+    },
+    {
+      "consumer_id": "order.payment.expired",
+      "event_contract_ref": "events.payment.expired",
+      "topic": "ecom.payment.events",
+      "event_type": "payment.expired",
+      "kafka_consumer_group": "order-svc",
+      "transition": "PENDING_PAYMENT -> PAYMENT_EXPIRED",
+      "actor_role_recorded": "SYSTEM",
+      "state_driven": true,
+      "idempotency_strategy": "consumed_events PK + state-driven guard. See deduplication_with_reservation_expired below for the cross-topic race resolution.",
+      "pseudocode": [
+        "function on_event(evt):  // ADR-009 state-driven",
+        "  BEGIN tx",
+        "    INSERT consumed_events(event_id, consumer_name='order.payment.expired', event_type='payment.expired', order_id) ON CONFLICT DO NOTHING RETURNING event_id",
+        "    if dup: COMMIT; ack; return",
+        "    SELECT * FROM orders WHERE id=evt.orderId FOR UPDATE",
+        "    if not found: COMMIT; log_warn; ack; return",
+        "    if status == 'PENDING_PAYMENT':",
+        "      UPDATE orders SET status='PAYMENT_EXPIRED', version+=1  // ADR-003 sole-writer",
+        "      INSERT order_status_history (from='PENDING_PAYMENT', to='PAYMENT_EXPIRED', actor_role='SYSTEM', reason='payment.expired eventId=' + evt.eventId)",
+        "    else:",
+        "      log_info('late payment.expired for non-PENDING_PAYMENT order, status=' + status)",
+        "      metric order_consumer_late_event_total{event_type='payment.expired', current_status=status} += 1",
+        "  COMMIT tx",
+        "  ack"
+      ],
+      "no_event_emitted": true,
+      "ac_mapping": ["ORD-003", "ORD-009"]
+    },
+    {
+      "consumer_id": "order.reservation.expired",
+      "event_contract_ref": "events.reservation.expired",
+      "topic": "ecom.inventory.events",
+      "event_type": "reservation.expired",
+      "kafka_consumer_group": "order-svc",
+      "transition": "PENDING_PAYMENT -> PAYMENT_EXPIRED",
+      "actor_role_recorded": "SYSTEM",
+      "state_driven": true,
+      "idempotency_strategy": "consumed_events PK + state-driven guard. PR-008 abandoned-checkout safety net.",
+      "pseudocode": [
+        "function on_event(evt):  // ADR-009 state-driven; PR-008",
+        "  BEGIN tx",
+        "    INSERT consumed_events(event_id, consumer_name='order.reservation.expired', event_type='reservation.expired', order_id) ON CONFLICT DO NOTHING RETURNING event_id",
+        "    if dup: COMMIT; ack; return",
+        "    SELECT * FROM orders WHERE id=evt.orderId FOR UPDATE",
+        "    if not found: COMMIT; log_warn; ack; return",
+        "    if status == 'PENDING_PAYMENT':",
+        "      UPDATE orders SET status='PAYMENT_EXPIRED', version+=1  // ADR-003 sole-writer",
+        "      INSERT order_status_history (from='PENDING_PAYMENT', to='PAYMENT_EXPIRED', actor_role='SYSTEM', reason='reservation expired (TTL) eventId=' + evt.eventId + ' reservationId=' + evt.reservationId)",
+        "    else:",
+        "      log_info('late reservation.expired for non-PENDING_PAYMENT order, status=' + status)",
+        "      metric order_consumer_late_event_total{event_type='reservation.expired', current_status=status} += 1",
+        "  COMMIT tx",
+        "  ack"
+      ],
+      "no_event_emitted": true,
+      "ac_mapping": ["PR-001", "PR-008", "ORD-003", "ORD-009"]
+    }
+  ],
+
+  "deduplication_with_reservation_expired": {
+    "scenario": "Both events.payment.expired (Payment) and events.reservation.expired (Inventory sweeper) can drive PENDING_PAYMENT -> PAYMENT_EXPIRED for the same order. They are produced by different services on different Kafka topics, so cross-topic ordering is NOT preserved (ADR-009).",
+    "resolution": "First-writer-wins, enforced atomically by SELECT ... FOR UPDATE on the orders row inside each consumer's tx. The first event to acquire the row lock observes status='PENDING_PAYMENT' and performs the transition; the second event observes status='PAYMENT_EXPIRED' and falls into the state-driven no-op branch (logs and acks).",
+    "history_row_distinguishes_origin": "The reason field of the order_status_history row preserves which event won the race ('payment.expired eventId=...' vs 'reservation expired (TTL) eventId=... reservationId=...'). Operators reading order.detail.statusHistory can see exactly which path expired the order.",
+    "no_double_emission": "Order emits no outbox event for PAYMENT_EXPIRED transitions, so there is no risk of double-publishing downstream. Inventory's reservation release is the single stock-side effect (already issued by the sweeper or by Payment's earlier consumer fan-out).",
+    "test_required": "QA must include a PR-008 e2e test: customer hits checkout.commit, never simulates payment. After RESERVATION_TTL_MINUTES + sweep cadence, exactly one of {payment.expired, reservation.expired} writes the PAYMENT_EXPIRED status_history row and the other is recorded as a logged no-op in service logs."
+  },
+
+  "event_producers": [
+    {
+      "producer_id": "order.cancelled",
+      "event_contract_ref": "events.order.cancelled",
+      "topic": "ecom.order.events",
+      "event_type": "order.cancelled",
+      "partition_key": "orderId",
+      "emit_path": "outbox_events row written in same tx as orders UPDATE; transport/outbox_publisher goroutine ships to Kafka",
+      "emitted_when": [
+        "order.cancel-mine succeeds (fromStatus=PENDING_PAYMENT, cancelActor=CUSTOMER, reason=null)",
+        "order.update-status-admin (toStatus=CANCELLED) succeeds for either fromStatus=PENDING_PAYMENT or fromStatus=PAID; cancelActor=ADMIN; reason=$request.reason",
+        "order.cancel-on-checkout-failure succeeds (fromStatus=PENDING_PAYMENT, cancelActor=SYSTEM, reason=$request.reason)"
+      ],
+      "outbox_pattern": "Per ADR-004 + cross-cutting.persistence.outbox_pattern. The outbox_events row is INSERTED in the SAME tx as the orders UPDATE and the order_status_history INSERT — so the trio commits atomically. A separate publisher goroutine polls outbox_events WHERE published_at IS NULL ORDER BY id LIMIT 100, ships via common/kafka, then sets published_at.",
+      "payload_conformance": "Strictly matches events.order.cancelled.payload_shape: {eventId (UUID v7), occurredAt (RFC3339), orderId, cancelActor (CUSTOMER|ADMIN|SYSTEM), fromStatus (PENDING_PAYMENT|PAID), reason?}.",
+      "consumers": ["inventory (releases reservation per state-driven branch)", "payment (transitions REQUIRES_PAYMENT intent -> CANCELLED if still active)"],
+      "important_invariant": "fromStatus is informational/audit-only per events.order.cancelled.idempotency_rules (ADR-009). Inventory and Payment MUST disambiguate via current-row reads (the PR-003 race resolution rule)."
+    },
+    {
+      "producer_id": "order.created",
+      "event_contract_ref": "(none — audit-only emission per contracts.json line 1067)",
+      "topic": "ecom.order.events",
+      "event_type": "order.created",
+      "partition_key": "orderId",
+      "emit_path": "outbox_events row written in same tx as the orders INSERT during create-from-checkout",
+      "emitted_when": ["order.create-from-checkout succeeds"],
+      "outbox_pattern": "Same as order.cancelled — outbox row in-tx, publisher goroutine ships.",
+      "consumers": "(none in MVP)",
+      "rationale": "Audit-only signal for downstream observability, per the contract's ordering_guarantees note (line 1067). No MVP consumer subscribes; emitted so a future consumer (e.g. analytics) has a hook without retro-fitting."
+    }
+  ],
+
+  "state_machine": {
+    "status_enum": ["PENDING_PAYMENT", "PAID", "PAYMENT_FAILED", "PAYMENT_EXPIRED", "PACKING", "SHIPPED", "DELIVERED", "CANCELLED"],
+    "initial_state": "PENDING_PAYMENT (set by order.create-from-checkout — the ONLY entry point into the machine)",
+    "terminal_states": ["PAYMENT_FAILED", "PAYMENT_EXPIRED", "DELIVERED", "CANCELLED"],
+    "allowed_transitions": [
+      { "from": "PENDING_PAYMENT", "to": "PAID",             "actor": "SYSTEM",   "trigger": "events.payment.completed",                                                                       "required_fields": [],                "side_effects": "status_history row; NO outbox event" },
+      { "from": "PENDING_PAYMENT", "to": "PAYMENT_FAILED",   "actor": "SYSTEM",   "trigger": "events.payment.failed",                                                                          "required_fields": [],                "side_effects": "status_history row; NO outbox event" },
+      { "from": "PENDING_PAYMENT", "to": "PAYMENT_EXPIRED",  "actor": "SYSTEM",   "trigger": "events.payment.expired OR events.reservation.expired (deduplicated by FOR UPDATE + state-driven guard; ADR-009)", "required_fields": [], "side_effects": "status_history row; NO outbox event" },
+      { "from": "PENDING_PAYMENT", "to": "CANCELLED",        "actor": "CUSTOMER", "trigger": "order.cancel-mine",                                                                              "required_fields": [],                "side_effects": "status_history row; outbox events.order.cancelled (cancelActor=CUSTOMER, fromStatus=PENDING_PAYMENT)" },
+      { "from": "PENDING_PAYMENT", "to": "CANCELLED",        "actor": "ADMIN",    "trigger": "order.update-status-admin",                                                                      "required_fields": ["reason"],        "side_effects": "status_history row; outbox events.order.cancelled (cancelActor=ADMIN, fromStatus=PENDING_PAYMENT, reason); admin_action_log row" },
+      { "from": "PENDING_PAYMENT", "to": "CANCELLED",        "actor": "SYSTEM",   "trigger": "order.cancel-on-checkout-failure (internal, compensation per ADR-007)",                          "required_fields": ["reason"],        "side_effects": "status_history row; outbox events.order.cancelled (cancelActor=SYSTEM, fromStatus=PENDING_PAYMENT, reason)" },
+      { "from": "PAID",            "to": "PACKING",          "actor": "ADMIN",    "trigger": "order.update-status-admin",                                                                      "required_fields": [],                "side_effects": "status_history row; admin_action_log row; NO outbox event" },
+      { "from": "PACKING",         "to": "SHIPPED",          "actor": "ADMIN",    "trigger": "order.update-status-admin",                                                                      "required_fields": ["trackingNumber"],"side_effects": "status_history row; persists orders.tracking_number; admin_action_log row; NO outbox event" },
+      { "from": "SHIPPED",         "to": "DELIVERED",        "actor": "ADMIN",    "trigger": "order.update-status-admin",                                                                      "required_fields": [],                "side_effects": "status_history row; admin_action_log row; NO outbox event" },
+      { "from": "PAID",            "to": "CANCELLED",        "actor": "ADMIN",    "trigger": "order.update-status-admin",                                                                      "required_fields": ["reason"],        "side_effects": "status_history row; outbox events.order.cancelled (cancelActor=ADMIN, fromStatus=PAID, reason); admin_action_log row. Inventory restocks sold->available per BA PR-006 MVP policy." }
+    ],
+    "forbidden_transitions": [
+      { "from": "PACKING",         "to": "CANCELLED", "rationale": "BA PR-005 + requirement §9.2/§9.3: admin-cancel allowed only from PENDING_PAYMENT or PAID. Returns 409 INVALID_ORDER_STATE." },
+      { "from": "SHIPPED",         "to": "CANCELLED", "rationale": "Physical fulfillment in flight. 409 INVALID_ORDER_STATE." },
+      { "from": "DELIVERED",       "to": "CANCELLED", "rationale": "Terminal. Refund/return out_of_scope. Requirement §9.3 #1. 409 INVALID_ORDER_STATE." },
+      { "from": "DELIVERED",       "to": "*",         "rationale": "Terminal." },
+      { "from": "SHIPPED",         "to": "PAID",      "rationale": "Backwards transition. Requirement §9.3 #2. 409 INVALID_ORDER_STATE." },
+      { "from": "PAYMENT_FAILED",  "to": "*",         "rationale": "Terminal — customer must re-checkout to create a new order. Requirement §9.3 #3. 409 INVALID_ORDER_STATE." },
+      { "from": "PAYMENT_EXPIRED", "to": "*",         "rationale": "Terminal — same as PAYMENT_FAILED. Requirement §9.3 #4. 409 INVALID_ORDER_STATE." },
+      { "from": "CANCELLED",       "to": "*",         "rationale": "Terminal. Requirement §9.3 #5. 409 INVALID_ORDER_STATE." },
+      { "from": "PENDING_PAYMENT", "to": "PACKING",   "rationale": "Skips PAID. Only events.payment.completed (not admin) writes PAID. 409 INVALID_ORDER_STATE." },
+      { "from": "PENDING_PAYMENT", "to": "SHIPPED",   "rationale": "Skips PAID + PACKING. 409 INVALID_ORDER_STATE." },
+      { "from": "PAID",            "to": "SHIPPED",   "rationale": "Skips PACKING. Even an admin retry must walk through PACKING. 409 INVALID_ORDER_STATE." },
+      { "from": "PAID",            "to": "DELIVERED", "rationale": "Skips PACKING + SHIPPED. 409 INVALID_ORDER_STATE." },
+      { "from": "PACKING",         "to": "DELIVERED", "rationale": "Skips SHIPPED. 409 INVALID_ORDER_STATE." },
+      { "from": "PACKING",         "to": "PAID",      "rationale": "Backwards transition. 409 INVALID_ORDER_STATE." }
+    ],
+    "concurrency_invariant": "EVERY transition (customer, admin, or event-driven) is implemented as: BEGIN tx -> SELECT * FROM orders WHERE id=$1 FOR UPDATE -> look up (current_status, target_status, actor) in allowed_transitions -> if miss return INVALID_ORDER_STATE (or no-op for state-driven consumers) -> UPDATE orders + INSERT order_status_history + (maybe) INSERT outbox_events -> COMMIT. The optimistic version column is bumped as a defensive belt-and-suspenders alongside the FOR UPDATE row lock (cross-cutting.persistence.concurrency).",
+    "actor_authority_matrix": {
+      "CUSTOMER": "May only drive PENDING_PAYMENT -> CANCELLED on owned orders.",
+      "ADMIN":    "May drive PAID->PACKING, PACKING->SHIPPED (trackingNumber required), SHIPPED->DELIVERED, PENDING_PAYMENT->CANCELLED (reason required), PAID->CANCELLED (reason required).",
+      "SYSTEM":   "May drive PENDING_PAYMENT -> {PAID, PAYMENT_FAILED, PAYMENT_EXPIRED, CANCELLED-by-checkout-compensation}; never drives admin transitions."
+    },
+    "validate_transition_pseudocode": [
+      "// Pure function; no I/O. Called inside the tx after FOR UPDATE.",
+      "// Skill: generating-pseudocode",
+      "function ValidateTransition(currentStatus, targetStatus, actor, providedFields):",
+      "  row = ALLOWED_TRANSITIONS.lookup(currentStatus, targetStatus, actor)",
+      "  if row == nil:",
+      "    return ErrInvalidOrderState",
+      "  for required in row.required_fields:",
+      "    if not providedFields.contains(required) or providedFields[required] is empty:",
+      "      return ErrValidationError(missing=required)",
+      "  return nil",
+      "// Test grid: 8 statuses x 8 statuses x 3 actors = 192 cells; assert each maps either to an allowed_transitions row or returns ErrInvalidOrderState."
+    ]
+  },
+
+  "internal_modules": {
+    "domain_pkg": "app/order",
+    "key_files": [
+      "app/order/domain/status.go — status enum constants",
+      "app/order/domain/transitions.go — ALLOWED_TRANSITIONS table + ValidateTransition pure-fn (skill: generating-pseudocode)",
+      "app/order/access/storage_orders.go — repo for orders; FindByIdForUpdate, FindByIdScopedForUpdate, Insert, UpdateStatus (the SOLE writer per ADR-003 — code comment at the UPDATE line)",
+      "app/order/access/storage_order_items.go — InsertBatch only (NO Update method; ORD-007)",
+      "app/order/access/storage_status_history.go — Insert, ListByOrderIdAsc",
+      "app/order/access/storage_outbox.go — Insert, MarkPublished, PollUnpublished",
+      "app/order/access/storage_consumed_events.go — InsertOrConflict (ADR-009 dedup)",
+      "app/order/access/storage_admin_action_log.go — Insert",
+      "app/order/access/storage_order_number.go — NextOrderNumber(tx, now) -> string",
+      "app/order/service/order_lifecycle.go — coordinates all transitions; SOLE call site for orders.status writes; wraps SELECT FOR UPDATE + ValidateTransition + UPDATE + history + maybe outbox in one tx",
+      "app/order/service/order_creator.go — handles order.create-from-checkout (allocate order_number; INSERT orders + items + history + audit-outbox)",
+      "app/order/handler/customer_list_mine.go",
+      "app/order/handler/customer_detail.go",
+      "app/order/handler/customer_cancel_mine.go",
+      "app/order/handler/admin_list.go",
+      "app/order/handler/admin_update_status.go",
+      "app/order/handler/internal_create_from_checkout.go",
+      "app/order/handler/internal_cancel_on_checkout_failure.go",
+      "app/order/transport/kafka_consumer.go — common/kafka consumer group 'order-svc'; subscribes ecom.payment.events + ecom.inventory.events; routes by event_type to service/order_lifecycle event-handler methods",
+      "app/order/transport/outbox_publisher.go — goroutine started at boot; ADR-004 single-threaded relay; ORDER BY id, LIMIT 100, every 1s; panic-recovery",
+      "app/order/transport/internal_auth.go — common/middleware/internal_auth.go wrapper (ADR-008 constant-time compare; rotation overlap)"
+    ]
+  },
+
+  "test_strategy": {
+    "unit": "Table-driven tests with pgxmock or testcontainers Postgres. domain/transitions exhaustively covered: 8 statuses x 8 statuses x 3 actors (192 cells) — assert each cell maps to allowed_transitions or returns ErrInvalidOrderState; no other transition silently allowed. service/order_number_allocator: format ORD-YYYYMMDD-NNNNNN; zero-padding; date prefix matches now().UTC(). Consumer state-machine guards: for each of the 4 inbound event types, simulate the 8 possible current_status values and assert the transition or no-op outcome.",
+    "integration": "Per-endpoint repo+http integration tests on a Postgres testcontainer + an embedded Kafka via testcontainers. order.create-from-checkout: assert orders + 1+ order_items + initial status_history row + audit outbox row commit atomically; rollback on any insert error leaves no partial state. Idempotent replay with same body returns original orderNumber; replay with different body returns 409 IDEMPOTENCY_KEY_REUSED with original orderNumber in error data. order.cancel-mine: assert orders.status='CANCELLED', status_history row, outbox_events row commit atomically; outbox_events.published_at NULL until publisher polls. order.update-status-admin: walk PAID->PACKING->SHIPPED(trackingNumber)->DELIVERED; assert each writes a status_history row + admin_action_log row; assert SHIPPED without trackingNumber returns 400 VALIDATION_ERROR; assert DELIVERED->CANCELLED returns 409 INVALID_ORDER_STATE.",
+    "happy_paths": [
+      "list_mine_returns_only_own_orders_sorted_desc",
+      "detail_customer_own_order_returns_full_payload",
+      "detail_admin_any_order_returns_full_payload",
+      "cancel_mine_pending_payment_cancels_and_emits_outbox",
+      "list_admin_filters_by_status_and_date_range",
+      "list_admin_search_by_email_uses_buyer_email_snapshot",
+      "list_admin_search_by_order_number_prefix",
+      "update_status_admin_paid_to_packing_succeeds",
+      "update_status_admin_packing_to_shipped_with_tracking_succeeds",
+      "update_status_admin_shipped_to_delivered_succeeds",
+      "update_status_admin_pending_payment_to_cancelled_with_reason_succeeds",
+      "update_status_admin_paid_to_cancelled_with_reason_succeeds_and_emits_outbox",
+      "create_from_checkout_writes_orders_items_history_and_audit_outbox_atomically",
+      "create_from_checkout_idempotent_replay_returns_original_orderNumber",
+      "cancel_on_checkout_failure_pending_payment_to_cancelled_with_system_actor",
+      "consumer_payment_completed_pending_payment_to_paid",
+      "consumer_payment_failed_pending_payment_to_payment_failed",
+      "consumer_payment_expired_pending_payment_to_payment_expired",
+      "consumer_reservation_expired_pending_payment_to_payment_expired"
+    ],
+    "negative_paths": [
+      "list_mine_other_customers_orders_excluded",
+      "detail_customer_other_users_order_returns_404_ORDER_NOT_OWNED",
+      "detail_unknown_id_returns_404_NOT_FOUND_for_admin",
+      "cancel_mine_paid_order_returns_409_INVALID_ORDER_STATE",
+      "cancel_mine_already_cancelled_by_self_returns_200_idempotent",
+      "cancel_mine_already_cancelled_by_admin_returns_409",
+      "list_admin_customer_token_returns_403_AUTH_FORBIDDEN",
+      "list_admin_inverted_date_range_returns_400_VALIDATION_ERROR",
+      "update_status_admin_customer_token_returns_403_AUTH_FORBIDDEN",
+      "update_status_admin_packing_to_cancelled_returns_409_INVALID_ORDER_STATE_PR005",
+      "update_status_admin_shipped_to_cancelled_returns_409",
+      "update_status_admin_delivered_to_cancelled_returns_409_PR005",
+      "update_status_admin_shipped_to_paid_returns_409_backwards",
+      "update_status_admin_payment_failed_to_anything_returns_409_terminal",
+      "update_status_admin_payment_expired_to_anything_returns_409_terminal",
+      "update_status_admin_packing_to_shipped_without_tracking_returns_400_ORD006",
+      "update_status_admin_cancelled_without_reason_returns_400_ORD005",
+      "update_status_admin_idempotent_same_status_returns_200_no_extra_history",
+      "create_from_checkout_missing_X_Internal_Secret_returns_401_AUTH_INVALID",
+      "create_from_checkout_wrong_X_Internal_Secret_returns_401_constant_time_compare",
+      "create_from_checkout_idempotency_key_neq_orderId_returns_400_VALIDATION_ERROR",
+      "create_from_checkout_buyerEmail_missing_returns_400_VALIDATION_ERROR",
+      "create_from_checkout_total_inconsistent_returns_400_VALIDATION_ERROR",
+      "create_from_checkout_replay_with_different_body_returns_409_IDEMPOTENCY_KEY_REUSED",
+      "cancel_on_checkout_failure_status_paid_returns_409_INVALID_ORDER_STATE",
+      "cancel_on_checkout_failure_idempotent_replay_returns_200",
+      "consumer_payment_completed_redelivery_dedupes_via_consumed_events",
+      "consumer_payment_completed_for_cancelled_order_is_no_op",
+      "consumer_reservation_expired_for_paid_order_is_no_op",
+      "PR003_concurrent_cancel_mine_and_payment_completed_one_wins_via_FOR_UPDATE",
+      "PR008_abandoned_checkout_payment_expired_and_reservation_expired_first_wins"
+    ],
+    "load_or_chaos": [
+      "Outbox publisher backpressure: pause Kafka, generate 1000 cancelled events, resume Kafka — assert all 1000 are eventually published exactly once (Inventory's consumer dedup is the safety net for any redelivery).",
+      "Concurrency: spawn N goroutines that all attempt order.cancel-mine on the same PENDING_PAYMENT order; assert exactly one succeeds, the rest receive 200 idempotent or 409 INVALID_ORDER_STATE; assert exactly one outbox row written."
+    ]
+  },
+
+  "ba_acceptance_mapping": [
+    { "story_id": "STORY_ORDER_LIST_DETAIL",       "ac_index": 0, "endpoint": "list-mine | detail",         "test_name": "list_mine_returns_only_own_orders_sorted_desc / detail_customer_other_users_order_returns_404_ORDER_NOT_OWNED" },
+    { "story_id": "STORY_ORDER_LIST_DETAIL",       "ac_index": 1, "endpoint": "detail",                     "test_name": "detail_customer_own_order_returns_full_payload" },
+    { "story_id": "STORY_ORDER_LIST_DETAIL",       "ac_index": 2, "endpoint": "detail",                     "test_name": "detail_resolves_snapshots_after_product_soft_delete" },
+    { "story_id": "STORY_ORDER_CUSTOMER_CANCEL",   "ac_index": 0, "endpoint": "cancel-mine",                "test_name": "cancel_mine_pending_payment_cancels_and_emits_outbox" },
+    { "story_id": "STORY_ORDER_CUSTOMER_CANCEL",   "ac_index": 1, "endpoint": "cancel-mine",                "test_name": "cancel_mine_paid_order_returns_409_INVALID_ORDER_STATE" },
+    { "story_id": "STORY_ORDER_ADMIN_TRANSITIONS", "ac_index": 0, "endpoint": "update-status-admin",        "test_name": "update_status_admin_packing_to_shipped_without_tracking_returns_400_ORD006" },
+    { "story_id": "STORY_ORDER_ADMIN_TRANSITIONS", "ac_index": 1, "endpoint": "update-status-admin",        "test_name": "update_status_admin_delivered_to_cancelled_returns_409_PR005" },
+    { "story_id": "STORY_ORDER_ADMIN_CANCEL",      "ac_index": 0, "endpoint": "update-status-admin",        "test_name": "update_status_admin_paid_to_cancelled_with_reason_succeeds_and_emits_outbox" },
+    { "story_id": "STORY_ORDER_ADMIN_CANCEL",      "ac_index": 1, "endpoint": "update-status-admin",        "test_name": "update_status_admin_packing_to_cancelled_returns_409_INVALID_ORDER_STATE_PR005" },
+    { "story_id": "STORY_ORDER_ADMIN_CANCEL",      "ac_index": 2, "endpoint": "update-status-admin",        "test_name": "update_status_admin_pending_payment_to_cancelled_with_reason_succeeds" }
+  ],
+
+  "ba_acceptance_mapping_extended": {
+    "ORD-001": ["order.list-mine ownership_scope", "order.detail ownership_scope (CUSTOMER returns ORDER_NOT_OWNED 404 — never disclose existence)"],
+    "ORD-002": ["order.detail response_data shape", "order_items snapshot columns", "order_status_history ordering"],
+    "ORD-003": ["state_machine.allowed_transitions + forbidden_transitions", "order.update-status-admin transition validation step"],
+    "ORD-004": ["order.cancel-mine transition_guarded (PENDING_PAYMENT only)"],
+    "ORD-005": ["order.update-status-admin (PENDING_PAYMENT|PAID -> CANCELLED rows; reason required)", "PR-005 admin-cancel scope tightening"],
+    "ORD-006": ["allowed_transitions PACKING->SHIPPED required_fields=[trackingNumber]", "orders.tracking_number column"],
+    "ORD-007": ["order_items snapshot columns + immutability_enforcement", "orders.address_snapshot, orders.subtotal/shipping_fee/grand_total snapshot semantics"],
+    "ORD-008": ["persistence.order_number_strategy + orders.order_number UNIQUE"],
+    "ORD-009": ["order_status_history table written in same tx as every transition"],
+    "PR-001": ["event_consumers.order.reservation.expired + deduplication_with_reservation_expired"],
+    "PR-003": ["state_machine.concurrency_invariant (FOR UPDATE before write; ADR-009 state-driven)", "consumers state-driven no-op branch"],
+    "PR-005": ["state_machine.allowed_transitions admin rows scoped to PENDING_PAYMENT/PAID origins ONLY", "forbidden_transitions PACKING/SHIPPED/DELIVERED -> CANCELLED entries"],
+    "PR-006": ["allowed_transitions PAID->CANCELLED side_effects line citing PR-006 sold->available restock policy", "event_producers.order.cancelled (consumed by Inventory)"],
+    "PR-008": ["order.reservation.expired consumer + e2e abandoned-checkout test", "deduplication_with_reservation_expired.test_required"],
+    "AUTH-003": ["update-status-admin / list-admin role check returns 403 AUTH_FORBIDDEN to CUSTOMER tokens"],
+    "CAT-009": ["detail resolves snapshots after product soft-delete (test_name detail_resolves_snapshots_after_product_soft_delete)"]
+  },
+
+  "chosen_order_creation_path": {
+    "selected": "(a) order.create-from-checkout — Order exposes a private endpoint that only Checkout calls, gated by transport/internal_auth (X-Internal-Secret + INTERNAL_SHARED_SECRET; ADR-008).",
+    "rationale": "The contracts pin (a): contracts.json line 269 (cross-cutting.persistence.transactional_boundaries.checkout.commit) and line 913 (checkout.commit.internal_orchestration step 7) both name 'order.create-from-checkout' as a SYNC HTTP call from Checkout. Path (b) (event-driven create) defeats UX — frontend must navigate to the payment-mock screen with the orderId in hand. Path (c) (Checkout INSERTs directly) violates ADR-003 (Order is sole writer). Path (a) keeps the synchronous response while preserving the sole-writer invariant — Order owns the INSERT and the initial PENDING_PAYMENT history row.",
+    "compensation_path": "Path (a) also requires the matching internal endpoint order.cancel-on-checkout-failure (contracts.json line 920; ADR-007 explicit requirement) so Checkout can roll the order to CANCELLED if a downstream sync call (e.g. payment.intent.create) fails AFTER the order row was created. Both internal endpoints are first-class endpoints[] entries in this td.json — neither is a stub (REV-L2-004 closure)."
+  },
+
+  "internal_auth_pattern": {
+    "env_var_name": "INTERNAL_SHARED_SECRET (the only accepted name; ADR-008; recipient refuses to boot if read from any other env-var name)",
+    "header": "X-Internal-Secret",
+    "comparison": "crypto/subtle.ConstantTimeCompare([]byte(supplied), []byte(secret)) == 1 (ADR-008; plain == / != is FORBIDDEN — Reviewer-L1/L2 grep blocks it)",
+    "min_length": "32 bytes (256 bits of entropy); recipient validates length at startup; refuses to boot if shorter",
+    "rotation_overlap": "INTERNAL_SHARED_SECRET MAY accept comma-separated 'new,old'; recipient tries ConstantTimeCompare against each segment; first match wins",
+    "shared_helper": "common/middleware/internal_auth.go (canonical; ADR-008)",
+    "audit_logging": "On reject: slog.Error('internal_auth_reject', remoteAddr, x_forwarded_for, path, requestId) — NEVER log the supplied/expected value. On startup: slog.Info('internal_auth_configured', service='order', sha256_prefix=hex(sha256(secret))[:8]).",
+    "metrics": "internal_auth_rejects_total{service='order', path}",
+    "frontend_posture": "frontend MUST NOT load INTERNAL_SHARED_SECRET nor forward X-Internal-Secret (REV-L2-013; cross-checked by frontend regression test)"
+  },
+
+  "contract_ambiguity_flags": [
+    {
+      "id": "AMBIG-ORD-1",
+      "area": "Internal route prefix",
+      "observation": "cross-cutting.route-convention.examples.order (contracts.json line 230-231) lists internal endpoints under '/api/v1/order/internal/...' but trailing_rules line 243 says 'no separate /internal prefix in MVP'. The example block won the tie-break in this td.json (path mounted under /order/internal/) because it is the more specific/concrete declaration; Plan-Reviewer should ratify or migrate to /order/order/... for parity with the other six order endpoints. Either is operationally fine; contract clarity is the only concern.",
+      "suggested_resolution": "Tech-Lead to remove the contradiction in contracts.json — either keep the /internal segment in trailing_rules or align examples.order to /order/order/...; this td.json mounts under /order/internal/ as written in examples.",
+      "severity": "low (cosmetic/path-only; no semantic change)"
+    },
+    {
+      "id": "AMBIG-ORD-2",
+      "area": "Audit-only outbox event type name",
+      "observation": "contracts.json line 1067 mentions 'outbox.PENDING_PAYMENT (audit-only event for downstream observability; not subscribed by any consumer in MVP)' but no formally-authored events.order.created contract exists. This td.json names the event type 'order.created' as the most natural label; consumers (none in MVP) will see this in the outbox row. Plan-Reviewer should confirm the name or formally author the contract.",
+      "suggested_resolution": "Add a contract entry events.order.created with topic ecom.order.events, partition_key=orderId, semantics='async', consumers=[] (audit-only). Until then, this td.json proceeds with event_type='order.created' in outbox_events.event_type column.",
+      "severity": "low (audit-only; no MVP consumer affected)"
+    },
+    {
+      "id": "AMBIG-ORD-3",
+      "area": "Idempotent re-cancel by self vs by admin",
+      "observation": "order.cancel-mine.idempotency_rules says 're-cancelling a CANCELLED-by-self order returns 200'. Implication: re-cancelling a CANCELLED-by-admin order via order.cancel-mine should NOT silently 200; it should return INVALID_ORDER_STATE because CANCELLED is terminal and the customer no longer owns the action. This td.json implements: idempotent 200 only when the most-recent status_history row's actor_user_id matches claims.sub, else 409. Reviewer-L1 to confirm.",
+      "suggested_resolution": "Add an explicit clause to the contract: 'idempotent 200 only when the most recent cancellation was by the same customerUserId; otherwise INVALID_ORDER_STATE'.",
+      "severity": "medium (UX-affecting; current implementation is the safest default)"
+    }
+  ],
+
+  "quality_bar_compliance": {
+    "reviewer_l1": [
+      "Every transition path uses SELECT ... FOR UPDATE on the orders row before writing — see state_machine.concurrency_invariant and every endpoint/consumer transaction block.",
+      "Consumers are idempotent at TWO layers: consumed_events PK on event_id (Kafka redelivery dedup) and state-driven status check inside FOR UPDATE (cross-topic interleaving dedup; ADR-009).",
+      "order_status_history INSERT and orders UPDATE happen in the SAME tx as the outbox row when emitting events.order.cancelled — see order.cancel-mine, order.update-status-admin (CANCELLED branch), order.cancel-on-checkout-failure transaction blocks.",
+      "Customer endpoints scope by user_id — order.list-mine WHERE user_id=claims.sub; order.detail and order.cancel-mine include AND user_id=claims.sub in the lookup; ORDER_NOT_OWNED returned as 404 (no enumeration leak).",
+      "Admin endpoints validate role=ADMIN (transport/http admin handler decorator) and write admin_action_log row in-tx (audit-deferred fallback per the brief).",
+      "Deduplication between events.payment.expired and events.reservation.expired is documented in deduplication_with_reservation_expired and tested in test_strategy.negative_paths PR008_abandoned_checkout case.",
+      "Internal endpoints (create-from-checkout, cancel-on-checkout-failure) use X-Internal-Secret + crypto/subtle.ConstantTimeCompare per ADR-008; INTERNAL_SHARED_SECRET is the canonical env-var name.",
+      "ADR-003 sole-writer code comment lives at every UPDATE orders SET status=... line in storage_orders.go.",
+      "ORD-003 sole-writer applied: orders.status only mutated by service/order_lifecycle (and service/order_creator for the initial INSERT)."
+    ],
+    "qa_l1": "Every ORD-* AC + PR-001/003/005/006/008 + AUTH-003 + CAT-009 cases mapped in ba_acceptance_mapping_extended and exercised in test_strategy (unit / integration / negative_paths)."
+  }
+}

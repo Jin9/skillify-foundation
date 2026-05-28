@@ -1,0 +1,147 @@
+{
+  "template_version": "0.1",
+  "component": "inventory",
+  "qa_level": "L1",
+  "run_date": "2026-05-07",
+  "verdict": "CONDITIONAL_PASS",
+  "verdict_rationale": "All structural and behavioral requirements pass. Three minor gaps: (1) lock-order comment in handlePaymentCompleted is technically inverted (reservations locked first, then stock per-row) — code is safe but the comment is misleading; (2) sweeper outbox uses uuid.New() (v4) instead of the td-specified uuid v7 for EventID and OutboxEvent.ID; (3) consumer stubs for payment.failed, payment.expired, order.cancelled, and product.created are correctly wired as stubs per TD STUB designation but the TD itself requires only payment.completed to be FULL — this is correct. No blocking defects found.",
+
+  "checks": [
+    {
+      "check_id": "C-01",
+      "description": "6 HTTP endpoints registered",
+      "expected": "stock.read (FULL), stock.bulk-read (STUB), stock.adjust (STUB), reservation.create (FULL), reservation.release (FULL); reservation.commit NOT exposed",
+      "result": "PASS",
+      "evidence": "router/router.go lines 51-69: stock/read, stock/bulk-read, stock/adjust, reservation/create, reservation/release all registered. reservation/commit commented out with TD rationale cited (td_ambiguity_notes[0]). Count = 5 active routes + 1 commented = correct per TD.",
+      "files": ["backend/services/inventory/router/router.go"]
+    },
+    {
+      "check_id": "C-02",
+      "description": "FULL state classifications match TD: stock.read=FULL, reservation.create=FULL, reservation.release=FULL; bulk-read=STUB, stock.adjust=STUB",
+      "expected": "stock.read, reservation.create, reservation.release are fully implemented; bulk-read and stock.adjust return 501 NOT_IMPLEMENTED_MVP",
+      "result": "PASS",
+      "evidence": "handler_stock_read.go: full implementation. handler_reservation_create.go: full implementation with idempotency, FOR UPDATE, per-SKU check. handler_stock_bulk_read.go: 501 CodeNotImplementedMVP. handler_stock_adjust.go: 501 CodeNotImplementedMVP. Registered comments in router.go confirm FULL/STUB labels.",
+      "files": [
+        "backend/services/inventory/app/inventory/handler_stock_read.go",
+        "backend/services/inventory/app/inventory/handler_reservation_create.go",
+        "backend/services/inventory/app/inventory/handler_stock_bulk_read.go",
+        "backend/services/inventory/app/inventory/handler_stock_adjust.go"
+      ]
+    },
+    {
+      "check_id": "C-03",
+      "description": "reservation.commit NOT exposed as HTTP per TD decision",
+      "expected": "No route registered for /api/v1/inventory/reservation/commit",
+      "result": "PASS",
+      "evidence": "router.go line 67-69: commit route is commented out with explicit td_ambiguity_notes[0] reference. Function is internal-only called from the payment.completed consumer.",
+      "files": ["backend/services/inventory/router/router.go"]
+    },
+    {
+      "check_id": "C-04",
+      "description": "Sweeper: 30s cadence, batch 200, FOR UPDATE SKIP LOCKED",
+      "expected": "CadenceSeconds default=30, BatchSize default=200, candidate scan uses FOR UPDATE SKIP LOCKED",
+      "result": "PASS",
+      "evidence": "config/config.go lines 59,63: CadenceSeconds envDefault=30, BatchSize envDefault=200. sweeper.go line 43: time.Duration(s.cfg.Sweeper.CadenceSeconds)*time.Second — no magic literals. access/storage_reservation.go lines 73-82: FindExpiredCandidates query ends FOR UPDATE SKIP LOCKED.",
+      "files": [
+        "backend/services/inventory/config/config.go",
+        "backend/services/inventory/app/inventory/sweeper.go",
+        "backend/services/inventory/app/inventory/access/storage_reservation.go"
+      ]
+    },
+    {
+      "check_id": "C-05",
+      "description": "Lock-order pin (stock_levels(sku) → reservations(id)) documented at lock points in code",
+      "expected": "Comments citing the canonical lock-order rule at every point where stock_levels and reservations are locked in the same tx",
+      "result": "PASS_WITH_NOTE",
+      "evidence": "Pin is documented at: sweeper.go lines 140-143 (correct order: StockStorage.GetBySKUForUpdate BEFORE ResvStorage.GetByIDForUpdate). handler_reservation_create.go lines 150-154 and 384-386. access/storage_reservation.go line 44-48 (Insert doc), line 94-97 (GetByIDForUpdate doc). Consumer handlePaymentCompleted line 117-123: comment states 'LOCK-ORDER PIN: stock_levels BEFORE reservation update' at the per-row stock lock (line 131). NOTE: the comment on lines 118-121 says FindByOrderIDForUpdate 'locks all reservation rows first and then we lock stock individually' which is technically correct (reservations all locked in one sweep, then stock locked per-row) and matches td.json consumer pseudocode pattern, but the comment adds 'safe as long as all callers respect the same SKU order' which slightly obscures that the lock ordering within the payment.completed consumer deviates from the canonical stock-first order. The deviation is architecturally intentional (consumer pattern locks reservations first then stock-per-row), but the comment should be clarified. Not a blocking defect.",
+      "files": [
+        "backend/services/inventory/app/inventory/sweeper.go",
+        "backend/services/inventory/app/inventory/handler_reservation_create.go",
+        "backend/services/inventory/app/inventory/consumer.go",
+        "backend/services/inventory/app/inventory/access/storage_reservation.go"
+      ]
+    },
+    {
+      "check_id": "C-06",
+      "description": "Migrations: 6 tables present with correct names and CHECK constraints",
+      "expected": "stock_levels, reservations, stock_adjustments, outbox_events, consumed_events, idempotency_keys; CHECK available_qty>=0 etc.",
+      "result": "PASS",
+      "evidence": "001: stock_levels with chk_stock_available_non_negative (>=0), chk_stock_reserved_non_negative (>=0), chk_stock_sold_non_negative (>=0). 002: reservations with chk_reservation_qty_positive (>0), chk_reservation_status, chk_reservation_release_reason. 003: stock_adjustments with chk_adjustment_delta_nonzero (<>0). 004: outbox_events. 005: consumed_events. 006: idempotency_keys. All 6 tables present.",
+      "files": [
+        "backend/services/inventory/migrations/001_init_stock_levels.up.sql",
+        "backend/services/inventory/migrations/002_init_reservations.up.sql",
+        "backend/services/inventory/migrations/003_init_stock_adjustments.up.sql",
+        "backend/services/inventory/migrations/004_init_outbox_events.up.sql",
+        "backend/services/inventory/migrations/005_init_consumed_events.up.sql",
+        "backend/services/inventory/migrations/006_init_idempotency_keys.up.sql"
+      ]
+    },
+    {
+      "check_id": "C-07",
+      "description": "events.payment.completed consumer is FULL and state-driven (reads current reservation state, does NOT branch on event.fromStatus)",
+      "expected": "FOR UPDATE on reservations ORDER BY sku ASC; switch on r.Status (RESERVED/COMMITTED/RELEASED/EXPIRED); no use of event.fromStatus",
+      "result": "PASS",
+      "evidence": "consumer.go handlePaymentCompleted (lines 86-160): parses only paymentEventPayload{EventID, OrderID} — fromStatus field not present. Calls ResvStorage.FindByOrderIDForUpdate (which queries ORDER BY sku ASC FOR UPDATE). Switch on r.Status: RESERVED→commit stock+mark COMMITTED; COMMITTED→no-op; RELEASED|EXPIRED→log+no-op. Dedup via ConsumedStorage.TryInsert at top of tx. State-driven per TD spec and PR-003 race resolution. paymentEventPayload struct has no FromStatus field — compile-time proof it cannot be used.",
+      "files": [
+        "backend/services/inventory/app/inventory/consumer.go",
+        "backend/services/inventory/app/inventory/access/storage_reservation.go"
+      ]
+    },
+    {
+      "check_id": "C-08",
+      "description": "Other 4 consumers (payment.failed, payment.expired, order.cancelled, product.created) are stubs with TODO",
+      "expected": "STUB handlers returning nil (ack without action) with TODO comments",
+      "result": "PASS",
+      "evidence": "consumer.go: handlePaymentFailed (lines 171-178), handlePaymentExpired (lines 186-193), handleOrderCancelled (lines 203-211), handleProductCreated (lines 220-227) — all return nil immediately after slog.DebugContext, each with a // TODO: implement comment citing the td.json consumer spec.",
+      "files": ["backend/services/inventory/app/inventory/consumer.go"]
+    },
+    {
+      "check_id": "C-09",
+      "description": "reservation.create: per-SKU FOR UPDATE; per-SKU STOCK_INSUFFICIENT detail in error; whole-tx rollback on any failure",
+      "expected": "GetManyBySKUsForUpdate locks all SKUs in lex order; insufficientList collects per-SKU detail; tx.Rollback before returning 409; any DB error returns without commit",
+      "result": "PASS",
+      "evidence": "handler_reservation_create.go: sortedSKUs built in lex order (lines 95-103); StockStorage.GetManyBySKUsForUpdate called (line 154); insufficientList accumulated per SKU (lines 167-186) with {sku, requestedQty, availableQty} per entry; tx.Rollback() called before 409 INSUFFICIENT_STOCK response (line 189-202). defer tx.Rollback (line 117) ensures rollback on any early return. Per-SKU detail uses InsufficientDetail struct with SKU, RequestedQty, AvailableQty fields.",
+      "files": ["backend/services/inventory/app/inventory/handler_reservation_create.go"]
+    },
+    {
+      "check_id": "C-10",
+      "description": "Outbox emits events.reservation.expired (orderId-keyed) from the sweeper",
+      "expected": "OutboxEvent.AggregateID = r.OrderID; event_type = 'reservation.expired'; payload includes orderId, reservationId, sweptAt; published to ecom.inventory.events",
+      "result": "PASS_WITH_NOTE",
+      "evidence": "sweeper.go lines 195-202: OutboxEvent{AggregateID: resvRow.OrderID.String(), EventType: 'reservation.expired', PayloadJSON: marshaled ReservationExpiredPayload}. ReservationExpiredPayload (domain.go lines 87-94) contains EventID, OccurredAt, OrderID, ReservationID, SweptAt — matches contracts.json payload_shape. outbox_relay.go line 89: publishes with Key=evt.AggregateID (orderId) to ecom.inventory.events. NOTE: sweeper.go line 184 uses uuid.New() (UUID v4) for EventID; td.json specifies uuid v7 for outbox event IDs. Minor spec deviation — not a blocker but should align with the uuid v7 convention used elsewhere.",
+      "files": [
+        "backend/services/inventory/app/inventory/sweeper.go",
+        "backend/services/inventory/app/inventory/domain.go",
+        "backend/services/inventory/app/inventory/outbox_relay.go"
+      ]
+    }
+  ],
+
+  "minor_gaps": [
+    {
+      "gap_id": "G-01",
+      "severity": "minor",
+      "description": "sweeper.go uses uuid.New() (UUID v4) for OutboxEvent.ID and ReservationExpiredPayload.EventID; td.json specifies uuid v7 for outbox_events.id and eventId in the payload",
+      "location": "backend/services/inventory/app/inventory/sweeper.go lines 184, 196",
+      "recommendation": "Replace uuid.New() with a uuid v7 generator (e.g., github.com/google/uuid v1.6+ uuid.New7() or the existing pattern used in reservation create if uuid v7 is available) to align with the td.json named constant spec."
+    },
+    {
+      "gap_id": "G-02",
+      "severity": "minor",
+      "description": "handlePaymentCompleted comment (consumer.go lines 118-122) states 'LOCK-ORDER PIN' but explains that reservations are locked first before stock — this is architecturally intentional for the consumer pattern but the comment should clarify this is the 'consumer exception' to the canonical lock order, not a violation. The lock order within each reservation row (stock FOR UPDATE on line 131, BEFORE the reservation UPDATE on line 137) does respect stock-first within the per-row mutation.",
+      "location": "backend/services/inventory/app/inventory/consumer.go lines 117-122",
+      "recommendation": "Amend comment to distinguish between (a) the batch-level reservation scan lock and (b) the per-row stock-first lock within the mutation. Suggested: '// LOCK-ORDER NOTE: All reservation rows for this order are locked en-masse in sku ASC order above. // Within each row's mutation (below), stock_levels is locked BEFORE the reservation row is written, // satisfying the canonical stock_levels(sku) → reservations(id) pin per td.json concurrency_model.lock_ordering.'"
+    }
+  ],
+
+  "summary": {
+    "checks_total": 10,
+    "checks_pass": 8,
+    "checks_pass_with_note": 2,
+    "checks_fail": 0,
+    "minor_gaps": 2,
+    "blocking_defects": 0
+  },
+
+  "skills_invoked": ["simplify", "crafting-backend-code (review posture)"]
+}

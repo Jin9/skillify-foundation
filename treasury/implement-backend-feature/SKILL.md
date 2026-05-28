@@ -1,6 +1,5 @@
 ---
 name: implement-backend-feature
-version: 1.0.0
 description: >
   Generate production-grade Go backend code for one microservice feature from an
   approved design document. Use when implementing a Go HTTP handler from a design
@@ -10,13 +9,15 @@ description: >
   infrastructure, Terraform, or Kubernetes manifests. Do NOT use for greenfield
   architecture decisions (defer to design-backend-feature). Do NOT use for fixing
   existing production bugs (use generate-backend-fix).
-stage_type: generate
-input_schema: schemas/input.json
-output_schema: schemas/output.json
-banking_grade: {idempotent: true, reversible: soft, audit_level: detailed}
-expected_duration_p95_seconds: 180
-max_retries_recommended: 2
-compatibility: claude-code, codex, opencode
+compatibility: [claude-code, codex, opencode]
+metadata:
+  version: 1.0.0
+  stage_type: generate
+  input_schema: schemas/input.json
+  output_schema: schemas/output.json
+  banking_grade: {idempotent: true, reversible: soft, audit_level: detailed}
+  expected_duration_p95_seconds: 180
+  max_retries_recommended: 2
 ---
 
 # Implement Backend Feature
@@ -24,7 +25,7 @@ compatibility: claude-code, codex, opencode
 ## Purpose
 
 Take a single approved backend design and emit production-grade Go code plus
-companion tests for one Generate stage in the Dev workflow. Owns code synthesis
+companion tests for one code-generation pass. Owns code synthesis
 only — analysis, design, review, and validation live in sibling atomic skills.
 Banking-grade discipline is non-negotiable on every output: idempotency keys on
 side-effects, classified errors, propagated context, observability at every
@@ -34,8 +35,8 @@ failure mode, audit events on every state change.
 
 - Use when: implementing a Go HTTP handler, CQRS command/query handler, or Kafka
   consumer/producer from an approved design document.
-- Use when: a workflow stage of `type: generate` selects this skill for a Go
-  microservice target package.
+- Use when: a code-generation step selects this skill for a Go microservice
+  target package.
 - Use when: a design specifies idempotency, audit, and compensation requirements
   and the next stage is code emission.
 - Do NOT use when: frontend / UI code is the target.
@@ -79,8 +80,10 @@ Run all 7 steps in order. Do not skip steps for "small" features.
    file MUST satisfy the rules in `references/implementation-rules.md` and the
    Go conventions in `references/go-conventions.md`. Specifically:
    - Idempotency: every external side-effect path takes a key from `idempotency_key`,
-     deduplicates against a store named by the design (Postgres `idempotency_keys`
-     table by default), and returns the prior result on replay.
+     deduplicates against the dedup mechanism named in the design document (e.g., a
+     dedicated dedup/idempotency-key store such as a Postgres `idempotency_keys`
+     table when the design does not specify one), and returns the prior result on
+     replay.
    - Errors: preserve cause via `fmt.Errorf("...: %w", err)`. Classify as
      `client | server | dependency`. No panics in request paths.
    - Context: every exported function takes `ctx context.Context` first. No
@@ -116,14 +119,14 @@ Output MUST validate against `schemas/output.json`. Structured fields:
 | `idempotency_strategy` | string | Plain-text description of the dedup mechanism. For naturally idempotent paths (GET, pure analyze) state so. |
 | `compensating_actions` | array of `{trigger, action_skill_ref, timeout_seconds}` | Empty if no irreversible external effect. Required for any `commit` / `notify`-equivalent path. |
 | `audit_events_emitted` | array of event-type strings | Every state-changing path must contribute at least one entry. |
-| `uncertainty_flags` | array of `{kind, location, note}` | Ambiguities surfaced during steps 1–6. Non-empty triggers downstream `loop_back`. |
+| `uncertainty_flags` | array of `{kind, location, note}` | Ambiguities surfaced during steps 1–6. Non-empty signals a downstream `loop_back` (revision request). |
 | `decision_metadata` | object `{complexity, pattern_choices, repo_conventions_followed}` | For audit. `complexity` in `low|medium|high`. |
 
 ## Failure Modes
 
 | Failure | Detection | Recovery |
 |---------|-----------|----------|
-| Design has unresolved ambiguities | Step 1: any `TBD`, missing L1/L2/L3/L4 | `loop_back` to design stage with `uncertainty_flags` populated |
+| Design has unresolved ambiguities | Step 1: any `TBD`, missing L1/L2/L3/L4 | `loop_back` to the design author with `uncertainty_flags` populated |
 | Target package missing or unreadable | Step 2: filesystem / permission error | `loop_back` to design (package boundary undecided) |
 | Repo conventions conflict with design | Step 3: discovered pattern contradicts design intent | Prefer repo, emit `uncertainty_flag`, continue |
 | Test coverage `< test_coverage_target` | Step 5: coverage report | `loop_back` to design (feature is over-scoped for one Generate) |

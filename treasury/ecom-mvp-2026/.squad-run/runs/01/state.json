@@ -1,0 +1,76 @@
+{
+  "run_id": "ecom-mvp-2026-05-07-001",
+  "started_at": "2026-05-07",
+  "source_workflow": "B2C E-Commerce Platform/requirement/ecommerce_mvp_agentic_ai_requirement.md",
+  "mode": "claude-only-subagents",
+  "current_stage": "terminal",
+  "last_event": "ship_with_caveats",
+  "components": [
+    "identity",
+    "catalog",
+    "inventory",
+    "cart",
+    "checkout",
+    "order",
+    "payment",
+    "frontend-web"
+  ],
+  "deviations_from_docs": [
+    {
+      "role": "Plan-Reviewer",
+      "docs_assignment": "GPT-5.5 xHigh (cross-family vs Claude BA+TL)",
+      "run_assignment": "Claude Opus 4.7 xHigh",
+      "compensation": "explicit red-team stance in prompt",
+      "expected_loss": "single-family validation; may rationalize Claude-produced plan defects"
+    },
+    {
+      "role": "Tech-Designer",
+      "docs_assignment": "GPT-5.5 xHigh",
+      "run_assignment": "Claude Sonnet 4.6 (Opus on complex)",
+      "compensation": "none structural; recorded for follow-up hybrid run",
+      "expected_loss": "loss of cross-family schema/contract generation strength"
+    },
+    {
+      "role": "QA-L1",
+      "docs_assignment": "GPT-5.5 high (cross-family vs Claude Dev)",
+      "run_assignment": "Claude Sonnet 4.6 high",
+      "compensation": "none structural; recorded for follow-up hybrid run",
+      "expected_loss": "Claude QA on Claude Dev — same-family rationalization risk"
+    }
+  ],
+  "locked_decisions": {
+    "persistence": "PostgreSQL via common/database (pgx)",
+    "route_convention": "POST /api/v1/{domain}/{aggregate-boundary}/{action}",
+    "auth": "JWT ES256 only via common/token",
+    "frontend_stack": "Next.js App Router + TypeScript + Tailwind",
+    "backend_scaffold": "B2C E-Commerce Platform/backend/go-template",
+    "common_lib": "B2C E-Commerce Platform/backend/common"
+  },
+  "cycle_counts": {
+    "plan_stage": 1,
+    "td_tl": {},
+    "dev_td": {},
+    "rev1_dev": {},
+    "rev1_td": {},
+    "rev2_tl": 0,
+    "rev2_td": {},
+    "ql2_tl": 0,
+    "ql2_ba": 0
+  },
+  "stage_outputs": {
+    "ba": ".squad-run/ba.json",
+    "tl_contracts": "design/architecture/contracts.json",
+    "tl_components": "design/architecture/components.json",
+    "plan_review": ".squad-run/plan-review.json",
+    "components": {},
+    "layer2_qa": ".squad-run/layer-2/qa-l2.json",
+    "layer2_rev": ".squad-run/layer-2/rev-l2.json"
+  },
+  "cycle_counts_final": {
+    "plan_stage": 1,
+    "rev1_dev_repaired_components": ["identity", "inventory", "order", "checkout"],
+    "rev2_tl": 1
+  },
+  "terminal_state": "ShipWithCaveats",
+  "terminal_reason": "Reviewer-L2 cycle 1 of cap 1 used; remaining unresolved findings (REV-L2-004 compound stub, REV-L2-001 partial — profile.read stub) accepted as caveats. No required component has unresolved high finding that breaks correctness — the gaps are all scope reductions / compound stubbing of intentionally-stubbed handlers. Skill bundle emitted with KNOWN_ISSUES.md, ADVISORY.md, PLAN_NOTES.md, and run-log.md."
+}

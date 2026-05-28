@@ -1,0 +1,103 @@
+{
+  "prompt_version": "0.1.0",
+  "component": "catalog",
+  "generated_at": "2026-05-08",
+  "verdict": "code_mismatch",
+  "summary": "3 FULL endpoints implemented and routing confirmed (9 routes). 6 stubs return 501 correctly. NUMERIC(12,2) confirmed in migration. Outbox tx atomic. 3 code_mismatch findings: price serialized as string not number; search>200 silently truncated instead of VALIDATION_ERROR; admin detection broken on public product.detail route (token present but not in context → isAdmin=false). Test count 30 not 31.",
+  "counts": {
+    "pass": 22,
+    "code_mismatch": 4,
+    "spec_incomplete": 0,
+    "spec_wrong": 0
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "verdict": "code_mismatch",
+      "severity": "high",
+      "endpoint": "product.list + product.detail",
+      "ac_id": "CAT-001, CAT-006",
+      "story_id": "STORY_CATALOG_LIST",
+      "scenario": "price field serialized as string not number",
+      "expected": "price field in JSON response is a numeric (e.g. 1290.00) per spec: 'price: number (NUMERIC as decimal; THB)'",
+      "actual": "ProductListResponseItem.Price and ProductDetailResponseData.Price are typed as string in Go struct; JSON output is \"9.99\" (string) not 9.99 (number). Evidence: handler_product_list.go:39 `Price string`, handler_product_detail.go:44 `Price string`.",
+      "evidence": "backend/services/catalog/app/catalog/handler_product_list.go:39 — `Price string json:\"price\"`. handler_product_detail.go:44 — `Price string json:\"price\"`. Spec (design/spec/catalog-product/list.md response example) shows `\"price\": 1290.00` as a JSON number. td.json product.list response_schema: `price: number (NUMERIC as decimal; THB)`."
+    },
+    {
+      "id": "F-002",
+      "verdict": "code_mismatch",
+      "severity": "high",
+      "endpoint": "product.list",
+      "ac_id": "CAT-002",
+      "story_id": "STORY_CATALOG_LIST",
+      "scenario": "search > 200 chars silently truncated instead of VALIDATION_ERROR",
+      "expected": "VALIDATION_ERROR (400) when search string exceeds 200 chars, per td.json validation_rules: 'search: trimmed; ignored if empty after trim; max 200 chars' and error_contract: 'VALIDATION_ERROR ... search>200 chars'. Spec list.md errors table: 'search > 200 chars → VALIDATION_ERROR 400'.",
+      "actual": "handler_product_list.go:173-178 truncates search to 200 chars silently: `trimmed = trimmed[:200]`. No 400 is returned.",
+      "evidence": "backend/services/catalog/app/catalog/handler_product_list.go:171-179 — `if len(trimmed) > 200 { trimmed = trimmed[:200] }`. td.json validation_rules[5]: 'search: trimmed; ignored if empty after trim; max 200 chars'. td.json error_contract[0]: VALIDATION_ERROR triggers include 'search>200 chars'. design/spec/catalog-product/list.md errors table row: search > 200 chars → VALIDATION_ERROR 400."
+    },
+    {
+      "id": "F-003",
+      "verdict": "code_mismatch",
+      "severity": "high",
+      "endpoint": "product.detail",
+      "ac_id": "CAT-010, CAT-009",
+      "story_id": "STORY_CATALOG_DETAIL",
+      "scenario": "Admin callers cannot see DELETED/DRAFT products via the public route",
+      "expected": "Per td.json auth_notes: 'If present and valid ADMIN role, DELETED/DRAFT products are returned.' extractIsAdmin() should parse the Authorization header token for admin detection on the public route.",
+      "actual": "extractIsAdmin() calls token.ClaimsFromContext() which returns an error on public route (JWT middleware not in chain), then returns false without attempting raw header parse. ADMIN callers on the public route receive 404 for DELETED/DRAFT products.",
+      "evidence": "backend/services/catalog/app/catalog/handler_product_detail.go:132-153 — `claims, err := token.ClaimsFromContext(...); if err != nil { return false }`. Comment says 'attempt raw parse from header' but code returns false immediately. JWT middleware is only applied to adminGroup in router.go:66-82, not the publicGroup at router.go:50-62 where /product/detail is registered."
+    },
+    {
+      "id": "F-004",
+      "verdict": "code_mismatch",
+      "severity": "low",
+      "endpoint": "all",
+      "ac_id": "N/A",
+      "story_id": "N/A",
+      "scenario": "Test count is 30, Dev report claims 31",
+      "expected": "31 test cases across 3 test files per Dev report.",
+      "actual": "handler_product_list_test.go: 10 table entries; handler_product_detail_test.go: 5 table entries; handler_product_create_test.go: 15 table entries = 30 total.",
+      "evidence": "grep -c 'name:' on all three test files returns 10+5+15=30. README.md and Dev report both state 31 cases. One case is missing (likely inStock=true UPSTREAM_TIMEOUT path not yet tested)."
+    }
+  ],
+  "confirmations": {
+    "routes_registered": {
+      "count": 9,
+      "routes": [
+        "POST /api/v1/catalog/product/list",
+        "POST /api/v1/catalog/product/detail",
+        "POST /api/v1/catalog/category/list",
+        "POST /api/v1/catalog/product/create",
+        "POST /api/v1/catalog/product/update",
+        "POST /api/v1/catalog/product/soft-delete",
+        "POST /api/v1/catalog/category/create",
+        "POST /api/v1/catalog/category/update",
+        "POST /api/v1/catalog/category/deactivate"
+      ],
+      "evidence": "backend/services/catalog/router/router.go:50-82"
+    },
+    "full_endpoints": {
+      "count": 3,
+      "list": ["product.list", "product.detail", "product.create"],
+      "evidence": "handler_product_list.go, handler_product_detail.go, handler_product_create.go — full logic implemented"
+    },
+    "stub_endpoints_return_501": {
+      "count": 6,
+      "list": ["product.update", "product.soft-delete", "category.create", "category.update", "category.deactivate", "category.list"],
+      "evidence": "All 6 handlers call stubNotImplemented(c) → HTTP 501, code=NOT_IMPLEMENTED_MVP. handler.go:32-38."
+    },
+    "test_files_count": 3,
+    "test_cases_actual": 30,
+    "test_cases_dev_report": 31,
+    "numeric_price_column": {
+      "status": "PASS",
+      "evidence": "migrations/002_create_products.up.sql:10 — `price NUMERIC(12, 2) NOT NULL CHECK (price > 0)`"
+    },
+    "outbox_tx_atomic": {
+      "status": "PASS",
+      "evidence": "service.go:179-263 — product INSERT, image INSERTs, status_history INSERT, outbox INSERT all executed within a single pgx.Tx. Rollback called on any error via defer."
+    }
+  },
+  "csv_path": "B2C E-Commerce Platform/.squad-run/components/catalog/qa-l1.csv",
+  "skills_invoked": ["simplify (advisory scan — identified string vs number type divergence)"]
+}

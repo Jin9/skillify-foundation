@@ -1,0 +1,560 @@
+{
+  "template_version": "0.1.0",
+  "component_name": "cart",
+  "required": true,
+  "complexity": "standard",
+
+  "scaffold": {
+    "from_template": "B2C E-Commerce Platform/backend/go-template",
+    "service_path": "B2C E-Commerce Platform/backend/services/cart",
+    "go_module": "gitlab.com/b2c-e-commerce-platform/platform/backend/cart",
+    "common_lib_import": "gitlab.com/b2c-e-commerce-platform/platform/backend/common",
+    "layout": {
+      "app/cart/": "handler.go, handler_add_item.go, handler_update_item.go, handler_remove_item.go, handler_read.go, handler_clear_on_checkout.go, service.go, repository.go, model.go, enricher.go",
+      "app/cart/client/": "catalog_client.go (catalog.product.detail), inventory_client.go (inventory.stock.bulk-read)",
+      "config/": "config.go",
+      "router/": "router.go, deps.go",
+      "migrations/": "001_create_carts.sql, 002_create_cart_items.sql, 003_create_cart_clear_idempotency.sql"
+    }
+  },
+
+  "persistence": {
+    "schema_owner": "cart",
+    "tables": [
+      {
+        "name": "carts",
+        "primary_key": "cart_id (UUID v7)",
+        "indexes": ["UNIQUE INDEX ON carts(user_id)"],
+        "notes": "One cart per customer enforced at DB level via UNIQUE(user_id). cart_id is UUIDv7."
+      },
+      {
+        "name": "cart_items",
+        "primary_key": "id (UUID v7)",
+        "indexes": [
+          "INDEX ON cart_items(cart_id)",
+          "UNIQUE INDEX ON cart_items(cart_id, product_id)"
+        ],
+        "notes": "UNIQUE(cart_id, product_id) enforces one-line-per-SKU invariant (CART-006). qty CHECK (qty > 0). No price column — price fetched live."
+      },
+      {
+        "name": "cart_clear_idempotency",
+        "primary_key": "order_id (UUID — PK)",
+        "indexes": [],
+        "notes": "Idempotency anchor for cart.clear-on-checkout keyed on orderId (CHK-010). INSERT ON CONFLICT DO NOTHING. No TTL in MVP; prune job deferred."
+      }
+    ],
+    "migrations": [
+      "001_create_carts.sql",
+      "002_create_cart_items.sql",
+      "003_create_cart_clear_idempotency.sql"
+    ]
+  },
+
+  "endpoints": [
+    {
+      "name": "add-item",
+      "contract_ref": "cart.add-item",
+      "method_path": "POST /api/v1/cart/cart/add-item",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["productId", "qty"],
+        "properties": {
+          "productId": { "type": "string", "format": "uuid", "description": "UUID of the product to add" },
+          "qty":       { "type": "integer", "minimum": 1, "description": "Quantity to add; must be >= 1" }
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "code":    { "type": "string", "enum": ["SUCCESS"] },
+          "message": { "type": "string" },
+          "traceId": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "cart": {
+                "type": "object",
+                "properties": {
+                  "customerUserId": { "type": "string" },
+                  "items":          { "type": "array", "items": { "$ref": "#/$defs/EnrichedCartItem" } },
+                  "subtotal":       { "type": "integer", "description": "THB minor units; checkoutable lines only" },
+                  "updatedAt":      { "type": "string", "format": "date-time" }
+                }
+              }
+            }
+          }
+        },
+        "$defs": {
+          "EnrichedCartItem": {
+            "type": "object",
+            "properties": {
+              "cartItemId":    { "type": "string" },
+              "productId":     { "type": "string" },
+              "sku":           { "type": "string" },
+              "name":          { "type": "string" },
+              "image":         { "type": "string" },
+              "currentPrice":  { "type": "integer" },
+              "qty":           { "type": "integer" },
+              "lineSubtotal":  { "type": "integer" },
+              "availableQty":  { "type": "integer" },
+              "productStatus": { "type": "string" },
+              "checkoutable":  { "type": "boolean" },
+              "available":     { "type": "boolean" },
+              "unavailReason": { "type": "string" }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "productId: non-empty string, valid UUID format — common/validator uuid4 tag",
+        "qty: integer >= 1 — common/validator min=1 tag; qty=0 or negative → VALIDATION_ERROR"
+      ],
+      "error_contract": [
+        { "code": "AUTH_MISSING",      "http_status": 401, "trigger": "Missing or invalid Authorization: Bearer JWT" },
+        { "code": "AUTH_INVALID",      "http_status": 401, "trigger": "JWT signature / exp / iss / aud check failed" },
+        { "code": "VALIDATION_ERROR",  "http_status": 400, "trigger": "productId empty/invalid UUID or qty < 1" },
+        { "code": "NOT_FOUND",         "http_status": 404, "trigger": "catalog.product.detail returns NOT_FOUND for productId" },
+        { "code": "PRODUCT_INACTIVE",  "http_status": 409, "trigger": "product.status == INACTIVE — cannot add to cart" },
+        { "code": "PRODUCT_DELETED",   "http_status": 409, "trigger": "product.status == DELETED — cannot add to cart" },
+        { "code": "UPSTREAM_TIMEOUT",  "http_status": 504, "trigger": "catalog.product.detail call exceeds deadline or returns network error" },
+        { "code": "INTERNAL_ERROR",    "http_status": 500, "trigger": "Unexpected DB error or pgx panic" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Same-SKU merge via INSERT … ON CONFLICT (cart_id, product_id) DO UPDATE SET qty = cart_items.qty + EXCLUDED.qty in a single pgx transaction. Two concurrent add-item calls for the same SKU serialize on the UNIQUE row lock; final qty = sum of both. No phantom rows, no TOCTOU race. (CART-006)",
+        "side_effects": [
+          "UPSERT into cart.carts (get-or-create cart for user_id)",
+          "INSERT INTO cart.cart_items … ON CONFLICT DO UPDATE (merge qty)",
+          "UPDATE cart.carts SET updated_at = now()"
+        ],
+        "transactionality": "Single pgx BEGIN/COMMIT spanning the cart UPSERT, item merge INSERT, and updated_at touch"
+      },
+      "implementation_hints": [
+        "Use common/wrapper.BindJSON[AddItemRequest] for request binding — returns 400 automatically on malformed body",
+        "Use common/token.ClaimsFromContext(ctx) to extract claims.Sub as userID",
+        "Call common/httpclient.Post for catalog.product.detail; wrap deadline error as UPSTREAM_TIMEOUT via common/serror",
+        "Use common/database pgx pool for the transaction; no raw SQL string concatenation",
+        "Use common/generator.NewUUIDv7() for new cart_id and cart_item id",
+        "Return enriched cart via internal ReadCart logic (re-use CartService.ReadCart) after the write",
+        "No inventory call on this path — INV-002 prohibits reservation at add-time"
+      ]
+    },
+
+    {
+      "name": "update-item",
+      "contract_ref": "cart.update-item",
+      "method_path": "POST /api/v1/cart/cart/update-item",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cartItemId", "qty"],
+        "properties": {
+          "cartItemId": { "type": "string", "format": "uuid" },
+          "qty":        { "type": "integer", "minimum": 0, "description": "qty=0 triggers remove; qty<0 is VALIDATION_ERROR" }
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "code":    { "type": "string", "enum": ["SUCCESS"] },
+          "message": { "type": "string" },
+          "traceId": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "cart": { "$ref": "#/$defs/Cart" }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "cartItemId: non-empty string, valid UUID format — common/validator uuid4 tag",
+        "qty: integer >= 0 — qty < 0 → VALIDATION_ERROR; qty = 0 → delete path; qty >= 1 → update path",
+        "Ownership check: cartItemId must belong to the cart whose user_id == claims.Sub → NOT_FOUND on mismatch (no cross-user leakage)"
+      ],
+      "error_contract": [
+        { "code": "AUTH_MISSING",      "http_status": 401, "trigger": "Missing or invalid JWT" },
+        { "code": "AUTH_INVALID",      "http_status": 401, "trigger": "JWT validation failed" },
+        { "code": "VALIDATION_ERROR",  "http_status": 400, "trigger": "cartItemId invalid UUID, qty < 0, or qty > availableQty (CART-002 — includes availableQty in error detail)" },
+        { "code": "NOT_FOUND",         "http_status": 404, "trigger": "No cart for user, or cartItemId not in this user's cart" },
+        { "code": "UPSTREAM_TIMEOUT",  "http_status": 504, "trigger": "inventory.stock.bulk-read call exceeds deadline (qty > 0 path only)" },
+        { "code": "INTERNAL_ERROR",    "http_status": 500, "trigger": "Unexpected DB error" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Last-writer-wins on qty. No idempotency key required. Concurrent updates for the same cartItemId serialize on the pgx row lock.",
+        "side_effects": [
+          "qty == 0: DELETE FROM cart.cart_items WHERE id=$1 AND cart_id=$2",
+          "qty >= 1: UPDATE cart.cart_items SET qty=$1 WHERE id=$2 AND cart_id=$3",
+          "UPDATE cart.carts SET updated_at = now()"
+        ],
+        "transactionality": "Single pgx transaction for the DELETE or UPDATE + updated_at touch. Stock check (inventory.stock.bulk-read) runs BEFORE the transaction — it is a best-effort UX guard, not a reservation."
+      },
+      "implementation_hints": [
+        "qty=0 branches into the same internal logic as remove-item (CartService.removeItemInternal); do not duplicate the delete path",
+        "Stock check via common/httpclient.Post to inventory.stock.bulk-read with [productId]; extract availableQty from response; compare with requested qty; return VALIDATION_ERROR with {availableQty} detail if exceeded",
+        "Ownership check: SELECT cart_id FROM cart.carts WHERE user_id=$1 THEN verify cartItemId in that cart — use parameterized query, no string concat",
+        "Use common/serror.Wrap for structured error chain on upstream failures"
+      ]
+    },
+
+    {
+      "name": "remove-item",
+      "contract_ref": "cart.remove-item",
+      "method_path": "POST /api/v1/cart/cart/remove-item",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cartItemId"],
+        "properties": {
+          "cartItemId": { "type": "string", "format": "uuid" }
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "code":    { "type": "string", "enum": ["SUCCESS"] },
+          "message": { "type": "string" },
+          "traceId": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "cart": { "$ref": "#/$defs/Cart" }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "cartItemId: non-empty string, valid UUID format — common/validator uuid4 tag",
+        "Ownership implicit: DELETE WHERE id=$1 AND cart_id=$2; 0 rows affected = idempotent no-op (STORY_CART_REMOVE edge case: already-removed line returns 200 with current cart)"
+      ],
+      "error_contract": [
+        { "code": "AUTH_MISSING",     "http_status": 401, "trigger": "Missing or invalid JWT" },
+        { "code": "AUTH_INVALID",     "http_status": 401, "trigger": "JWT validation failed" },
+        { "code": "VALIDATION_ERROR", "http_status": 400, "trigger": "cartItemId empty or invalid UUID format" },
+        { "code": "INTERNAL_ERROR",   "http_status": 500, "trigger": "Unexpected DB error" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Idempotent — DELETE WHERE id=$1 AND cart_id=$2; if 0 rows affected the item was already removed; return current cart state with 200 SUCCESS. No error surfaced for already-removed lines.",
+        "side_effects": [
+          "DELETE FROM cart.cart_items WHERE id=$1 AND cart_id=$2 (0 rows = no-op)",
+          "UPDATE cart.carts SET updated_at = now() (always — even on no-op, to advance the staleness marker)"
+        ],
+        "transactionality": "Single pgx transaction for DELETE + updated_at touch."
+      },
+      "implementation_hints": [
+        "Get cart_id from carts WHERE user_id=$1 — if no cart exists, return empty cart (idempotent; nothing to remove)",
+        "Use pgx RowsAffected() to distinguish deletion vs no-op; both paths return 200",
+        "Return enriched cart after delete via CartService.ReadCart — this recomputes subtotal from remaining items (CART-004, CART-003)",
+        "INACTIVE/DELETED product lines can always be removed (STORY_CART_REMOVE AC #2 — no catalog check on remove path)"
+      ]
+    },
+
+    {
+      "name": "read",
+      "contract_ref": "cart.read",
+      "method_path": "POST /api/v1/cart/cart/read",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "description": "Empty body — userId derived from JWT claims.Sub"
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "code":    { "type": "string", "enum": ["SUCCESS"] },
+          "message": { "type": "string" },
+          "traceId": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "cart": {
+                "type": "object",
+                "properties": {
+                  "customerUserId": { "type": "string" },
+                  "items": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "cartItemId":    { "type": "string" },
+                        "productId":     { "type": "string" },
+                        "sku":           { "type": "string" },
+                        "name":          { "type": "string" },
+                        "image":         { "type": ["string", "null"] },
+                        "currentPrice":  { "type": "integer", "description": "THB minor units" },
+                        "qty":           { "type": "integer", "minimum": 1 },
+                        "lineSubtotal":  { "type": "integer" },
+                        "availableQty":  { "type": "integer", "minimum": 0 },
+                        "productStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "DELETED", "DRAFT"] },
+                        "checkoutable":  { "type": "boolean" },
+                        "available":     { "type": "boolean", "description": "false if productStatus != ACTIVE OR availableQty == 0; never silent — always has unavailReason when false" },
+                        "unavailReason": { "type": "string", "enum": ["", "PRODUCT_INACTIVE", "PRODUCT_DELETED", "OUT_OF_STOCK"] }
+                      }
+                    }
+                  },
+                  "subtotal":  { "type": "integer", "description": "Sum of lineSubtotal for checkoutable=true lines only (CART-004)" },
+                  "updatedAt": { "type": "string", "format": "date-time", "description": "From carts.updated_at (CART-007)" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "No request fields to validate — body is empty; userId from JWT claims only",
+        "MAX_CART_ITEMS=50 enforced before fan-out: if DB returns > 50 items, trim to first 50 and log warning"
+      ],
+      "error_contract": [
+        { "code": "AUTH_MISSING",    "http_status": 401, "trigger": "Missing or invalid JWT" },
+        { "code": "AUTH_INVALID",    "http_status": 401, "trigger": "JWT validation failed" },
+        { "code": "UPSTREAM_TIMEOUT","http_status": 504, "trigger": "Any single catalog.product.detail call OR the inventory.stock.bulk-read call exceeds the 3000ms fan-out deadline or returns a network error. Strict: no partial success — the entire read fails." },
+        { "code": "INTERNAL_ERROR",  "http_status": 500, "trigger": "Unexpected DB error on cart/cart_items fetch" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Read — trivially idempotent. No state mutation.",
+        "side_effects": ["None — read-only endpoint"],
+        "transactionality": "No DB transaction — read-only SELECT. Fan-out is stateless.",
+        "fan_out_spec": {
+          "timeout_ms": 3000,
+          "semaphore_capacity": 10,
+          "max_items": 50,
+          "catalog_call": "catalog.product.detail per item (parallel, semaphore-bounded)",
+          "inventory_call": "inventory.stock.bulk-read for all productIds in one batch call (single goroutine)",
+          "error_policy": "strict — first upstream error from any goroutine cancels all in-flight via errgroup context and surfaces UPSTREAM_TIMEOUT",
+          "available_flag": "cart.read returns line-item available:bool flag with unavailReason; never silent fall-through (calibration requirement)",
+          "subtotal_rule": "checkoutable=true lines only; INACTIVE/DELETED/OUT_OF_STOCK lines excluded from subtotal"
+        }
+      },
+      "implementation_hints": [
+        "Use golang.org/x/sync/errgroup.WithContext(fanoutCtx) — both catalog and inventory goroutines run inside the same errgroup",
+        "Semaphore: buffered channel chan struct{} with capacity=10; acquire before catalog call, release in defer",
+        "Pre-allocate catalogResults []CatalogDetail with len(items) slots; write by index (not map) to avoid concurrent map-write race",
+        "stockByProductID map written by a single goroutine (the inventory goroutine) — no race",
+        "Outer timeout context: context.WithTimeout(ctx, 3*time.Second); pass gCtx (from errgroup) to all downstream HTTP calls so cancellation propagates",
+        "common/httpclient.Post for both catalog and inventory calls; wrap context.DeadlineExceeded as UPSTREAM_TIMEOUT via common/serror",
+        "Empty cart (no rows in cart_items OR no cart row at all): return {items:[], subtotal:0, updatedAt: zero-or-cart.updatedAt} with 200 SUCCESS — no fan-out",
+        "All prices as int64 minor units — never float64 (cross-cutting.pricing.currency rule)"
+      ]
+    },
+
+    {
+      "name": "clear-on-checkout",
+      "contract_ref": "cart.clear-on-checkout",
+      "method_path": "POST /api/v1/cart/cart/clear-on-checkout",
+      "auth_required": "customer_jwt",
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["customerUserId", "cartItemIds", "orderId"],
+        "properties": {
+          "customerUserId": { "type": "string", "format": "uuid", "description": "Must equal JWT claims.Sub — no cross-user leakage" },
+          "cartItemIds":    { "type": "array", "items": { "type": "string", "format": "uuid" }, "minItems": 1, "description": "IDs of cart_items to remove; only these rows deleted" },
+          "orderId":        { "type": "string", "format": "uuid", "description": "Idempotency anchor; replay returns cached removed count" }
+        }
+      },
+      "response_schema": {
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "code":    { "type": "string", "enum": ["SUCCESS"] },
+          "message": { "type": "string" },
+          "traceId": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "removed": { "type": "integer", "minimum": 0, "description": "Count of rows deleted; 0 is valid on replay or if cartItemIds already removed" }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "customerUserId: non-empty UUID AND must equal JWT claims.Sub — VALIDATION_ERROR on mismatch (prevents cross-customer cart manipulation)",
+        "cartItemIds: non-empty array; each element valid UUID format",
+        "orderId: non-empty UUID format"
+      ],
+      "error_contract": [
+        { "code": "AUTH_MISSING",     "http_status": 401, "trigger": "Missing or invalid JWT" },
+        { "code": "AUTH_INVALID",     "http_status": 401, "trigger": "JWT validation failed" },
+        { "code": "VALIDATION_ERROR", "http_status": 400, "trigger": "customerUserId != claims.Sub, or cartItemIds empty, or orderId empty/invalid UUID" },
+        { "code": "INTERNAL_ERROR",   "http_status": 500, "trigger": "Unexpected DB error" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Idempotent on orderId. On first call: execute DELETE and persist {order_id, removed} in cart_clear_idempotency. On replay: SELECT removed FROM cart_clear_idempotency WHERE order_id=$1; if found, return cached removed count immediately without re-executing DELETE. Uses INSERT INTO cart_clear_idempotency ON CONFLICT (order_id) DO NOTHING after the DELETE.",
+        "side_effects": [
+          "DELETE FROM cart.cart_items WHERE cart_id=$1 AND id=ANY($2::uuid[]) — pgx array param, no string concat",
+          "UPDATE cart.carts SET updated_at = now()",
+          "INSERT INTO cart.cart_clear_idempotency (order_id, removed, created_at) ON CONFLICT DO NOTHING"
+        ],
+        "transactionality": "Single pgx BEGIN/COMMIT: DELETE cart_items + UPDATE carts.updated_at + INSERT cart_clear_idempotency. Idempotency check (SELECT) runs before the transaction; the INSERT ensures the record is committed atomically with the DELETE.",
+        "internal_note": "Caller (checkout service) forwards the customer's own Bearer JWT (AMB-002 resolution). This endpoint validates customerUserId == claims.Sub as the cross-customer leakage guard. Leftover cart items not in cartItemIds are untouched (CHK-010)."
+      },
+      "implementation_hints": [
+        "Idempotency check first: SELECT removed FROM cart.cart_clear_idempotency WHERE order_id=$1 — if row exists, return {removed: N} immediately",
+        "DELETE uses pgx array parameter: DELETE FROM cart.cart_items WHERE cart_id=$1 AND id=ANY($2::uuid[]) — never build the IN clause via string formatting",
+        "Capture pgxResult.RowsAffected() as removed count",
+        "Wrap DELETE + updated_at touch + idempotency INSERT in a single pgx transaction",
+        "customerUserId == claims.Sub check happens BEFORE any DB operation — fail fast on mismatch with VALIDATION_ERROR",
+        "Use common/logger slog.Error if DELETE fails mid-transaction; rollback and return INTERNAL_ERROR"
+      ]
+    }
+  ],
+
+  "internal_modules": {
+    "domain_pkg": "app/cart",
+    "key_files": [
+      "app/cart/handler_add_item.go",
+      "app/cart/handler_update_item.go",
+      "app/cart/handler_remove_item.go",
+      "app/cart/handler_read.go",
+      "app/cart/handler_clear_on_checkout.go",
+      "app/cart/service.go",
+      "app/cart/repository.go",
+      "app/cart/enricher.go",
+      "app/cart/model.go",
+      "app/cart/client/catalog_client.go",
+      "app/cart/client/inventory_client.go"
+    ]
+  },
+
+  "test_strategy": {
+    "unit": "Table-driven tests per handler using mockery-generated mocks for CartService interface and downstream clients (CatalogClient, InventoryClient). pgxmock for repository-level tests. All happy + negative paths covered with t.Run sub-tests.",
+    "integration": "testcontainers-go spinning a real Postgres 15 container for repository tests. Docker-compose smoke: register user → add item → update → read → remove. CART-006 concurrency test: 10 goroutines all add qty=1 for the same productId; assert exactly one cart_items row with qty=10.",
+    "happy_paths": [
+      "add_item_new_sku_creates_line",
+      "add_item_same_sku_merges_qty",
+      "update_item_qty_increases_within_stock",
+      "update_item_qty_zero_removes_line",
+      "remove_item_deletes_line_and_recalculates_subtotal",
+      "remove_item_already_removed_returns_200_idempotent",
+      "read_cart_returns_enriched_items_with_available_flag",
+      "read_cart_empty_returns_empty_shape",
+      "read_cart_inactive_product_checkoutable_false_excluded_from_subtotal",
+      "clear_on_checkout_removes_specified_items_only",
+      "clear_on_checkout_replay_returns_cached_removed_count"
+    ],
+    "negative_paths": [
+      "add_item_unauthenticated_returns_401",
+      "add_item_inactive_product_returns_PRODUCT_INACTIVE",
+      "add_item_deleted_product_returns_PRODUCT_DELETED",
+      "add_item_qty_zero_returns_VALIDATION_ERROR",
+      "update_item_qty_exceeds_available_returns_VALIDATION_ERROR_with_availableQty",
+      "update_item_unknown_cartItemId_returns_NOT_FOUND",
+      "read_cart_catalog_timeout_returns_UPSTREAM_TIMEOUT",
+      "read_cart_inventory_timeout_returns_UPSTREAM_TIMEOUT",
+      "clear_on_checkout_customerUserId_mismatch_returns_VALIDATION_ERROR",
+      "clear_on_checkout_empty_cartItemIds_returns_VALIDATION_ERROR"
+    ]
+  },
+
+  "ba_acceptance_mapping": [
+    {
+      "story_id": "STORY_CART_ADD",
+      "ba_id": "CART-001",
+      "description": "Authenticated Customer adds an active product with qty > 0 to cart.",
+      "endpoint": "add-item",
+      "test_name": "add_item_new_sku_creates_line",
+      "implementation_notes": "catalog.product.detail verifies ACTIVE status before write. JWT middleware enforces CUSTOMER role. qty >= 1 validated by request schema."
+    },
+    {
+      "story_id": "STORY_CART_ADD",
+      "ba_id": "CART-006",
+      "description": "Adding same SKU twice merges into one line with summed qty.",
+      "endpoint": "add-item",
+      "test_name": "add_item_same_sku_merges_qty",
+      "implementation_notes": "INSERT INTO cart_items … ON CONFLICT (cart_id, product_id) DO UPDATE SET qty = cart_items.qty + EXCLUDED.qty in single pgx tx. UNIQUE(cart_id, product_id) constraint enforces invariant."
+    },
+    {
+      "story_id": "STORY_CART_UPDATE_QTY",
+      "ba_id": "CART-002",
+      "description": "Cart update qty must not exceed current availableQty.",
+      "endpoint": "update-item",
+      "test_name": "update_item_qty_exceeds_available_returns_VALIDATION_ERROR_with_availableQty",
+      "implementation_notes": "inventory.stock.bulk-read called on update path (qty>=1 branch). qty > availableQty → VALIDATION_ERROR with availableQty in detail. No reservation created — stock check only (INV-002)."
+    },
+    {
+      "story_id": "STORY_CART_UPDATE_QTY",
+      "ba_id": "CART-003",
+      "description": "Customer removes a cart item via qty=0 on update.",
+      "endpoint": "update-item",
+      "test_name": "update_item_qty_zero_removes_line",
+      "implementation_notes": "qty=0 branches into internal removeItemInternal logic (DELETE + updated_at). Subtotal recomputed on enriched cart return."
+    },
+    {
+      "story_id": "STORY_CART_REMOVE",
+      "ba_id": "CART-003",
+      "description": "Customer removes a cart line; subtotal updates accordingly.",
+      "endpoint": "remove-item",
+      "test_name": "remove_item_deletes_line_and_recalculates_subtotal",
+      "implementation_notes": "DELETE FROM cart_items WHERE id=$1 AND cart_id=$2. Return enriched cart with recomputed subtotal (CART-004). Remove works for INACTIVE/DELETED product lines — no catalog check on remove path."
+    },
+    {
+      "story_id": "STORY_CART_ADD",
+      "ba_id": "CART-004",
+      "description": "Cart subtotal computed server-side from current product price.",
+      "endpoint": "read",
+      "test_name": "read_cart_returns_enriched_items_with_available_flag",
+      "implementation_notes": "currentPrice fetched live from catalog.product.detail per item at read-time. subtotal = sum(currentPrice*qty) for checkoutable=true lines only. Never trusts client-computed value."
+    },
+    {
+      "story_id": "STORY_CART_REMOVE",
+      "ba_id": "CART-005",
+      "description": "Cart flags items whose product became INACTIVE/DELETED as non-checkoutable.",
+      "endpoint": "read",
+      "test_name": "read_cart_inactive_product_checkoutable_false_excluded_from_subtotal",
+      "implementation_notes": "catalog.product.detail called per item at read-time. status != ACTIVE → checkoutable=false, available=false, unavailReason set. Checkout rejects these lines (CHK-003). Line never silently dropped from response."
+    },
+    {
+      "story_id": "STORY_CART_ADD",
+      "ba_id": "CART-007",
+      "description": "Cart row carries updatedAt for stale-cart detection.",
+      "endpoint": "read",
+      "test_name": "add_item_new_sku_creates_line",
+      "implementation_notes": "carts.updated_at updated on every add/update/remove mutation. Returned as updatedAt (RFC3339) in cart.read response."
+    },
+    {
+      "story_id": "STORY_CART_REMOVE",
+      "ba_id": "CHK-010",
+      "description": "After checkout, only ordered items removed from cart; leftover items remain.",
+      "endpoint": "clear-on-checkout",
+      "test_name": "clear_on_checkout_removes_specified_items_only",
+      "implementation_notes": "Checkout supplies exact cartItemIds. DELETE WHERE id=ANY($2::uuid[]) removes only specified rows. Idempotent on orderId via cart_clear_idempotency table."
+    }
+  ],
+
+  "contract_ambiguities": [
+    {
+      "id": "AMB-001",
+      "contract": "cart.add-item",
+      "issue": "Contract does not specify whether add-item should call inventory for a stock check. INV-002 says no reservation at add-time; BA CART-002 scopes the check to 'update'. Resolution: NO inventory call on add-item path.",
+      "resolution": "No inventory call on add-item. Stock check only on update-item path (UX guard) and at checkout.commit (authoritative reservation). Documented in implementation_hints."
+    },
+    {
+      "id": "AMB-002",
+      "contract": "cart.clear-on-checkout",
+      "issue": "MVP has no SERVICE role JWT. Checkout calls this endpoint using the customer's own access token forwarded from checkout.commit.",
+      "resolution": "Checkout forwards the customer's Bearer token. cart.clear-on-checkout validates customerUserId == claims.Sub for cross-customer leakage prevention."
+    },
+    {
+      "id": "AMB-003",
+      "contract": "cart.read — catalog fan-out error policy",
+      "issue": "Calibration says 'never silent fall-through' and 'available:bool flag with reason'. This could mean per-line degradation OR strict whole-read failure. The contract's failure_modes list only AUTH_MISSING; UPSTREAM_TIMEOUT is in the cross-cutting registry.",
+      "resolution": "Strict policy: any upstream failure (catalog OR inventory) → UPSTREAM_TIMEOUT on the whole read. Per-line degradation (mark line unavailable but return 200) would require a contract amendment. Surfaced here so orchestrator can confirm."
+    },
+    {
+      "id": "AMB-004",
+      "contract": "cart.update-item — qty=0 behavior",
+      "issue": "Contract request shows qty: int (>=1) but CART-003 and STORY_CART_UPDATE_QTY edge case say qty=0 should trigger remove. BA leaves choice to Tech-Designer.",
+      "resolution": "Accept qty >= 0 at handler; qty=0 triggers internal remove logic; qty < 0 → VALIDATION_ERROR. Documented in validation_rules and request_schema (minimum: 0)."
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "stage1_extraction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stage", "stage_status"],
+  "properties": {
+    "stage": { "const": "extraction" },
+    "stage_status": { "enum": ["complete", "blocked"] },
+    "failure_code": { "type": "string" },
+    "failure_reason": { "type": "string" },
+    "source_type": { "enum": ["jira", "slack", "email", "meeting-notes", "doc", "mixed", "unknown"] },
+    "parsing_mode": { "enum": ["structured", "degraded", "synthesized_from_chat", "generic_prose_fallback"] },
+    "scope_kind": { "enum": ["single-story", "multi-story", "single-epic", "multi-epic", "story_within_epic", "ambiguous"] },
+    "epics": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/epic" }
+    },
+    "stories": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/story" }
+    },
+    "out_of_scope_deferred": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/deferred" }
+    },
+    "glossary_candidates": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/glossaryCandidate" }
+    },
+    "extraction_notes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/note" }
+    },
+    "processing_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ground_truth_stripped"],
+      "properties": {
+        "ground_truth_stripped": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["found"],
+          "properties": {
+            "found": { "type": "boolean" },
+            "byte_range": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 0 },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "strip_method": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "stage_status": { "const": "complete" } }, "required": ["stage_status"] },
+      "then": { "required": ["source_type", "parsing_mode", "scope_kind", "epics", "stories", "processing_metadata"] }
+    },
+    {
+      "if": { "properties": { "stage_status": { "const": "blocked" } }, "required": ["stage_status"] },
+      "then": { "required": ["failure_code", "failure_reason"] }
+    }
+  ],
+  "definitions": {
+    "epic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "problem_statement", "source_refs"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^EPIC-[A-Z0-9-]+$" },
+        "title": { "type": "string", "minLength": 8 },
+        "problem_statement": { "type": "string", "minLength": 20 },
+        "workstream": { "type": "string" },
+        "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+    "story": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "epic_id", "title", "story_candidate", "split_axis", "source_refs"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^EPIC-[A-Z0-9-]+-[0-9]+$" },
+        "epic_id": { "type": "string", "pattern": "^EPIC-[A-Z0-9-]+$" },
+        "title": { "type": "string", "minLength": 8 },
+        "story_candidate": { "type": "string", "minLength": 20 },
+        "split_axis": { "enum": ["workflow_step", "business_rule", "data_variation", "role_boundary", "happy_error_path", "crud", "spike"] },
+        "raw_acceptance_signals": { "type": "array", "items": { "type": "string" } },
+        "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+    "deferred": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topic", "source_ref"],
+      "properties": {
+        "topic": { "type": "string" },
+        "deferral_reason": { "type": "string" },
+        "owner_for_future": { "type": "string" },
+        "source_ref": { "type": "string" }
+      }
+    },
+    "glossaryCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["term", "surface_form"],
+      "properties": {
+        "term": { "type": "string" },
+        "surface_form": { "type": "array", "items": { "type": "string" } },
+        "possible_definition": { "type": "string" },
+        "pii_sensitivity": { "enum": ["direct", "indirect", "regulatory", "financial", "none", "unknown"] }
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "message"],
+      "properties": {
+        "severity": { "enum": ["info", "warning", "blocker"] },
+        "message": { "type": "string" },
+        "source_ref": { "type": "string" }
+      }
+    }
+  }
+}

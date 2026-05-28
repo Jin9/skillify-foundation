@@ -1,0 +1,82 @@
+{
+  "prompt_version": "0.1.0",
+  "component": "cart",
+  "verdict": "code_mismatch",
+  "summary": "3 FULL endpoints (add-item, update-item, read) partially conform; 5 code mismatches found across those 3 FULL handlers, and 2 endpoints (remove-item, clear-on-checkout) are correctly STUBbed at 501. The mismatches are: wrong HTTP status for PRODUCT_INACTIVE/DELETED (422 vs spec 409), wrong error code for stock-exceeded (STOCK_INSUFFICIENT vs spec VALIDATION_ERROR, wrong HTTP 409 vs spec 400), fan-out graceful-degradation on catalog timeout instead of strict failure, float64 pricing instead of int64, and missing available/unavailReason fields on CartItemView.",
+  "csv_path": ".squad-run/components/cart/qa-l1.csv",
+  "routes": [
+    { "name": "add-item",          "method_path": "POST /api/v1/cart/cart/add-item",          "scope": "FULL",  "router_line": "router/router.go:64" },
+    { "name": "update-item",       "method_path": "POST /api/v1/cart/cart/update-item",       "scope": "FULL",  "router_line": "router/router.go:65" },
+    { "name": "read",              "method_path": "POST /api/v1/cart/cart/read",              "scope": "FULL",  "router_line": "router/router.go:65" },
+    { "name": "remove-item",       "method_path": "POST /api/v1/cart/cart/remove-item",       "scope": "STUB",  "router_line": "router/router.go:67" },
+    { "name": "clear-on-checkout", "method_path": "POST /api/v1/cart/cart/clear-on-checkout", "scope": "STUB",  "router_line": "router/router.go:68" }
+  ],
+  "confirmations": {
+    "route_count": 5,
+    "full_endpoints": ["add-item", "update-item", "read"],
+    "stub_endpoints": ["remove-item", "clear-on-checkout"],
+    "cart_006_on_conflict_merge": "CONFIRMED — service.go:139 UpsertItem called inside pgx tx; storage port documents ON CONFLICT (cart_id, product_id) DO UPDATE SET qty = cart_items.qty + EXCLUDED.qty",
+    "unique_cart_id_product_id": "CONFIRMED — migrations/002_create_cart_items.up.sql:14 CONSTRAINT uq_cart_items_sku UNIQUE (cart_id, product_id)",
+    "fanout_errgroup": "CONFIRMED — service.go:308 errgroup.WithContext(fanoutCtx)",
+    "fanout_semaphore_capacity": "CONFIRMED — config default FANOUT_CONCURRENCY=10 (config.go:68); sem := make(chan struct{}, s.fanoutCfg.Concurrency) service.go:311",
+    "fanout_timeout_ms": "CONFIRMED — config default FANOUT_TIMEOUT_MS=3000 (config.go:67)",
+    "dev_report_test_count": {
+      "add_item_test_cases": 8,
+      "update_item_test_cases": 9,
+      "read_cart_test_cases": 6,
+      "note": "handler_add_item_test.go=8 table rows, handler_update_item_test.go=9 table rows, handler_read_test.go=6 table rows — total handler tests=23; spec lists 10+8+13+7+9=47 named cases across all 5 endpoints (many are stub/integration); the Dev README claims 24 unit tests"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "code_mismatch",
+      "endpoint": "add-item",
+      "title": "PRODUCT_INACTIVE and PRODUCT_DELETED return HTTP 422 Unprocessable Entity; spec requires HTTP 409 Conflict",
+      "spec_ref": "td.json#endpoints[add-item].error_contract, design/spec/cart-cart/add-item.md#Response(errors)",
+      "evidence": "handler_add_item.go:77 wrapper.Respond HTTPStatus: http.StatusUnprocessableEntity for ErrProductDeleted; handler_add_item.go:82 same for ErrProductInactive. Spec error_contract: { code: PRODUCT_INACTIVE, http_status: 409 }, { code: PRODUCT_DELETED, http_status: 409 }.",
+      "impact": "API callers expecting 409 will receive 422 — breaking contract for frontend and integration tests."
+    },
+    {
+      "id": "F-002",
+      "severity": "code_mismatch",
+      "endpoint": "update-item",
+      "title": "Stock-exceeded error returns HTTP 409 with code STOCK_INSUFFICIENT; spec requires HTTP 400 with code VALIDATION_ERROR containing availableQty in detail",
+      "spec_ref": "td.json#endpoints[update-item].error_contract VALIDATION_ERROR http_status:400, design/spec/cart-cart/update-item.md#Response(errors) VALIDATION_ERROR 400",
+      "evidence": "handler_update_item.go:87-91: HTTPStatus: http.StatusConflict (409), Code: 'STOCK_INSUFFICIENT'. Spec: { code: VALIDATION_ERROR, http_status: 400, trigger: qty > availableQty (CART-002 — includes availableQty in error detail) }. Test handler_update_item_test.go:81 also asserts wantHTTPStatus: http.StatusConflict confirming Dev's intentional deviation.",
+      "impact": "Clients checking for 400 VALIDATION_ERROR on qty-exceeded will not recognise the 409 STOCK_INSUFFICIENT response. Breaks checkout-side guard logic and API contract."
+    },
+    {
+      "id": "F-003",
+      "severity": "code_mismatch",
+      "endpoint": "read",
+      "title": "Catalog timeout on fan-out is handled as per-line graceful degradation (marks line unavailable, continues); spec requires strict whole-read failure returning UPSTREAM_TIMEOUT (504)",
+      "spec_ref": "td.json#endpoints[read].error_contract UPSTREAM_TIMEOUT, td.json#endpoints[read].edge_behavior.fan_out_spec.error_policy='strict — first upstream error from any goroutine cancels all in-flight via errgroup context and surfaces UPSTREAM_TIMEOUT', design/spec/cart-cart/read.md#Response(errors) UPSTREAM_TIMEOUT 504",
+      "evidence": "service.go:321-330: catalog goroutine catches isUpstreamTimeout(err) and stores ProductDetail{Status: 'CATALOG_UNREACHABLE'}, returns nil (no error propagated). spec says 'Strict: no partial success — the entire read fails.' handler_read_test.go:165-170: test case for fan-out error expects HTTP 500 (INTERNAL_ERROR), not 504 (UPSTREAM_TIMEOUT) — also a mismatch on the expected status code for that scenario.",
+      "impact": "A catalog outage will silently return a partially enriched cart with synthetic unavailReason instead of surfacing UPSTREAM_TIMEOUT 504, masking service health from upstream callers."
+    },
+    {
+      "id": "F-004",
+      "severity": "code_mismatch",
+      "endpoint": "read (all FULL endpoints)",
+      "title": "Prices and subtotal use float64 instead of int64 (THB minor units); spec mandates integer (int64) throughout",
+      "spec_ref": "td.json#endpoints[read].response_schema properties.currentPrice type:integer, td.json#endpoints[add-item].$defs.EnrichedCartItem.currentPrice type:integer, design/spec/cart-cart/read.md field-semantics 'Integer THB. Never stored in cart.' cross-cutting.pricing.currency rule 'All prices as int64 minor units — never float64'",
+      "evidence": "domain.go:38 CurrentPrice float64; domain.go:40 LineSubtotal float64; domain.go:53 Subtotal float64. service.go:367 lineSubtotal := d.CurrentPrice * float64(item.Qty); service.go:389 subtotal += lineSubtotal (float64 accumulator).",
+      "impact": "float64 accumulation can introduce rounding errors on large quantities (THB minor units are integers). JSON serialisation will emit decimal values (e.g. 590.0) rather than integers, breaking schema-strict clients."
+    },
+    {
+      "id": "F-005",
+      "severity": "code_mismatch",
+      "endpoint": "read (all FULL endpoints returning CartItemView)",
+      "title": "CartItemView is missing the available (bool) and unavailReason (string) fields required by the spec",
+      "spec_ref": "td.json#endpoints[read].response_schema items.available, items.unavailReason; td.json#endpoints[add-item].$defs.EnrichedCartItem.available, .unavailReason; design/spec/cart-cart/read.md field-semantics available/unavailReason; td.json#endpoints[read].edge_behavior.fan_out_spec.available_flag='never silent — always has unavailReason when false'",
+      "evidence": "domain.go:36-48 CartItemView struct has no available or unavailReason fields. service.go:375-388 builds views without setting available or unavailReason. handler_read_test.go:111 checks inactiveItem.Checkoutable but never asserts available or unavailReason fields — confirming the omission.",
+      "impact": "Frontend cannot render the unavailability banner without unavailReason. Calibration requirement 'never silent' is violated. checkout.commit relies on available flag per CHK-003."
+    }
+  ],
+  "pass_count": 0,
+  "code_mismatch_count": 5,
+  "spec_incomplete_count": 0,
+  "spec_wrong_count": 0,
+  "stub_count": 2
+}

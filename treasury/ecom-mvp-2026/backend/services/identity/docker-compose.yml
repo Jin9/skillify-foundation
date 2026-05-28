@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: identity_secret
+      POSTGRES_DB: identity
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  identity:
+    build:
+      context: ../..
+      dockerfile: services/identity/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: identity
+      DB_PASSWORD: identity_secret
+      DB_NAME: identity
+      # ES256 keypair — generate for dev:
+      # openssl ecparam -genkey -name prime256v1 -noout -out priv.pem
+      # openssl ec -in priv.pem -pubout -out pub.pem
+      # Then paste PEM values below (or use env file)
+      JWT_PRIVATE_KEY_PEM: "${JWT_PRIVATE_KEY_PEM}"
+      JWT_PUBLIC_KEY_PEM: "${JWT_PUBLIC_KEY_PEM}"
+      JWT_ISSUER: "identity-svc"
+      JWT_AUDIENCE: "shoppilot"
+      JWT_ACCESS_TOKEN_TTL: "15m"
+      JWT_REFRESH_TOKEN_TTL: "720h"
+      # Must be exactly 16 chars
+      HASH_PEPPER: "${HASH_PEPPER:-changeme_16chars}"

@@ -1,0 +1,134 @@
+{
+  "review_level": "L1",
+  "version": "0.1",
+  "component": "frontend-web",
+  "date": "2026-05-07",
+  "reviewer": "expert-software-security-reviewer + simplify",
+  "scope": "Design-only review of B2C E-Commerce Platform/design/components/frontend-web/td.json. No implementation code exists yet; findings target spec adequacy for downstream coding-stage compliance.",
+  "verdict": "PASS_WITH_OBSERVATIONS",
+  "findings": [
+    {
+      "id": "REV-L1-FE-001",
+      "topic": "Cookie attributes (access + refresh)",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "td.json security_posture.cookies.attributes_production: 'HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age = matching token expiry (access ≈ 15min, refresh ≈ 14d).' auth_flow_pseudocode.buildCookie() emits all five attributes. local_dev intentionally omits Secure (browser-required for http://localhost — acceptable, gated by NODE_ENV)."
+    },
+    {
+      "id": "REV-L1-FE-002",
+      "topic": "JWT not in JS / no document.cookie reads",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "security_posture.no_javascript_jwt forbids document.cookie reads of access/refresh and bans NEXT_PUBLIC_ serialization. Backed by ESLint custom rule ('document.cookie outside lib/auth/cookies-server.ts') in test_strategy.lint_and_static. HttpOnly defense-in-depth in REV-L1-FE-001."
+    },
+    {
+      "id": "REV-L1-FE-003",
+      "topic": "6-step auth flow correctness",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "auth_flow_pseudocode: Step 2 short-circuits when access cookie present and !isJwtExpired (skew 30s) — refresh NOT called per request (asserted by unit test per security_posture.no_refresh_on_every_request). AUTH_INVALID/AUTH_REVOKED branch returns envelope401WithClearedCookies (both cookies cleared). Step 5 rotates both cookies atomically via two Set-Cookie headers in the same response. isJwtExpired uses base64UrlDecode + JSON.parse with no signature verification (jwt_decode confirms server retains verification authority)."
+    },
+    {
+      "id": "REV-L1-FE-004",
+      "topic": "Idempotency-Key generator",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "idempotency_key_strategy.generator: 'crypto.randomUUID() — UUID v4; never timestamp, never counter, never derived from user data.' route_handlers POST /api/checkout/commit explicitly forbids server-side auto-generation; missing key -> 400 VALIDATION_ERROR. Unit test target lib/idempotency/key.ts asserts crypto.randomUUID is called."
+    },
+    {
+      "id": "REV-L1-FE-005",
+      "topic": "CSP baseline",
+      "severity": "low",
+      "status": "PASS_WITH_NOTE",
+      "evidence": "csp_headers_baseline_next_config: default-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; img-src 'self' data: https:. No 'unsafe-eval' anywhere. style-src 'unsafe-inline' acceptable for Tailwind JIT (regrettable but permitted by spec). script-src 'unsafe-inline' is a yellow flag — explicitly acknowledged in csp_notes as a known Next.js App Router constraint with a tracked nonce-middleware follow-up. Acceptable for MVP; flagged for L2."
+    },
+    {
+      "id": "REV-L1-FE-006",
+      "topic": "XSS / dangerouslySetInnerHTML",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "security_posture.xss: dangerouslySetInnerHTML FORBIDDEN repo-wide via eslint react/no-danger=error. Admin-controlled markdown rendered via sanitize-html allowlist only. User-supplied content rendered as plain text relying on React default escaping."
+    },
+    {
+      "id": "REV-L1-FE-007",
+      "topic": "Server vs Client boundary for sensitive ops",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "All 34 route handlers under app/api/**/route.ts (server runtime). lib/auth/orchestrator.ts called only by route handlers (auth_flow_pseudocode.callBackendWithAuth signature accepts NextRequest — server-only). Idempotency-Key body field is consumed by /api/checkout/commit handler (server) before forwarding to backend. BACKEND_*_BASE_URL env vars are server-only (security_posture.secrets confirms no NEXT_PUBLIC_ prefix; never bundled into client JS)."
+    },
+    {
+      "id": "REV-L1-FE-008",
+      "topic": "Error envelope handling / PII leakage",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "error_handling.envelope_unwrap routes ApiError {code, message, traceId} into UI mappings keyed by code (AUTH_*, VALIDATION_ERROR, INSUFFICIENT_STOCK, etc.). DATABASE_UNAVAILABLE/UPSTREAM_TIMEOUT/INTERNAL_ERROR mapped to generic 'Something went wrong' — no raw upstream message leak. observability.no_pii_in_logs: only userId + traceId logged client-side; email/phone/address never logged."
+    },
+    {
+      "id": "REV-L1-FE-009",
+      "topic": "Open redirect (redirect_to / next param)",
+      "severity": "medium",
+      "status": "OBSERVATION",
+      "evidence": "pages[/login].notes: 'On success the route handler sets access+refresh cookies; client redirects to next-param or /.' error_handling.ui_mapping AUTH_MISSING|AUTH_REVOKED: 'Layout redirects to /login?next=...'. The 'next' query parameter is consumed but td.json does NOT specify allowlist validation (e.g. require leading '/' AND reject '//' or 'http(s)://'). Risk: open-redirect to attacker domain via crafted /login?next=https://evil.example.",
+      "recommendation": "Add explicit rule to security_posture: 'next' / redirect_to params MUST be validated as same-origin relative path (regex ^/(?!/) or URL parse with origin check) before router.push. Implement in /login Client Component AND any layout-level redirect."
+    },
+    {
+      "id": "REV-L1-FE-010",
+      "topic": "HTTPS enforcement on backend URLs in production",
+      "severity": "medium",
+      "status": "OBSERVATION",
+      "evidence": "service_endpoints_env lists all BACKEND_*_BASE_URL values as 'http://identity:8080', 'http://catalog:8080', etc. These are intra-cluster service-mesh URLs (server-only, never exposed to browser per security_posture.secrets) so plaintext on a private overlay is defensible. However, td.json contains no .env.example reference and no explicit prod-vs-dev guard requiring https:// for production overrides.",
+      "recommendation": "Add to security_posture: 'In production .env, BACKEND_*_BASE_URL MUST resolve to https:// or to an in-cluster ClusterIP/Service hostname over a meshed mTLS overlay. CI lint should reject http:// in non-dev .env files.' Document in .env.example with comments."
+    },
+    {
+      "id": "REV-L1-FE-011",
+      "topic": "CORS posture",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "All 34 route handlers are same-origin under the Next.js app (frontend/app/api/**). td.json never specifies a CORS middleware or 'Access-Control-Allow-Origin' header — Next.js defaults to no CORS headers (same-origin only), which is the desired posture. No '*' wildcard anywhere. security_posture.csrf relies on SameSite=Lax + Content-Type: application/json gating, which is consistent with same-origin-only mutations."
+    },
+    {
+      "id": "REV-L1-FE-012",
+      "topic": "CSRF defense",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "security_posture.csrf: SameSite=Lax + Content-Type: application/json enforcement on all mutating route handlers. Idempotency-Key in body (not header) sidesteps preflight quirks but mutating handlers still gate on JSON content-type, blocking naive HTML-form CSRF."
+    },
+    {
+      "id": "REV-L1-FE-013",
+      "topic": "Body-size DoS limit",
+      "severity": "info",
+      "status": "PASS",
+      "evidence": "security_posture.input_size_limits caps route-handler body at 1 MB."
+    }
+  ],
+  "code_security_issues": [],
+  "observations": [
+    {
+      "id": "OBS-001",
+      "severity": "medium",
+      "topic": "Open redirect via next/redirect_to",
+      "description": "Spec consumes ?next= for post-login redirect but does not specify same-origin allowlist validation. Add path-only validation rule before downstream coding stage.",
+      "ref": "REV-L1-FE-009"
+    },
+    {
+      "id": "OBS-002",
+      "severity": "low",
+      "topic": "HTTPS enforcement absent from spec",
+      "description": "BACKEND_*_BASE_URL examples use http://; intra-cluster service mesh is implied but not documented. Add explicit prod-must-be-https rule and .env.example commentary.",
+      "ref": "REV-L1-FE-010"
+    },
+    {
+      "id": "OBS-003",
+      "severity": "low",
+      "topic": "CSP script-src 'unsafe-inline'",
+      "description": "Yellow flag, acknowledged with tracked nonce-middleware follow-up. Acceptable for MVP, must be revisited in L2 hardening.",
+      "ref": "REV-L1-FE-005"
+    }
+  ],
+  "simplify_notes": [
+    "The body-field 'idempotencyKey' instead of HTTP header is a deliberate auditability win and avoids preflight footguns; the handler still emits the 'Idempotency-Key' header downstream so the backend contract is honored. No simplification needed.",
+    "Cookie buildCookie() emits the same string for both cookies — keep DRY by passing maxAge per cookie; spec already does this. No change needed.",
+    "Open-redirect validator should be a single utility (lib/auth/safe-redirect.ts) used by both /login client and any layout redirect — avoid duplicating regex logic in two places."
+  ],
+  "summary": "13 checks evaluated. PASS on all 4 explicit high-severity gates: cookie attributes (HttpOnly+Secure+SameSite=Lax+Path=/+Max-Age), no JWT in JS (HttpOnly + ESLint ban on document.cookie), 6-step auth orchestration (refresh only on miss/expiry, AUTH_REVOKED clears both cookies, atomic rotation via dual Set-Cookie, base64-decode-only JWT parsing), and Idempotency-Key from crypto.randomUUID with handler-level rejection of missing keys. CSP baseline is acceptable for MVP; script-src 'unsafe-inline' acknowledged as known Next.js constraint. Two medium observations: (1) open-redirect on ?next= param lacks explicit same-origin allowlist in spec — must be specified before coding; (2) HTTPS enforcement on BACKEND_*_BASE_URL in production is implicit not explicit — add to security_posture and .env.example. No code_security_issue findings since no implementation exists yet; observations carry forward to coding-stage gate."
+}

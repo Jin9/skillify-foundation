@@ -1,0 +1,36 @@
+{
+  "template_version": "0.1.0",
+  "component_name": "identity",
+  "verdict": "code_mismatch",
+  "summary": "The identity service passes all structural checks (11 routes registered, 3 migrations present with correct schemas, 8 stubs returning 501 NOT_IMPLEMENTED_MVP, single-tx refresh rotation matching ID-DEC-1, AUTH-007 generic error with exact message on both wrong-email and wrong-password paths). Two code_mismatch findings prevent a clean pass: (1) common/wrapper omits traceId from the JSON wire response entirely — the Response struct only emits {code, message, data}, leaving the contracts-mandated traceId field absent from every response; (2) handler_login.go returns an undocumented role field in the login response data object, which the TD response_schema does not include. One spec_incomplete finding covers the bcrypt/SHA-256 question: the TD required bcrypt cost-12 via common/hash.Hash(), but common/hash provides only SHA-256+pepper (HashSha256EncodePepper); the Dev used the available API correctly — this is tagged spec_incomplete because the TD assumed a bcrypt API that does not exist in common/hash.",
+  "findings": [
+    {
+      "id": "QA-IDENT-001",
+      "tag": "code_mismatch",
+      "locus": "B2C E-Commerce Platform/backend/common/wrapper/respond.go:16-21",
+      "description": "The Response[T] struct serialises only {code, message, data}. The traceId field is stored in context (CtxResponseMeta) but never written into the JSON body. Every endpoint therefore violates the contracts.json cross-cutting.response-envelope contract which requires {code, message, data, traceId} on every response, success or error.",
+      "recommendation": "Add TraceID string `json:\"traceId\"` to Response[T] and populate it from opt.TraceID (or derive it from the gin context's W3C traceparent). This is a common-lib fix; all services sharing common/wrapper will benefit. Route back to Dev."
+    },
+    {
+      "id": "QA-IDENT-002",
+      "tag": "code_mismatch",
+      "locus": "B2C E-Commerce Platform/backend/services/identity/app/identity/handler_login.go:17-23",
+      "description": "loginResponse includes a Role string `json:\"role\"` field that is absent from the TD's response_schema for the login endpoint. The TD data object specifies only {accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt}. Returning an undocumented field constitutes a contract deviation and may leak internal role information earlier than intended by the spec.",
+      "recommendation": "Remove the Role field from loginResponse, or explicitly add it to the TD response_schema with appropriate rationale (e.g. frontend needs role for routing decisions). Route back to Dev pending TD clarification."
+    },
+    {
+      "id": "QA-IDENT-003",
+      "tag": "code_mismatch",
+      "locus": "B2C E-Commerce Platform/backend/services/identity/app/identity/handler_register.go:15",
+      "description": "The phone field in registerRequest is declared as *string with no validation tag. The TD validation_rules require that when phone is present it must match ^[0-9+\\- ]{7,20}$. The common/validator (gin binding) supports a `binding:\"omitempty,e164\"` or custom pattern tag, but no pattern constraint is applied. An invalid phone value will be accepted silently.",
+      "recommendation": "Add `binding:\"omitempty\"` plus a custom validator for the phone pattern, or validate the pattern manually in the handler before calling the service. Route back to Dev."
+    },
+    {
+      "id": "QA-IDENT-004",
+      "tag": "spec_incomplete",
+      "locus": "B2C E-Commerce Platform/design/components/identity/td.json:118 (edge_behavior.side_effects) and design_decisions ID-DEC-4",
+      "description": "The TD mandates bcrypt cost-12 with pepper via common/hash.Hash(password) (implementation_hints line 1, design_decisions ID-DEC-4). However common/hash does not expose a bcrypt method — it only provides HashSha256EncodePepper (SHA-256 + pepper). The Dev correctly used the only available API (HashSha256EncodePepper) rather than introducing an external bcrypt dependency. The TD assumed a bcrypt function that does not exist in the common library.",
+      "recommendation": "TD must be updated to either: (a) specify that common/hash should be extended with a bcrypt method (cost 12, pepper) and track that as a common-lib story, or (b) acknowledge SHA-256+pepper as the interim MVP algorithm with a v2 migration note. Security implications of SHA-256 vs bcrypt are Reviewer-L1 territory and are not assessed here. Route back to TD author."
+    }
+  ]
+}

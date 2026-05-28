@@ -1,0 +1,752 @@
+{
+  "template_version": "0.2.0",
+  "component_name": "catalog",
+  "prompt_version": "0.1.0",
+  "required": true,
+  "complexity": "standard",
+  "complexity_rationale": "CRUD + filtered listing + soft-delete + outbox event emission; no multi-service orchestration, no concurrent lock-order hazard, no state machine. Bounded scope qualifies as standard per TL notes.",
+  "scaffold": "B2C E-Commerce Platform/backend/go-template",
+  "common_lib": "gitlab.com/b2c-e-commerce-platform/platform/backend/common",
+
+  "persistence": {
+    "database": "PostgreSQL 15+",
+    "schema": "catalog",
+    "search_path": "catalog, public",
+    "tables": [
+      {
+        "name": "categories",
+        "owner_aggregate": "Category",
+        "columns": [
+          { "name": "id",                 "type": "UUID",                   "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()" },
+          { "name": "name",               "type": "TEXT NOT NULL" },
+          { "name": "slug",               "type": "TEXT NOT NULL" },
+          { "name": "parent_category_id", "type": "UUID NULL",               "references": "categories(id)" },
+          { "name": "level",              "type": "INT NOT NULL" },
+          { "name": "active",             "type": "BOOLEAN NOT NULL DEFAULT TRUE" },
+          { "name": "created_at",         "type": "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
+          { "name": "updated_at",         "type": "TIMESTAMPTZ NOT NULL DEFAULT NOW()" }
+        ],
+        "indexes": [
+          "UNIQUE (slug)                                              -- global slug uniqueness (CATE-002)",
+          "UNIQUE (parent_category_id, name)                         -- name unique within non-root level (CATE-001)",
+          "UNIQUE (name) WHERE parent_category_id IS NULL            -- name unique at root level (CATE-001)",
+          "INDEX  (active, level)                                    -- category.list activeOnly filter"
+        ],
+        "notes": "Two UNIQUE constraints cover name-uniqueness-within-level: one for root (parent IS NULL), one for non-root (same parent). Slug is globally unique. level is informational; no FK enforcement of level vs parent depth in MVP."
+      },
+      {
+        "name": "products",
+        "owner_aggregate": "Product",
+        "columns": [
+          { "name": "id",          "type": "UUID",                    "constraints": "PRIMARY KEY" },
+          { "name": "sku",         "type": "TEXT NOT NULL" },
+          { "name": "name",        "type": "TEXT NOT NULL" },
+          { "name": "description", "type": "TEXT NOT NULL DEFAULT ''" },
+          { "name": "price",       "type": "NUMERIC(12,2) NOT NULL",  "constraints": "CHECK (price > 0)" },
+          { "name": "category_id", "type": "UUID NOT NULL",           "references": "categories(id)" },
+          { "name": "status",      "type": "TEXT NOT NULL",           "constraints": "CHECK (status IN ('DRAFT','ACTIVE','INACTIVE','DELETED'))" },
+          { "name": "visible",     "type": "BOOLEAN NOT NULL DEFAULT TRUE" },
+          { "name": "created_at",  "type": "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
+          { "name": "updated_at",  "type": "TIMESTAMPTZ NOT NULL DEFAULT NOW()" }
+        ],
+        "indexes": [
+          "UNIQUE (LOWER(sku))                                                                 -- case-insensitive SKU uniqueness (CAT-007, CAT-010)",
+          "INDEX idx_products_listing (status, visible, category_id) WHERE status = 'ACTIVE' AND visible = TRUE  -- category filter on storefront (PERF-001)",
+          "INDEX idx_products_price   (status, visible, price)       WHERE status = 'ACTIVE' AND visible = TRUE  -- price-range filter (PERF-001)",
+          "INDEX idx_products_created (status, visible, created_at)  WHERE status = 'ACTIVE' AND visible = TRUE  -- sort created_desc (PERF-001)"
+        ],
+        "notes": "price stored as NUMERIC(12,2); all amounts in THB per cross-cutting.pricing. Partial indexes omit DELETED/DRAFT/INACTIVE rows — reduces index size since non-public statuses are never in storefront queries. id is UUID v7 (generated in Go before INSERT so it can be embedded in the outbox payload in the same tx)."
+      },
+      {
+        "name": "product_images",
+        "owner_aggregate": "Product",
+        "columns": [
+          { "name": "id",         "type": "UUID",          "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()" },
+          { "name": "product_id", "type": "UUID NOT NULL", "references": "products(id) ON DELETE CASCADE" },
+          { "name": "url",        "type": "TEXT NOT NULL" },
+          { "name": "sort_order", "type": "INT NOT NULL DEFAULT 0" },
+          { "name": "created_at", "type": "TIMESTAMPTZ NOT NULL DEFAULT NOW()" }
+        ],
+        "indexes": [
+          "INDEX (product_id, sort_order)   -- ordered image fetch"
+        ],
+        "notes": "URLs stored as strings (CDN-hosted). product.create and product.update replace the full image set atomically (DELETE WHERE product_id + batch INSERT) inside the same tx as the products write. ON DELETE CASCADE handles FK cleanup if a product is hard-deleted (not expected in MVP — soft-delete keeps the row)."
+      },
+      {
+        "name": "product_status_history",
+        "owner_aggregate": "Product",
+        "columns": [
+          { "name": "id",            "type": "UUID",          "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()" },
+          { "name": "product_id",    "type": "UUID NOT NULL", "references": "products(id)" },
+          { "name": "from_status",   "type": "TEXT NULL",     "notes": "NULL on initial creation row" },
+          { "name": "to_status",     "type": "TEXT NOT NULL" },
+          { "name": "changed_field", "type": "TEXT NULL",     "notes": "NULL = status-only or multi-field change; else e.g. 'price'" },
+          { "name": "old_value",     "type": "JSONB NULL",    "notes": "serialized old value" },
+          { "name": "new_value",     "type": "JSONB NULL",    "notes": "serialized new value" },
+          { "name": "actor_user_id", "type": "UUID NOT NULL" },
+          { "name": "created_at",    "type": "TIMESTAMPTZ NOT NULL DEFAULT NOW()" }
+        ],
+        "indexes": [
+          "INDEX (product_id, created_at DESC)   -- audit trail ordered by time"
+        ],
+        "notes": "Audit-light per CAT-008. MVP-policy: one row per product.create (from_status=NULL) and one row per product.update call (changed_field=NULL, old_value/new_value = JSON object of all changed fields). product.soft-delete writes from_status=<current>, to_status='DELETED'. Full per-field audit hookup deferred post-MVP."
+      },
+      {
+        "name": "outbox_events",
+        "owner_aggregate": "Product",
+        "columns": [
+          { "name": "id",           "type": "UUID",           "constraints": "PRIMARY KEY", "notes": "UUID v7 — monotonic; relay scans ORDER BY id ASC" },
+          { "name": "aggregate_id", "type": "UUID NOT NULL",  "notes": "= product_id" },
+          { "name": "event_type",   "type": "TEXT NOT NULL",  "notes": "'product.created' | 'product.updated'" },
+          { "name": "payload_json", "type": "JSONB NOT NULL", "notes": "full event payload including eventId (UUID v7), occurredAt (RFC3339), productId, sku" },
+          { "name": "created_at",   "type": "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
+          { "name": "published_at", "type": "TIMESTAMPTZ NULL", "notes": "NULL = pending; relay marks non-null after Kafka ACK" }
+        ],
+        "indexes": [
+          "INDEX (published_at) WHERE published_at IS NULL   -- relay scan; partial keeps index tiny"
+        ],
+        "notes": "Outbox pattern per cross-cutting.persistence. In-process relay goroutine: SELECT ... FOR UPDATE SKIP LOCKED LIMIT 100 ORDER BY id; publish to ecom.catalog.events with partition key = sku (extracted from payload_json); UPDATE SET published_at=NOW(). At-least-once; consumer dedup on eventId (UUID v7). Relay tick: 5s (OUTBOX_RELAY_INTERVAL_SECONDS env). Graceful shutdown respects context cancellation."
+      }
+    ],
+    "migrations": [
+      "migrations/001_create_categories.sql",
+      "migrations/002_create_products.sql",
+      "migrations/003_create_product_images.sql",
+      "migrations/004_create_product_status_history.sql",
+      "migrations/005_create_outbox_events.sql"
+    ],
+    "connection": "common/database pgx pool; schema search_path=catalog"
+  },
+
+  "endpoints": [
+    {
+      "name": "product.list",
+      "contract_ref": "catalog.product.list",
+      "method_path": "POST /api/v1/catalog/product/list",
+      "auth_required": false,
+      "auth_notes": "Public endpoint — registered outside the JWT middleware group. No Authorization header required or expected.",
+
+      "request_schema": {
+        "page":  "int (>=1, default 1)",
+        "limit": "int (1..100, default 20)",
+        "sort":  "string (enum: price_asc|price_desc|name_asc|name_desc|created_desc; default created_desc)",
+        "filter": {
+          "categoryId": "string? (UUID)",
+          "minPrice":   "number? (>=0)",
+          "maxPrice":   "number? (>=0, must be >= minPrice if both present)",
+          "inStock":    "boolean?",
+          "search":     "string? (max 200 chars; ILIKE match against name)"
+        }
+      },
+
+      "response_schema": {
+        "code": "SUCCESS",
+        "data": {
+          "items": "Product[] (ACTIVE+visible only; each item: productId, sku, name, price, category{categoryId,name,slug}, thumbnailUrl (images[0] by sort_order), status)",
+          "total": "int (count matching filters before pagination)",
+          "page":  "int",
+          "limit": "int"
+        }
+      },
+
+      "validation_rules": [
+        "page >= 1; VALIDATION_ERROR if < 1",
+        "limit: integer 1..100 inclusive; VALIDATION_ERROR if out of range",
+        "sort: must be one of 5 enum values; VALIDATION_ERROR otherwise",
+        "categoryId: if present, valid UUID format; VALIDATION_ERROR otherwise",
+        "minPrice/maxPrice: non-negative; maxPrice >= minPrice if both supplied",
+        "search: trimmed; ignored if empty after trim; max 200 chars"
+      ],
+
+      "error_contract": [
+        { "code": "VALIDATION_ERROR", "http": 400, "triggers": "page<1, limit out of range, bad sort enum, malformed UUID, maxPrice<minPrice, search>200 chars" },
+        { "code": "UPSTREAM_TIMEOUT", "http": 504, "triggers": "inStock=true and inventory.stock.bulk-read returns 503 or times out (>2s); surface to caller — do NOT silently return empty or unfiltered list" }
+      ],
+
+      "edge_behavior": [
+        "inStock=true: Phase-1 fetches current page of ACTIVE+visible rows (other filters applied). Phase-2 calls inventory.stock.bulk-read ({skus: [...]}) with 2s timeout via common/httpclient. Filter out products where availableQty=0 or sku absent from response. Returned count may be < limit if many items are OOS — MVP-acceptable; document in consumer notes.",
+        "inStock=true + inventory unavailable: return UPSTREAM_TIMEOUT (504). Do not silently return an unfiltered list.",
+        "categoryId filter: direct-only (no recursive subcategory expansion in MVP).",
+        "Pagination stable: ORDER BY (sort_col, product_id ASC) — ties break deterministically.",
+        "search filter: ILIKE '%term%' on name — acceptable at 1k-SKU scale per PERF-001.",
+        "No review data in listing — reviewSummary is only on product.detail."
+      ],
+
+      "implementation_hints": [
+        "Single parameterized WHERE clause (no dynamic SQL string concat): WHERE status='ACTIVE' AND visible=TRUE AND ($1::uuid IS NULL OR category_id=$1::uuid) AND ($2::numeric IS NULL OR price>=$2::numeric) AND ($3::numeric IS NULL OR price<=$3::numeric) AND ($4::text IS NULL OR name ILIKE '%'||$4||'%').",
+        "COUNT: same WHERE clause, omit ORDER BY/LIMIT/OFFSET — run as separate query or window function.",
+        "Indexes: idx_products_listing (category_id filter), idx_products_price (price range), idx_products_created (created_desc sort) — all partial WHERE ACTIVE+visible. Validate with EXPLAIN ANALYZE on 1k seed.",
+        "inStock call: POST http://inventory-svc/api/v1/inventory/stock/bulk-read {skus:[...]} via common/httpclient; map response to map[sku]availableQty; filter candidates where qty > 0.",
+        "Image join: LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.sort_order=(SELECT MIN(sort_order) FROM product_images WHERE product_id=p.id) — or subquery for first image per product.",
+        "Handler file: internal/handler/product_list.go; Repo: internal/repository/product.go ListProducts(ctx, filter, page, limit, sort)."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CAT-001", "coverage": "status=ACTIVE+visible=TRUE filter; DRAFT/INACTIVE/DELETED excluded" },
+        { "ba_ac": "CAT-002", "coverage": "page/limit/sort pagination; 20-item slice on 1000-SKU seed" },
+        { "ba_ac": "CAT-003", "coverage": "categoryId filter — direct match only" },
+        { "ba_ac": "CAT-004", "coverage": "minPrice/maxPrice filter" },
+        { "ba_ac": "CAT-005", "coverage": "inStock=true via inventory.stock.bulk-read; UPSTREAM_TIMEOUT if inventory down" }
+      ]
+    },
+
+    {
+      "name": "product.detail",
+      "contract_ref": "catalog.product.detail",
+      "method_path": "POST /api/v1/catalog/product/detail",
+      "auth_required": false,
+      "auth_notes": "Public for ACTIVE products. Optional Authorization header — if present and valid ADMIN role, DELETED/DRAFT products are returned. If absent or CUSTOMER role, DELETED/DRAFT products return NOT_FOUND.",
+
+      "request_schema": {
+        "productId": "string (UUID; required)"
+      },
+
+      "response_schema": {
+        "code": "SUCCESS",
+        "data": {
+          "productId":   "string (UUID)",
+          "sku":         "string",
+          "name":        "string",
+          "description": "string",
+          "images":      "string[] (ordered by sort_order ASC)",
+          "price":       "number (NUMERIC as decimal; THB)",
+          "category": {
+            "categoryId": "string",
+            "name":       "string",
+            "slug":       "string"
+          },
+          "stockStatus":   "string (enum: IN_STOCK|LOW|OUT_OF_STOCK; computed from inventory.stock.read)",
+          "reviewSummary": { "averageRating": null, "reviewCount": 0 },
+          "status":        "string"
+        }
+      },
+
+      "validation_rules": [
+        "productId: required, valid UUID; VALIDATION_ERROR if malformed",
+        "Product must exist; NOT_FOUND if row absent",
+        "DELETED/DRAFT products: NOT_FOUND for guest/CUSTOMER callers; full record for ADMIN callers"
+      ],
+
+      "error_contract": [
+        { "code": "NOT_FOUND",        "http": 404, "triggers": "product absent, DELETED for non-admin, DRAFT for non-admin" },
+        { "code": "VALIDATION_ERROR", "http": 400, "triggers": "productId malformed UUID" },
+        { "code": "UPSTREAM_TIMEOUT", "http": 504, "triggers": "inventory.stock.read times out >2s; stockStatus returned as OUT_OF_STOCK (safe fallback); timeout logged as WARN but NOT surfaced to caller — detail endpoint stays functional" }
+      ],
+
+      "edge_behavior": [
+        "stockStatus thresholds: availableQty > 10 → IN_STOCK; 1–10 → LOW; 0 → OUT_OF_STOCK. If inventory unavailable: log warning, return OUT_OF_STOCK (safe fallback — storefront stays functional).",
+        "reviewSummary: always {averageRating: null, reviewCount: 0} — Reviews deferred per EPIC_CATALOG out-of-scope.",
+        "INACTIVE products: returned to all callers with status=INACTIVE so cart/checkout can flag PRODUCT_INACTIVE without a separate call.",
+        "Used as upstream dependency by cart.add-item and checkout.commit step 4 — those services call this endpoint; they receive status so they can enforce PRODUCT_INACTIVE/PRODUCT_DELETED checks."
+      ],
+
+      "implementation_hints": [
+        "Query 1: SELECT p.*, c.id AS cat_id, c.name AS cat_name, c.slug AS cat_slug FROM products p JOIN categories c ON c.id=p.category_id WHERE p.id=$1.",
+        "Query 2: SELECT url FROM product_images WHERE product_id=$1 ORDER BY sort_order ASC.",
+        "Query 3 (best-effort): POST inventory-svc /api/v1/inventory/stock/read {sku} with 2s timeout via common/httpclient.",
+        "Role check: parse Authorization header if present via common/token.ParseUnverifiedClaims (or full verify if token present); if claims.role=ADMIN, skip status filter. If absent or CUSTOMER, hide status IN ('DELETED','DRAFT') behind NOT_FOUND.",
+        "Handler file: internal/handler/product_detail.go."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CAT-006", "coverage": "full fields returned; reviewSummary placeholder {null, 0}" },
+        { "ba_ac": "CAT-009", "coverage": "DELETED product returns NOT_FOUND to non-admin; Order uses snapshot — no Catalog call required from Order service" },
+        { "ba_ac": "CAT-010", "coverage": "DRAFT/INACTIVE/DELETED status rules enforced per caller role" }
+      ]
+    },
+
+    {
+      "name": "product.create",
+      "contract_ref": "catalog.product.create",
+      "method_path": "POST /api/v1/catalog/product/create",
+      "auth_required": true,
+      "auth_notes": "ADMIN role only. Reject CUSTOMER token with AUTH_FORBIDDEN (403). Uses common/middleware JWT group.",
+
+      "request_schema": {
+        "sku":         "string (required; 1..100 chars; case-insensitive unique)",
+        "name":        "string (required; 1..255 chars)",
+        "description": "string (optional; default '')",
+        "images":      "string[]? (optional; max 20 URLs; each URL max 2048 chars)",
+        "price":       "number (required; >0; THB; up to 2 decimal places)",
+        "categoryId":  "string (required; UUID; must reference existing active category)",
+        "status":      "string (optional; enum: DRAFT|ACTIVE; default DRAFT)"
+      },
+
+      "response_schema": {
+        "code": "CREATED",
+        "data": {
+          "productId": "string (UUID v7)"
+        }
+      },
+
+      "validation_rules": [
+        "sku: required, non-empty, max 100 chars",
+        "name: required, non-empty, max 255 chars",
+        "price: required, > 0, max 2 decimal places",
+        "categoryId: required, valid UUID, must exist in categories AND be active",
+        "status: if provided, must be DRAFT or ACTIVE (INACTIVE and DELETED are forbidden on create)",
+        "images: if provided, max 20 entries; each non-empty string max 2048 chars",
+        "Actor must have role=ADMIN (JWT middleware enforces before handler)"
+      ],
+
+      "error_contract": [
+        { "code": "AUTH_FORBIDDEN",   "http": 403, "triggers": "CUSTOMER role token presented" },
+        { "code": "AUTH_MISSING",     "http": 401, "triggers": "no Authorization header" },
+        { "code": "VALIDATION_ERROR", "http": 400, "triggers": "missing required fields, price<=0, invalid status enum, malformed UUID, images>20, sku>100 chars" },
+        { "code": "DUPLICATE_SKU",    "http": 409, "triggers": "LOWER(sku) already exists in products table (DB unique-constraint violation)" },
+        { "code": "NOT_FOUND",        "http": 404, "triggers": "categoryId does not exist or category is inactive" }
+      ],
+
+      "edge_behavior": [
+        "SKU uniqueness: UNIQUE constraint on LOWER(sku). Handler catches pgconn.PgError Code=23505 on constraint categories_sku_lower_key and returns DUPLICATE_SKU.",
+        "Outbox write: product INSERT + outbox_events INSERT in SAME DB transaction. Payload: {eventId: uuid_v7(), occurredAt: RFC3339, productId: <new-id>, sku: <sku>}. If tx rolls back (e.g. DUPLICATE_SKU from DB), no outbox row is written.",
+        "Relay goroutine picks up outbox row and publishes to ecom.catalog.events partition key=sku. Inventory seeds stock_levels(sku, 0, 0, 0) on receipt.",
+        "status=ACTIVE on create: product immediately visible in listing. status=DRAFT: hidden from storefront.",
+        "product_status_history: INSERT (from_status=NULL, to_status=<status>, actor_user_id=claims.sub) inside same tx — NULL from_status marks initial creation."
+      ],
+
+      "implementation_hints": [
+        "Generate product_id = uuid_v7() in Go before INSERT (ID needed in outbox payload in same tx).",
+        "Transaction (pgx): BEGIN; INSERT products; INSERT product_images (batch if non-empty); INSERT product_status_history (from_status=NULL); INSERT outbox_events (id=uuid_v7(), event_type='product.created', payload_json, published_at=NULL); COMMIT.",
+        "Relay: go catalog.StartOutboxRelay(ctx, db, kafkaProducer) in main.go. Relay query: SELECT id, payload_json FROM outbox_events WHERE published_at IS NULL ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED.",
+        "Handler file: internal/handler/product_create.go. Service: internal/service/product.go ProductCreate(ctx, req, actorUserID)."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CAT-007", "coverage": "ADMIN creates product with unique SKU, price>0, valid categoryId; 409 DUPLICATE_SKU on repeat" },
+        { "ba_ac": "CAT-010", "coverage": "status enum DRAFT|ACTIVE enforced on create; INACTIVE/DELETED forbidden" }
+      ]
+    },
+
+    {
+      "name": "product.update",
+      "contract_ref": "catalog.product.update",
+      "method_path": "POST /api/v1/catalog/product/update",
+      "auth_required": true,
+      "auth_notes": "ADMIN role only.",
+
+      "request_schema": {
+        "productId":   "string (required; UUID)",
+        "name":        "string? (optional; 1..255 chars)",
+        "description": "string? (optional)",
+        "images":      "string[]? (optional; replaces full image set; max 20)",
+        "price":       "number? (optional; >0)",
+        "status":      "string? (optional; enum: DRAFT|ACTIVE|INACTIVE — DELETED not settable via update)",
+        "categoryId":  "string? (optional; UUID; must reference existing active category)"
+      },
+
+      "response_schema": {
+        "code": "SUCCESS",
+        "data": {
+          "productId":   "string",
+          "sku":         "string",
+          "name":        "string",
+          "description": "string",
+          "images":      "string[]",
+          "price":       "number",
+          "category":    { "categoryId": "string", "name": "string", "slug": "string" },
+          "status":      "string",
+          "updatedAt":   "string (RFC3339)"
+        }
+      },
+
+      "validation_rules": [
+        "productId: required, valid UUID, must exist; NOT_FOUND if absent",
+        "At least one optional field must be present; VALIDATION_ERROR if empty patch",
+        "price: if provided, must be > 0",
+        "status: if provided, only DRAFT|ACTIVE|INACTIVE (cannot set DELETED via update — use soft-delete endpoint)",
+        "categoryId: if provided, must exist and be active",
+        "SKU is NOT editable in MVP (locked per catalog.product.update contract)",
+        "Cannot update a DELETED product — return NOT_FOUND (treat DELETED as non-existent)"
+      ],
+
+      "error_contract": [
+        { "code": "AUTH_FORBIDDEN",   "http": 403, "triggers": "CUSTOMER role" },
+        { "code": "AUTH_MISSING",     "http": 401, "triggers": "no Authorization header" },
+        { "code": "NOT_FOUND",        "http": 404, "triggers": "productId absent or status=DELETED" },
+        { "code": "VALIDATION_ERROR", "http": 400, "triggers": "empty patch, price<=0, invalid status enum (DELETED), categoryId inactive/absent, malformed UUID" }
+      ],
+
+      "edge_behavior": [
+        "product_status_history: one row per update call; changed_field=NULL; old_value/new_value = JSONB of all changed fields. MVP-policy: full per-field audit deferred.",
+        "images: if images field present in request, DELETE all existing product_images for product, INSERT new set — both in same tx as products UPDATE.",
+        "price change: no downstream event emitted in MVP (Order uses snapshot). Audit row written locally.",
+        "status change ACTIVE→INACTIVE: product immediately hidden from storefront listing; cart.read re-checks product.detail and flags items as non-checkoutable.",
+        "Outbox: product.updated event written (event_type='product.updated'; payload: {eventId, occurredAt, productId, sku, changedFields}). No consumer in MVP — written for future extensibility."
+      ],
+
+      "implementation_hints": [
+        "Read-then-write: SELECT products FOR UPDATE WHERE id=$1 — get current state for audit old_value and DELETED check.",
+        "Transaction: SELECT FOR UPDATE; validate; UPDATE products SET ..., updated_at=NOW(); replace images if supplied (DELETE+INSERT); INSERT product_status_history; INSERT outbox_events (product.updated); COMMIT.",
+        "Handler file: internal/handler/product_update.go."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CAT-008", "coverage": "price/status edits recorded in product_status_history; MVP-policy flag on full per-field audit" },
+        { "ba_ac": "CAT-010", "coverage": "status DELETED not settable via update; VALIDATION_ERROR" }
+      ]
+    },
+
+    {
+      "name": "product.soft-delete",
+      "contract_ref": "catalog.product.soft-delete",
+      "method_path": "POST /api/v1/catalog/product/soft-delete",
+      "auth_required": true,
+      "auth_notes": "ADMIN role only.",
+
+      "request_schema": {
+        "productId": "string (required; UUID)"
+      },
+
+      "response_schema": {
+        "code": "SUCCESS",
+        "data": {
+          "productId": "string",
+          "status":    "DELETED"
+        }
+      },
+
+      "validation_rules": [
+        "productId: required, valid UUID; NOT_FOUND if row absent in DB",
+        "Idempotent: if product already DELETED, return 200 status=DELETED immediately — no writes"
+      ],
+
+      "error_contract": [
+        { "code": "AUTH_FORBIDDEN", "http": 403, "triggers": "CUSTOMER role" },
+        { "code": "AUTH_MISSING",   "http": 401, "triggers": "no Authorization header" },
+        { "code": "NOT_FOUND",      "http": 404, "triggers": "productId row does not exist in DB" }
+      ],
+
+      "edge_behavior": [
+        "Soft-delete idempotency: SELECT status FROM products WHERE id=$1. If status='DELETED', return 200 immediately — no history row, no outbox write.",
+        "If not yet DELETED: UPDATE products SET status='DELETED', updated_at=NOW() WHERE id=$1 AND status!='DELETED'. INSERT product_status_history (from_status=<current>, to_status='DELETED', actor_user_id=claims.sub). One tx.",
+        "No outbox event emitted for soft-delete — not required by any consumer contract in MVP (Inventory does not need to react; Order uses snapshot).",
+        "Storefront listing: product excluded because status!='ACTIVE'. product.detail returns NOT_FOUND to non-admin.",
+        "Historical orders: Order service stores productNameSnapshot, productImageUrlSnapshot, priceSnapshot on order_items at checkout-time; resolving those fields requires no Catalog call (CAT-009 / BA AC)."
+      ],
+
+      "implementation_hints": [
+        "Use UPDATE products SET status='DELETED', updated_at=NOW() WHERE id=$1 RETURNING status — if rowsAffected=0 AND product exists with status='DELETED', treat as idempotent success.",
+        "Handler file: internal/handler/product_soft_delete.go."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CAT-009", "coverage": "product hidden from listing/detail post-delete; historical order snapshots self-contained; no Catalog call from Order service" }
+      ]
+    },
+
+    {
+      "name": "category.create",
+      "contract_ref": "catalog.category.create",
+      "method_path": "POST /api/v1/catalog/category/create",
+      "auth_required": true,
+      "auth_notes": "ADMIN role only.",
+
+      "request_schema": {
+        "name":             "string (required; 1..255 chars)",
+        "slug":             "string (required; globally unique; 1..255 chars; lowercase-alphanumeric-hyphen recommended)",
+        "parentCategoryId": "string? (optional; UUID; null = root-level category)",
+        "level":            "int (required; >= 1)"
+      },
+
+      "response_schema": {
+        "code": "CREATED",
+        "data": {
+          "categoryId": "string (UUID v7)"
+        }
+      },
+
+      "validation_rules": [
+        "name: required, non-empty, max 255 chars",
+        "slug: required, non-empty, max 255 chars; must be globally unique across all categories",
+        "parentCategoryId: if provided, must exist in categories table (active OR inactive — no active requirement for parent)",
+        "level: must be >= 1 (informational; no strict depth-vs-parent enforcement in MVP)",
+        "name uniqueness within level enforced by DB unique constraints"
+      ],
+
+      "error_contract": [
+        { "code": "AUTH_FORBIDDEN",         "http": 403, "triggers": "CUSTOMER role" },
+        { "code": "AUTH_MISSING",           "http": 401, "triggers": "no Authorization header" },
+        { "code": "VALIDATION_ERROR",       "http": 400, "triggers": "missing required fields, empty name/slug, level<1, malformed UUID for parentCategoryId" },
+        { "code": "DUPLICATE_CATEGORY_NAME","http": 409, "triggers": "name already exists at same level (same parent or both root)" },
+        { "code": "CONFLICT",              "http": 409, "triggers": "slug already exists globally" },
+        { "code": "NOT_FOUND",             "http": 404, "triggers": "parentCategoryId does not exist" }
+      ],
+
+      "edge_behavior": [
+        "DUPLICATE_CATEGORY_NAME: caught by DB constraint violation on (parent_category_id, name) or UNIQUE (name) WHERE parent IS NULL. Handler maps constraint name → error code.",
+        "CONFLICT (slug): caught by DB constraint on (slug). Distinct from DUPLICATE_CATEGORY_NAME.",
+        "Root-level category (parentCategoryId absent): null parent is fine; uniqueness enforced by partial index."
+      ],
+
+      "implementation_hints": [
+        "Generate categoryId = uuid_v7() in Go.",
+        "INSERT INTO categories (id, name, slug, parent_category_id, level, active, created_at, updated_at) VALUES (...).",
+        "Constraint name mapping: categories_parent_category_id_name_key → DUPLICATE_CATEGORY_NAME; categories_name_parent_null_key → DUPLICATE_CATEGORY_NAME; categories_slug_key → CONFLICT.",
+        "Handler file: internal/handler/category_create.go."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CATE-001", "coverage": "name unique within level enforced; 409 DUPLICATE_CATEGORY_NAME on collision" }
+      ]
+    },
+
+    {
+      "name": "category.update",
+      "contract_ref": "catalog.category.update",
+      "method_path": "POST /api/v1/catalog/category/update",
+      "auth_required": true,
+      "auth_notes": "ADMIN role only.",
+
+      "request_schema": {
+        "categoryId": "string (required; UUID)",
+        "name":       "string? (optional; 1..255 chars)",
+        "slug":       "string? (optional; globally unique)"
+      },
+
+      "response_schema": {
+        "code": "SUCCESS",
+        "data": {
+          "categoryId": "string",
+          "name":       "string",
+          "slug":       "string",
+          "active":     "boolean",
+          "updatedAt":  "string (RFC3339)"
+        }
+      },
+
+      "validation_rules": [
+        "categoryId: required, valid UUID, must exist",
+        "At least one of name or slug must be provided; VALIDATION_ERROR on empty patch",
+        "name: if provided, must be unique within the same level/parent",
+        "slug: if provided, must be globally unique (CATE-002)"
+      ],
+
+      "error_contract": [
+        { "code": "AUTH_FORBIDDEN",          "http": 403, "triggers": "CUSTOMER role" },
+        { "code": "AUTH_MISSING",            "http": 401, "triggers": "no Authorization header" },
+        { "code": "NOT_FOUND",               "http": 404, "triggers": "categoryId absent" },
+        { "code": "DUPLICATE_CATEGORY_NAME", "http": 409, "triggers": "new name conflicts with sibling at same level" },
+        { "code": "CONFLICT",                "http": 409, "triggers": "new slug already taken globally" },
+        { "code": "VALIDATION_ERROR",        "http": 400, "triggers": "empty patch body, malformed UUID" }
+      ],
+
+      "edge_behavior": [
+        "Last-writer-wins on name and slug.",
+        "Inactive categories can be updated (name/slug edits allowed even when active=false)."
+      ],
+
+      "implementation_hints": [
+        "UPDATE categories SET name=COALESCE($1, name), slug=COALESCE($2, slug), updated_at=NOW() WHERE id=$3 RETURNING *.",
+        "Catch unique-constraint violations — same mapping as category.create.",
+        "Handler file: internal/handler/category_update.go."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CATE-002", "coverage": "slug globally unique enforced; 409 CONFLICT on collision" }
+      ]
+    },
+
+    {
+      "name": "category.deactivate",
+      "contract_ref": "catalog.category.deactivate",
+      "method_path": "POST /api/v1/catalog/category/deactivate",
+      "auth_required": true,
+      "auth_notes": "ADMIN role only.",
+
+      "request_schema": {
+        "categoryId": "string (required; UUID)"
+      },
+
+      "response_schema": {
+        "code": "SUCCESS",
+        "data": {
+          "categoryId": "string",
+          "active":     false
+        }
+      },
+
+      "validation_rules": [
+        "categoryId: required, valid UUID, must exist; NOT_FOUND if absent"
+      ],
+
+      "error_contract": [
+        { "code": "AUTH_FORBIDDEN", "http": 403, "triggers": "CUSTOMER role" },
+        { "code": "AUTH_MISSING",   "http": 401, "triggers": "no Authorization header" },
+        { "code": "NOT_FOUND",      "http": 404, "triggers": "categoryId absent" }
+      ],
+
+      "edge_behavior": [
+        "Idempotent: if already active=false, return 200 with active=false immediately (no-op).",
+        "Products in this category are NOT soft-deleted or auto-hidden — they retain their own status. Category filter in product.list simply won't return this category as a filter option.",
+        "category.list with activeOnly=true stops returning this category.",
+        "CATE-003: products in deactivated category continue to appear in storefront listing until their own status changes."
+      ],
+
+      "implementation_hints": [
+        "UPDATE categories SET active=FALSE, updated_at=NOW() WHERE id=$1 — idempotent by nature of SET active=FALSE.",
+        "Handler file: internal/handler/category_deactivate.go."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CATE-003", "coverage": "inactive category excluded from activeOnly=true list; associated products unaffected" }
+      ]
+    },
+
+    {
+      "name": "category.list",
+      "contract_ref": "catalog.category.list",
+      "method_path": "POST /api/v1/catalog/category/list",
+      "auth_required": false,
+      "auth_notes": "Public endpoint. activeOnly defaults to true for storefront. Callers may pass activeOnly=false to see inactive categories — no auth gate in MVP (see ambiguities).",
+
+      "request_schema": {
+        "activeOnly": "boolean? (default true)"
+      },
+
+      "response_schema": {
+        "code": "SUCCESS",
+        "data": {
+          "categories": "Category[] — flat list ordered by level ASC, name ASC. Each item: {categoryId, name, slug, parentCategoryId, level, active}"
+        }
+      },
+
+      "validation_rules": [],
+
+      "error_contract": [
+        { "code": "DATABASE_UNAVAILABLE", "http": 503, "triggers": "Postgres unreachable; return 503 envelope" }
+      ],
+
+      "edge_behavior": [
+        "activeOnly=true: WHERE active=TRUE. activeOnly=false: no active filter.",
+        "MVP: returns flat list; tree reconstruction (parentCategoryId nesting) is client-side responsibility.",
+        "No auth enforcement for activeOnly=false — inactive categories are not sensitive data; known limitation per ambiguities section."
+      ],
+
+      "implementation_hints": [
+        "SELECT id, name, slug, parent_category_id, level, active FROM categories WHERE ($1::boolean IS NULL OR active=$1) ORDER BY level ASC, name ASC.",
+        "Handler file: internal/handler/category_list.go."
+      ],
+
+      "ba_acceptance_mapping": [
+        { "ba_ac": "CATE-003", "coverage": "activeOnly=true hides inactive categories from storefront filter" }
+      ]
+    }
+  ],
+
+  "internal_modules": {
+    "domain_pkg": "internal/",
+    "key_files": [
+      "cmd/main.go                              — service entry; starts HTTP server, DB pool, Kafka producer, outbox relay goroutine",
+      "internal/handler/product_list.go         — product.list handler",
+      "internal/handler/product_detail.go       — product.detail handler",
+      "internal/handler/product_create.go       — product.create handler",
+      "internal/handler/product_update.go       — product.update handler",
+      "internal/handler/product_soft_delete.go  — product.soft-delete handler",
+      "internal/handler/category_create.go      — category.create handler",
+      "internal/handler/category_update.go      — category.update handler",
+      "internal/handler/category_deactivate.go  — category.deactivate handler",
+      "internal/handler/category_list.go        — category.list handler",
+      "internal/service/product.go              — product domain service",
+      "internal/service/category.go             — category domain service",
+      "internal/repository/product.go           — DB queries for products + product_images + product_status_history (pgx)",
+      "internal/repository/category.go          — DB queries for categories",
+      "internal/repository/outbox.go            — outbox INSERT + relay scan/mark helpers",
+      "internal/outbox/relay.go                 — StartOutboxRelay(ctx, db, producer): goroutine; polls outbox, sends to Kafka, marks published_at",
+      "internal/client/inventory.go             — HTTP client for inventory.stock.read and inventory.stock.bulk-read (common/httpclient; 2s timeout)",
+      "migrations/001_create_categories.sql",
+      "migrations/002_create_products.sql",
+      "migrations/003_create_product_images.sql",
+      "migrations/004_create_product_status_history.sql",
+      "migrations/005_create_outbox_events.sql"
+    ]
+  },
+
+  "events": {
+    "produced": [
+      {
+        "event_type": "product.created",
+        "topic": "ecom.catalog.events",
+        "partition_key": "sku",
+        "payload": {
+          "eventId":    "string (UUID v7 — consumer dedup key)",
+          "occurredAt": "string (RFC3339)",
+          "productId":  "string (UUID v7)",
+          "sku":        "string"
+        },
+        "trigger": "product.create — written to outbox_events in SAME tx as products INSERT",
+        "consumer": "inventory — seeds stock_levels(sku, 0, 0, 0) on first receipt; dedup on eventId"
+      },
+      {
+        "event_type": "product.updated",
+        "topic": "ecom.catalog.events",
+        "partition_key": "sku",
+        "payload": {
+          "eventId":       "string (UUID v7)",
+          "occurredAt":    "string (RFC3339)",
+          "productId":     "string",
+          "sku":           "string",
+          "changedFields": "string[] (informational)"
+        },
+        "trigger": "product.update — written to outbox inside update tx",
+        "consumer": "none in MVP — written for future extensibility"
+      }
+    ],
+    "outbox_relay": {
+      "query": "SELECT id, aggregate_id, event_type, payload_json FROM outbox_events WHERE published_at IS NULL ORDER BY id ASC LIMIT 100 FOR UPDATE SKIP LOCKED",
+      "mark_published": "UPDATE outbox_events SET published_at = NOW() WHERE id = ANY($1::uuid[])",
+      "kafka_send": "common/kafka producer; partition key = payload_json->>'sku'; topic = ecom.catalog.events",
+      "tick_interval": "5 seconds (OUTBOX_RELAY_INTERVAL_SECONDS env; default 5)",
+      "shutdown": "relay goroutine respects context cancellation; drains in-flight batch before exit"
+    }
+  },
+
+  "test_strategy": {
+    "unit_tests": [
+      "service/product_test.go: ProductCreate validation (invalid price, duplicate SKU mapping, missing category, images>20); ProductUpdate empty-patch rejection, DELETED rejection; ProductSoftDelete idempotency",
+      "service/category_test.go: name-uniqueness-within-level, slug-uniqueness, deactivate idempotency",
+      "outbox/relay_test.go: processes batch, marks published_at after ACK, skips already-published rows, does NOT mark on Kafka error"
+    ],
+    "integration_tests": [
+      "product.list: 1000-seed; page=1 limit=20 sort=price_asc → 20 items; categoryId filter; price range filter; inStock=true with stubbed inventory; VALIDATION_ERROR limit=101",
+      "product.create: ADMIN→201+productId; CUSTOMER→403; duplicate SKU→409 DUPLICATE_SKU; inactive category→404; outbox row present+published_at NULL before relay",
+      "product.soft-delete: first call→DELETED+history row; second call idempotent→DELETED no extra history row",
+      "category.create: dup name same level→409 DUPLICATE_CATEGORY_NAME; dup slug→409 CONFLICT",
+      "outbox integration: product.create→outbox row; relay tick→published_at non-null; Kafka message partition key=sku"
+    ],
+    "performance_target": "PERF-001: p95 < 300ms on product.list with 1000-SKU seed in local Docker Compose. Validate with EXPLAIN ANALYZE on idx_products_listing and idx_products_price.",
+    "ba_coverage": "All BA ACs in ba_acceptance_mapping must have at least one integration test path"
+  },
+
+  "ambiguities": [
+    {
+      "id": "AMB-CAT-001",
+      "item": "inStock=true pagination under-count",
+      "description": "Phase-1 fetches exactly `limit` rows from DB, then Phase-2 filters by stock. If many items are OOS, returned page may have fewer than `limit` items. Total count is before stock filter (approximate).",
+      "resolution": "Accepted per MVP scope. Document in API consumer notes. Over-fetch strategy deferred post-MVP.",
+      "owner": "Tech-Designer (catalog)"
+    },
+    {
+      "id": "AMB-CAT-002",
+      "item": "category.list activeOnly=false access control",
+      "description": "activeOnly=false is intended for admin but the endpoint has no JWT gate. Any caller can see inactive categories. Not sensitive data but may be unintended.",
+      "resolution": "MVP: no auth gate. Known limitation documented. Post-MVP: optional-auth middleware + ADMIN claim check for activeOnly=false.",
+      "owner": "Tech-Designer (catalog) — surfaced; BA/TL alignment may be needed"
+    },
+    {
+      "id": "AMB-CAT-003",
+      "item": "product.updated outbox event consumers",
+      "description": "catalog.product.update contract says 'Publishes product.updated event' but no consumer is defined in contracts.json for MVP.",
+      "resolution": "Write the outbox row anyway. No consumer in MVP. No contract bump needed for producer side.",
+      "owner": "Confirmed OK per scope"
+    }
+  ],
+
+  "change_log": [
+    {
+      "date": "2026-05-08",
+      "author": "Tech-Designer (Claude Sonnet 4.6, dispatch 2)",
+      "change": "v0.2.0 — refactored from v0.1 baseline: added template_version 0.2.0, complexity_rationale, per-endpoint ba_acceptance_mapping, AUTH_MISSING error codes on all admin endpoints, AMB IDs, outbox_relay details, migration list, concurrency notes."
+    }
+  ]
+}

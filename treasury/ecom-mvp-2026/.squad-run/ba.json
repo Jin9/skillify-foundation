@@ -1,0 +1,350 @@
+{
+  "template_version": "1.0.0",
+  "workflow_name": "shoppilot-mvp-core-commerce",
+  "purpose": "Design and build 7 backend services plus a Thai-language mobile customer web frontend that fulfill ShopPilot MVP's browse-cart-checkout-pay-track customer journey.",
+  "in_scope": [
+    "identity: Guest registers a CUSTOMER account with email, password, name; email uniqueness enforced server-side; password stored only as a one-way hash (AUTH-001, AUTH-006).",
+    "identity: User logs in with email/password and receives an access token plus refresh token, both with expiry; access token expiry is shorter than refresh token expiry (AUTH-002, AUTH-005).",
+    "identity: Login failure returns a single generic error message and code that does not disclose whether email or password was wrong (AUTH-007).",
+    "identity: Role separation between CUSTOMER and ADMIN; ADMIN-only endpoints reject CUSTOMER tokens with FORBIDDEN (AUTH-003).",
+    "identity: User logout revokes/invalidates the refresh token so subsequent refresh attempts are rejected (AUTH-004).",
+    "identity: Customer can read own profile (name, email, phone, default address) and edit name and phone; email is immutable in MVP (CUST-001, CUST-002).",
+    "identity: Customer can add a shipping address with receiver name, phone, address line, province, district, postal code, and select a default address used by checkout (CUST-003, CUST-004).",
+    "catalog: Guest and Customer can list products, seeing only ACTIVE and visible products (CAT-001).",
+    "catalog: Product listing supports pagination (page, limit, sort) and filters by categoryId, minPrice/maxPrice, and inStock (CAT-002, CAT-003, CAT-004, CAT-005).",
+    "catalog: Product detail returns name, description, images, price, stock status, category, review summary placeholder (CAT-006).",
+    "catalog: Admin creates a product with unique SKU, price greater than zero, and a valid category (CAT-007).",
+    "catalog: Admin edits an existing product; price/status/stock-policy edits are recorded server-side for later audit hookup (CAT-008).",
+    "catalog: Admin soft-deletes a product so that the product still resolves inside historical orders (CAT-009).",
+    "catalog: Product status enum is exactly DRAFT, ACTIVE, INACTIVE, DELETED and listing only exposes ACTIVE (CAT-010).",
+    "catalog: Admin creates a category with name unique within its level and slug unique globally; admin can edit a category and mark a category inactive so it stops appearing in filters (CATE-001, CATE-002, CATE-003).",
+    "inventory: Each SKU tracks availableQty, reservedQty, soldQty as non-negative integers (INV-001, INV-008).",
+    "inventory: Adding to cart does NOT reserve stock; reservation happens only at checkout (INV-002, INV-003).",
+    "inventory: Stock reservations carry an expiry; on expiry the stock is released back to available (INV-004).",
+    "inventory: Payment success converts the reservation: reservedQty decreases and soldQty increases by the same amount; availableQty is unchanged from its post-reserve value (INV-005).",
+    "inventory: Payment failure or timeout releases the reservation: reservedQty decreases, availableQty increases by the same amount (INV-006).",
+    "inventory: Admin adjusts stock and the system writes a stock-adjustment record with delta, reason, and the admin's actorUserId (INV-007).",
+    "inventory: Every stock operation enforces the invariant that no field becomes negative (INV-008).",
+    "cart: Authenticated Customer adds an active product with quantity greater than zero to cart (CART-001).",
+    "cart: Customer changes quantity of a cart item; new quantity must not exceed the SKU's current availableQty (CART-002).",
+    "cart: Customer removes a cart item and the cart subtotal updates accordingly (CART-003, CART-004).",
+    "cart: Adding the same SKU twice merges into one cart line with summed quantity (CART-006).",
+    "cart: Cart flags items whose product became INACTIVE/DELETED so they are visibly non-checkoutable (CART-005).",
+    "cart: Cart subtotal is computed server-side from current product price (or stored snapshot per design) (CART-004).",
+    "cart: Cart row carries updatedAt to allow stale-cart detection downstream (CART-007).",
+    "checkout: Customer submits checkout from a cart that has at least one item (CHK-001).",
+    "checkout: Checkout validates the chosen shipping address belongs to the requesting customer and is complete (CHK-002).",
+    "checkout: Checkout rejects items whose product is INACTIVE or DELETED with a per-item error (CHK-003).",
+    "checkout: Checkout validates stock per item and returns INSUFFICIENT_STOCK with per-item details when short (CHK-004).",
+    "checkout: Checkout recomputes subtotal and total server-side from authoritative price; client-supplied totals are ignored (CHK-005).",
+    "checkout: Applies the §11.2 MVP shipping fee tier (subtotal < 1500 THB ⇒ shippingFee = 60 THB; subtotal ≥ 1500 THB ⇒ shippingFee = 0 THB) server-side; grandTotal = subtotal + shippingFee (no coupon in this run).",
+    "checkout: On success checkout creates an Order with status PENDING_PAYMENT and reserves stock attached to the order (CHK-007, CHK-008).",
+    "checkout: Checkout accepts an Idempotency-Key header so a duplicate POST returns the same order rather than creating a second one (CHK-009).",
+    "checkout: After successful checkout, only the items moved into the order are removed from the cart; other items remain (CHK-010).",
+    "order: Customer lists own orders only; another customer's orders are never returned (ORD-001).",
+    "order: Customer reads an order detail showing items with price snapshot, address snapshot, current status, and full status history timeline (ORD-002, ORD-007, ORD-009).",
+    "order: Order state machine enforces only the transitions allowed by requirement section 9.2; forbidden transitions return INVALID_ORDER_STATE (ORD-003).",
+    "order: Customer cancels own order while it is PENDING_PAYMENT, moving it to CANCELLED and releasing reserved stock (ORD-004).",
+    "order: admin-cancel is allowed only from PENDING_PAYMENT or PAID; admin-cancel from PACKING / SHIPPED / DELIVERED is rejected with INVALID_ORDER_STATE; admin must supply a reason that is persisted on the cancellation record (ORD-005, §9.2, §9.3).",
+    "order/inventory: admin-cancel of a PAID order auto-restocks the previously-sold quantity back to availableQty (sold→available) — MVP policy; tied to the events.order.cancelled handler in inventory.",
+    "order: Admin moves an order PAID → PACKING → SHIPPED → DELIVERED via admin-only endpoints; SHIPPED requires a tracking number string and DELIVERED is admin-confirmed (ORD-006). Note: shipment record creation is out-of-scope this run; the tracking number is stored on the order.",
+    "order: Each transition writes a status-history row with from-status, to-status, actor, and timestamp (ORD-009).",
+    "order: Order has a human-readable order number such as ORD-YYYYMMDD-NNNNNN (ORD-008).",
+    "payment: Checkout completion creates a payment intent with status REQUIRES_PAYMENT bound to the order (PAY-001).",
+    "payment: Customer simulates payment success via the mock endpoint; order moves to PAID and stock converts reserved→sold (PAY-002).",
+    "payment: Customer simulates payment failed; order moves to PAYMENT_FAILED and reserved stock is released (PAY-003).",
+    "payment: Customer simulates payment timeout; order moves to PAYMENT_EXPIRED and reserved stock is released (PAY-004).",
+    "payment: Payment callback handler is idempotent: a duplicate callback for the same payment intent does not double-apply state or stock changes (PAY-005).",
+    "payment: Payment amount must equal order total at the time the intent was created; mismatch returns PAYMENT_AMOUNT_MISMATCH and does not transition the order (PAY-006).",
+    "payment: Payment record persists mockPaymentRef, providerStatus, paidAt for every intent that resolves (PAY-007).",
+    "frontend-web: The customer mobile webview is Thai-language (lang=th) on a 390×844 mobile-first viewport with primary brand colour #1a8060 (emerald) and IBM Plex Sans Thai typography per Frontend Spec §1–§2.",
+    "frontend-web: The app exposes 5 bottom-tab routes (home, search, cart, orders, profile) plus 8 full-screen routes (detail, login, checkout, payment, orderSuccess, orderResult, orderDetail, addresses) per Frontend Spec §3; the bottom tab bar appears only on the 5 tab routes.",
+    "frontend-web: home tab shows featured products, categories, and new arrivals lists sourced from the catalog service; product cards open the detail route on tap.",
+    "frontend-web: search tab shows a search input, category filter chips, and a product grid; results respect the catalog service's pagination/filter contract (page, limit, categoryId, minPrice/maxPrice, inStock) (US-CAT-*).",
+    "frontend-web: detail route shows product name, image placeholder, price in Thai Baht (฿ prefix), stock status, description, review summary, and an emerald 'add to cart' CTA (CAT-006).",
+    "frontend-web: login route allows a guest to register or log in via the identity service; on success the access token is stored client-side and attached to subsequent API calls; tab routes that require auth (orders, profile) and the checkout/payment/order detail routes redirect to login when no valid token is present (US-AUTH-001, US-AUTH-002).",
+    "frontend-web: cart tab lists each cart line with image placeholder, name, ฿ unit price, quantity stepper (+/−), remove action, server-computed subtotal, and a 'go to checkout' CTA; quantity edits and removals call the cart service (US-CART-*, CART-002, CART-003).",
+    "frontend-web: checkout route shows the chosen shipping address (with link to addresses), the order item lines, the server-computed subtotal/shippingFee/grandTotal under the §11.2 free-shipping ≥ ฿1,500 rule, and an emerald 'place order' CTA that POSTs with an Idempotency-Key header (US-CHK-*, CHK-005, CHK-009, §11.2).",
+    "frontend-web: payment route presents a mock-QR display and three customer-driven simulate buttons (success / failed / timeout) that call the payment service after a short processing indicator; the route consumes only the payment service's outcome and never decides the order state on the client (US-PAY-*, PAY-002, PAY-003, PAY-004).",
+    "frontend-web: orderSuccess route is rendered when the payment service reports PAID; orderResult route is rendered when the payment service reports PAYMENT_FAILED or PAYMENT_EXPIRED; both surface the order number and a link into orderDetail.",
+    "frontend-web: orders tab lists the authenticated customer's orders with status badges (Thai labels) and supports filter all / active / done; each row opens orderDetail.",
+    "frontend-web: orderDetail route shows order number, item snapshots, address snapshot, current status, the status-history timeline (chronological), and the tracking number when status is SHIPPED or DELIVERED (ORD-002, ORD-007, ORD-009).",
+    "frontend-web: addresses route lists the customer's saved shipping addresses, supports adding a new address with the §8.2 fields, and exposes a picker mode used by the checkout route (CUST-003, CUST-004).",
+    "frontend-web: profile tab shows the customer's name, email, default address, and a logout action that calls the identity logout endpoint and clears the local token cache (CUST-001, AUTH-004).",
+    "cross-cutting: All write APIs validate input server-side and never trust client-computed totals or prices (CHK-005).",
+    "cross-cutting: Every API response, success or error, is wrapped in the envelope { code, message, data, traceId } as locked by the orchestrator.",
+    "cross-cutting: All routes follow POST /api/v1/{domain}/{aggregate-boundary}/{action} and authenticate using JWT ES256 access tokens (orchestrator lock)."
+  ],
+  "out_of_scope": [
+    "Admin web UI — Frontend Spec is customer-facing only; Admin remains backend-only via Postman/curl in MVP. Admin product create/edit/soft-delete, category create/edit, stock adjustment, and order status transitions are exposed only as backend admin endpoints.",
+    "Promotion/Coupon module (requirement section 8.7, PROMO-001..008) deferred this run; checkout coupon application (CHK-006) therefore deferred; the Frontend Spec coupon row on checkout displays a static disabled placeholder.",
+    "Shipping Mock module (requirement section 8.11, SHIP-001..006) deferred; no shipment records are created. The order state machine keeps PACKING/SHIPPED/DELIVERED but those transitions are admin-manual stubs without shipment side-effects; the tracking number and carrier are stored on the order itself.",
+    "Product Review module (requirement section 8.12, REV-001..005) deferred; product detail's review summary returns empty/placeholder data and the Frontend Spec review route is not built this run.",
+    "Notification Log module (requirement section 8.14, NOTI-001..004) deferred.",
+    "Audit Log module (requirement section 8.15, AUD-001..005) deferred; admin actions are not written to a persisted audit log this run.",
+    "Admin Back Office dashboards (subset of section 8.13: ADM-002 dashboard summary metrics, ADM-005 customer list page, ADM-006 audit log viewer) deferred.",
+    "Real payment gateway integration (requirement section 4.2 #1).",
+    "Real shipping provider integration (requirement section 4.2 #2).",
+    "Multi-vendor marketplace (section 4.2 #3).",
+    "Loyalty point system (section 4.2 #4).",
+    "Installment / BNPL (section 4.2 #5).",
+    "Return / refund flow (section 4.2 #6).",
+    "Warehouse management (section 4.2 #7).",
+    "Recommendation engine and AI product recommendation (section 4.2 #8 and #13).",
+    "Real-time chat (section 4.2 #9).",
+    "Native mobile app (section 4.2 #10) — the Frontend Spec ships a mobile webview, not a native app.",
+    "Multi-currency (section 4.2 #11) — Thai Baht only this run.",
+    "Full multi-language UI (section 4.2 #12) — Thai-only this run; data model must not preclude later i18n.",
+    "Accounting integration (section 4.2 #14).",
+    "Density/font/brand-swatch tweak panel from Frontend Spec §7 — exposed only as a designer-time setting, not as a runtime customer feature.",
+    "Real product photography — Frontend Spec ships striped diagonal placeholders with category labels; replacement is post-launch."
+  ],
+  "acceptance_criteria": [
+    {
+      "given": "An email not yet registered, a password meeting policy, and a name",
+      "when": "The client POSTs to identity register",
+      "then": "The response is 200/201 with no password material in the body, a CUSTOMER account exists in the database, and the stored password is a one-way hash distinct from the plaintext (AUTH-001, AUTH-006)"
+    },
+    {
+      "given": "An email already registered",
+      "when": "The client POSTs to identity register with that same email",
+      "then": "The response is a CONFLICT (409) with a code that signals duplicate email; no second user row is created (AUTH-001)"
+    },
+    {
+      "given": "A registered user with the correct password",
+      "when": "The client POSTs to identity login",
+      "then": "Response contains an access token and a refresh token, the access token decodes to ES256 with shorter expiry than the refresh token, and both expiries are present (AUTH-002, AUTH-005)"
+    },
+    {
+      "given": "A wrong email OR a wrong password",
+      "when": "The client POSTs to identity login",
+      "then": "Both cases return the same UNAUTHORIZED error code and the same human-readable message (AUTH-007)"
+    },
+    {
+      "given": "A valid CUSTOMER access token",
+      "when": "The client calls an admin-only endpoint such as admin product create",
+      "then": "Response is FORBIDDEN (403) and no product is created (AUTH-003)"
+    },
+    {
+      "given": "A logged-in user with a refresh token",
+      "when": "The client calls logout then attempts to use the same refresh token",
+      "then": "The second call is rejected with UNAUTHORIZED/INVALID_TOKEN and no new access token is issued (AUTH-004)"
+    },
+    {
+      "given": "An authenticated customer",
+      "when": "The client GETs identity profile and then PATCHes name and phone",
+      "then": "GET returns name, email, phone, defaultAddress; PATCH succeeds for name and phone but a PATCH that mutates email returns VALIDATION_ERROR (CUST-001, CUST-002)"
+    },
+    {
+      "given": "An authenticated customer with no addresses",
+      "when": "The client POSTs identity address-create with receiverName, phone, addressLine, province, district, postalCode, isDefault=true",
+      "then": "Response is 200/201, the address is persisted bound to the requesting userId, and the customer's defaultAddressId points to the new address (CUST-003, CUST-004)"
+    },
+    {
+      "given": "1000 ACTIVE products seeded in catalog",
+      "when": "Client GETs product listing with page=1 limit=20 sort=price_asc",
+      "then": "Response returns exactly 20 items sorted ascending by price, all ACTIVE and visible, and includes total count and page metadata (CAT-001, CAT-002)"
+    },
+    {
+      "given": "Products belonging to category C and others outside it",
+      "when": "Client GETs product listing with categoryId=C and minPrice=100 and maxPrice=500 and inStock=true",
+      "then": "Every returned item belongs to category C, has price in [100,500], and has availableQty greater than zero (CAT-003, CAT-004, CAT-005)"
+    },
+    {
+      "given": "An ADMIN token and a category that exists",
+      "when": "Admin POSTs product create with unique SKU, price > 0, that categoryId",
+      "then": "Product is created with status DRAFT or ACTIVE per request, the returned id is a UUID, and a duplicate-SKU retry returns CONFLICT (CAT-007, CAT-010)"
+    },
+    {
+      "given": "An ADMIN token and an existing product that appears in a historical order",
+      "when": "Admin POSTs product soft-delete on that product",
+      "then": "Listing endpoints stop returning the product, but GETting the prior order's detail still resolves the product's snapshot fields (CAT-009)"
+    },
+    {
+      "given": "An ADMIN token and an existing category at the same level as another with the same proposed name",
+      "when": "Admin POSTs category create",
+      "then": "Response is CONFLICT (409) and no category is created (CATE-001)"
+    },
+    {
+      "given": "A SKU with availableQty=10, reservedQty=0, soldQty=0",
+      "when": "Checkout reserves 3 units and then payment-success is simulated",
+      "then": "After reservation availableQty=7 reservedQty=3 soldQty=0; after payment success availableQty=7 reservedQty=0 soldQty=3 (INV-002, INV-003, INV-005)"
+    },
+    {
+      "given": "A SKU with availableQty=7 reservedQty=3 soldQty=0 from an active reservation",
+      "when": "Payment-failed is simulated for the owning order",
+      "then": "availableQty=10 reservedQty=0 soldQty=0 and the order moves to PAYMENT_FAILED (INV-006, PAY-003)"
+    },
+    {
+      "given": "An ADMIN token and a SKU",
+      "when": "Admin POSTs stock-adjust with delta=-2 and reason='damaged'",
+      "then": "availableQty decreases by 2 and a stock-adjustment record exists with the delta, reason, and admin actorUserId (INV-007)"
+    },
+    {
+      "given": "An authenticated CUSTOMER and an ACTIVE product P",
+      "when": "Customer POSTs cart add for P qty=2 twice in succession",
+      "then": "Cart contains a single line for P with quantity=4 and updatedAt advanced (CART-006, CART-007)"
+    },
+    {
+      "given": "An authenticated CUSTOMER with a cart line for product P qty=2 and P availableQty=1",
+      "when": "Customer POSTs cart edit setting qty=3",
+      "then": "Response is a validation error referencing availableQty=1 and the cart line is unchanged (CART-002)"
+    },
+    {
+      "given": "An authenticated CUSTOMER with a cart line for product P",
+      "when": "Customer POSTs cart remove on that line",
+      "then": "Response is 200, the cart no longer contains a line for P, and the cart subtotal is recalculated from the remaining lines (CART-003, CART-004)"
+    },
+    {
+      "given": "An authenticated CUSTOMER with a non-empty cart, a valid owned address, and an Idempotency-Key K1",
+      "when": "Customer POSTs checkout twice with the same Idempotency-Key K1",
+      "then": "Exactly one order is created, both calls return that same order id, and stock is reserved exactly once (CHK-001, CHK-002, CHK-007, CHK-008, CHK-009)"
+    },
+    {
+      "given": "A cart with one line of qty=5 against a SKU with availableQty=2",
+      "when": "Customer POSTs checkout",
+      "then": "Response is 409 INSUFFICIENT_STOCK with details listing that productId, requestedQty=5, availableQty=2, and no order is created (CHK-004)"
+    },
+    {
+      "given": "A valid checkout request whose body claims total=1 baht",
+      "when": "Customer POSTs checkout",
+      "then": "The created order's total equals the server-computed sum of (current price * quantity) per item plus the §11.2 shipping fee, ignoring the client-supplied total (CHK-005)"
+    },
+    {
+      "given": "A cart whose only product transitioned to INACTIVE after add",
+      "when": "Customer POSTs checkout",
+      "then": "Response rejects with a per-item error referencing that product, no order is created, and stock is not reserved (CHK-003, CART-005)"
+    },
+    {
+      "given": "A successful checkout that ordered the cart's only line",
+      "when": "Customer GETs cart afterward",
+      "then": "Cart is empty (CHK-010)"
+    },
+    {
+      "given": "Customer A's order O_A and Customer B's access token",
+      "when": "Customer B GETs orders listing or GETs order O_A by id",
+      "then": "Listing does not include O_A and direct GET returns NOT_FOUND or FORBIDDEN; never the order body (ORD-001)"
+    },
+    {
+      "given": "An order moved through PENDING_PAYMENT → PAID → PACKING",
+      "when": "Customer GETs order detail",
+      "then": "Response includes item lines with priceSnapshot, addressSnapshot, currentStatus=PACKING, and status history with three rows in chronological order each carrying actor and timestamp (ORD-002, ORD-007, ORD-009)"
+    },
+    {
+      "given": "An order in DELIVERED state",
+      "when": "Admin POSTs order cancel",
+      "then": "Response is 409 INVALID_ORDER_STATE and the order remains DELIVERED (ORD-003)"
+    },
+    {
+      "given": "An order in PENDING_PAYMENT belonging to the requesting customer",
+      "when": "Customer POSTs order cancel",
+      "then": "Order moves to CANCELLED, reserved stock is released back to availableQty, and a status-history row is written (ORD-004)"
+    },
+    {
+      "given": "An order in PAID state and an ADMIN token",
+      "when": "Admin POSTs order cancel with reason='out of stock'",
+      "then": "Order moves to CANCELLED, the reason is persisted on the cancellation record, and stock previously sold is released back to availableQty per MVP policy (ORD-005)"
+    },
+    {
+      "given": "An ADMIN token and an order whose current status is PACKING (or SHIPPED, or DELIVERED)",
+      "when": "Admin POSTs order cancel with a reason",
+      "then": "admin-cancel from PENDING_PAYMENT or PAID succeeds and emits order.cancelled; admin-cancel from PACKING or later returns 409 INVALID_ORDER_STATE and the order is unchanged (ORD-005, §9.2, §9.3)"
+    },
+    {
+      "given": "An order in PACKING and an ADMIN token",
+      "when": "Admin POSTs order ship without a tracking number",
+      "then": "Response is VALIDATION_ERROR and the order remains PACKING (ORD-006)"
+    },
+    {
+      "given": "A successful checkout that produced order O with total T",
+      "when": "Server-side payment intent creation runs",
+      "then": "Payment intent exists with status REQUIRES_PAYMENT, amount=T, and is linked to O (PAY-001)"
+    },
+    {
+      "given": "A payment intent in REQUIRES_PAYMENT for order O",
+      "when": "The same payment-success callback is delivered twice",
+      "then": "Order O ends in PAID exactly once, soldQty increased exactly once, and the second callback returns 200 with no additional state change (PAY-002, PAY-005)"
+    },
+    {
+      "given": "A payment intent for order O with amount T",
+      "when": "A payment-success callback arrives with amount != T",
+      "then": "Response is 409 PAYMENT_AMOUNT_MISMATCH, order O remains PENDING_PAYMENT, stock reservation unchanged (PAY-006)"
+    },
+    {
+      "given": "Any payment intent that resolves",
+      "when": "It transitions to a terminal status",
+      "then": "The persisted payment row contains mockPaymentRef, providerStatus, and paidAt (PAY-007)"
+    },
+    {
+      "given": "Customer has a cart with subtotal of 1499 THB",
+      "when": "checkout.preview is called",
+      "then": "The response sets shippingFee=60 and grandTotal=1559 (§11.2)"
+    },
+    {
+      "given": "Customer has a cart with subtotal of 1500 THB",
+      "when": "checkout.preview is called",
+      "then": "The response sets shippingFee=0 and grandTotal=1500 (§11.2 threshold; subtotal ≥ 1500 ⇒ free shipping)"
+    },
+    {
+      "given": "An unauthenticated visitor opens the customer mobile webview",
+      "when": "The home tab route renders",
+      "then": "The page declares lang='th', the layout fits a 390-wide viewport with a single column, the bottom tab bar shows the 5 tabs (home/search/cart/orders/profile), the primary CTA colour matches the emerald brand token, prices render with the ฿ Thai-Baht prefix, and product cards open the detail route on tap (Frontend Spec §1, §2, §3)"
+    },
+    {
+      "given": "An unauthenticated visitor on the cart, orders, profile, checkout, payment, orderDetail, or addresses route",
+      "when": "The route is opened without a stored access token",
+      "then": "The app redirects to the login route and, after successful login, returns the customer to the route they originally requested (Frontend Spec §3 'Auth?' column)"
+    },
+    {
+      "given": "An authenticated customer with at least one cart line and one default address",
+      "when": "The customer drives the mobile webview through home → search → detail → add-to-cart → cart → checkout → payment-success → orderSuccess → orderDetail",
+      "then": "The end-to-end journey completes without error, the orderDetail route shows status=PAID, item snapshots, address snapshot, and a status-history with at least PENDING_PAYMENT and PAID entries (Frontend Spec §3 + ORD-002, ORD-009)"
+    },
+    {
+      "given": "An authenticated customer whose cart subtotal is 1500 THB on the checkout route",
+      "when": "The checkout route renders the totals block",
+      "then": "shippingFee shows ฿0 and grandTotal shows ฿1,500; reducing the cart so subtotal is 1499 re-renders shippingFee as ฿60 and grandTotal as ฿1,559 (Frontend Spec §5 + §11.2)"
+    },
+    {
+      "given": "An authenticated customer on the payment route after a successful checkout",
+      "when": "The customer taps simulate-success, simulate-failed, or simulate-timeout",
+      "then": "The app calls the payment service for the chosen outcome, then routes to orderSuccess on PAID, or to orderResult on PAYMENT_FAILED / PAYMENT_EXPIRED, surfacing the order number and a deep link into orderDetail (Frontend Spec §5, PAY-002, PAY-003, PAY-004)"
+    },
+    {
+      "given": "An authenticated customer with three orders in different statuses",
+      "when": "The customer opens the orders tab and toggles the all / active / done filter",
+      "then": "The list renders one row per order with a coloured status badge carrying a Thai label and tapping a row opens orderDetail for that order (Frontend Spec §3 + ORD-001)"
+    },
+    {
+      "given": "Any successful or failed API call from the frontend or a backend caller",
+      "when": "The client inspects the response body",
+      "then": "The body conforms to the envelope { code, message, data, traceId } where traceId is a non-empty string and code is a documented error code on failure (cross-cutting)"
+    }
+  ],
+  "edge_cases": [
+    { "case": "Stock for a SKU drops below the cart quantity between add-to-cart and checkout", "expected": "Checkout returns 409 INSUFFICIENT_STOCK with per-item availableQty and requestedQty; no order is created; no stock is reserved (CHK-004, INV-008)" },
+    { "case": "Customer simulates payment timeout on a PENDING_PAYMENT order", "expected": "Order moves to PAYMENT_EXPIRED, reservedQty is released back to availableQty, and a status-history row is written (PAY-004, INV-006)" },
+    { "case": "Payment provider redelivers the same success callback for the same paymentIntentId", "expected": "Second delivery is recognized via idempotency on (paymentIntentId, providerStatus); order state and stock are unchanged from the first delivery (PAY-005)" },
+    { "case": "Two concurrent checkouts try to reserve the last unit of the same SKU", "expected": "Exactly one checkout succeeds and creates an order with reservation; the other receives 409 INSUFFICIENT_STOCK; availableQty never goes negative (INV-008, CHK-004)" },
+    { "case": "Customer views order history that includes a product later soft-deleted by admin", "expected": "Order detail still resolves the product's name, image, and priceSnapshot from the order item snapshot rather than from the live catalog (CAT-009, ORD-007)" },
+    { "case": "Client replays a checkout with a previously used Idempotency-Key but with a different cart payload", "expected": "Server returns the originally created order for that key without creating a new order, and does not silently honor the new payload (CHK-009)" },
+    { "case": "Product price is changed by admin after an item was added to cart but before checkout submit", "expected": "Server-side checkout uses the price at the moment of order creation (or pre-declared snapshot per design) and writes that price into the order item snapshot; client-supplied total is ignored (CHK-005, ORD-007)" },
+    { "case": "Customer submits checkout referencing a shipping address belonging to a different customer", "expected": "Checkout returns FORBIDDEN/VALIDATION_ERROR and no order is created (CHK-002)" },
+    { "case": "Customer calls an authenticated endpoint with an expired access token", "expected": "Response is 401 UNAUTHORIZED with the documented code; no business state is mutated (AUTH-005)" },
+    { "case": "Admin tries to transition order from SHIPPED back to PAID", "expected": "Response is 409 INVALID_ORDER_STATE; order stays SHIPPED (ORD-003, section 9.3)" },
+    { "case": "Customer tries to cancel an order that has already moved to PAID", "expected": "Customer-cancel returns 409 INVALID_ORDER_STATE; only ADMIN can cancel a PAID order with a reason (ORD-004, ORD-005)" },
+    { "case": "Cart contains an item whose product became INACTIVE before checkout", "expected": "Cart UI marks it non-checkoutable and checkout rejects until the customer removes it (CART-005, CHK-003)" },
+    { "case": "Customer hits checkout.commit but never simulates payment (browser closed / user walks away)", "expected": "Within the reservation TTL, the order moves PENDING_PAYMENT → PAYMENT_EXPIRED, the reserved stock is released back to availableQty, and a status_history row records the transition (INV-004, PAY-004, ORD-009)" },
+    { "case": "Cart subtotal lands exactly on the §11.2 threshold (subtotal = 1500 THB)", "expected": "Server applies shippingFee=0 (the ≥ 1500 branch); subtotal=1499 instead applies shippingFee=60. Boundary is inclusive at 1500 (§11.2)" },
+    { "case": "Unauthenticated visitor opens the cart, orders, profile, checkout, payment, orderDetail, or addresses route via deep link", "expected": "Frontend redirects to the login route and after successful login resumes the originally requested route (Frontend Spec §3 'Auth?' column)" },
+    { "case": "Frontend payment route is closed by the customer before any simulate button is tapped", "expected": "The order remains PENDING_PAYMENT until the reservation TTL elapses and then transitions to PAYMENT_EXPIRED with stock released; the orders tab still surfaces the order with the resulting status (PAY-004, INV-004)" },
+    { "case": "Frontend runs on a viewport narrower than 390 (e.g. 360-wide Android Chrome)", "expected": "The single-column layout reflows without horizontal scroll, the bottom tab bar remains anchored, and the primary CTAs remain tappable (Frontend Spec §1)" }
+  ],
+  "success_conditions": "An automated end-to-end suite passes against the running 7 backend services and the Thai-language mobile customer webview in which: (1) a customer registers, logs in on the login route, browses the home and search tabs, opens product detail, adds an item to cart from the cart tab, drives the checkout route with a default address while observing the §11.2 ≥ ฿1,500 free-shipping rule, simulates a successful mock payment on the payment route, and lands on the orderSuccess and orderDetail routes showing status=PAID with reserved stock converted to sold; (2) the same suite verifies that the simulate-failed and simulate-timeout paths route to orderResult and that reserved stock is released; (3) admin (via backend endpoints, no UI) can create/edit/soft-delete products, manage categories, adjust stock, and move orders PAID → PACKING → SHIPPED → DELIVERED with status history; (4) every acceptance criterion above passes; (5) the response envelope { code, message, data, traceId } is observed on every API and the route convention POST /api/v1/{domain}/{aggregate}/{action} with JWT ES256 auth is honored; (6) the customer mobile webview renders Thai copy on a 390×844 viewport with the emerald #1a8060 brand token and the 5-tab nav.",
+  "non_functional": {
+    "latency": "p95 < 300 ms for product listing on a 1,000-SKU dataset (PERF-001); p95 < 500 ms for checkout (PERF-002); p95 < 300 ms for order detail (PERF-003); all measured on the local Docker Compose environment. Frontend mobile webview first-meaningful-paint should remain usable on the 390×844 viewport over a typical mobile-3G simulated profile (informational; no hard p95 in MVP).",
+    "idempotency": "Checkout accepts an Idempotency-Key header; duplicate POSTs with the same key return the original order without creating duplicates or reserving stock twice (CHK-009). Payment callback handlers are idempotent on (paymentIntentId, providerStatus): repeated callbacks do not double-transition the order or double-mutate stock (PAY-005).",
+    "failure_tolerance": "Payment failure or timeout always releases reserved stock back to available before returning to client (INV-006, PAY-003, PAY-004). Cross-service writes that span order + inventory + payment must leave no half-state: either both the state transition and the stock conversion succeed, or neither is applied. PostgreSQL outage on a stateful service surfaces a 5xx with the standard error envelope; reads do not fall back to stale or fabricated data. Frontend-web: when an API call returns the standard error envelope, the route surfaces the human-readable message in Thai without crashing, and recovers when the customer retries."
+  },
+  "compliance_sensitive": false
+}

@@ -1,0 +1,62 @@
+{
+  "template_version": "0.1.0",
+  "verdict": "advisory_only",
+  "summary": "Both producers landed the round-1 repairs cleanly. All 9 routed findings (PR-001..009) are resolved on disk: BA added the §11.2 shipping-fee in_scope line + 2 boundary ACs (1499→60, 1500→0) + the abandoned-checkout edge case + tightened admin-cancel scope to 'PENDING_PAYMENT or PAID only' + added the 'per MVP policy' restock qualifier; TL added cross-cutting.pricing (with SHIPPING_FREE_THRESHOLD_THB=1500, FLAT_SHIPPING_FEE_THB=60, RESERVATION_TTL_MINUTES=15), inventory.reservation.sweep-expired (30s cadence, batch 200, FOR UPDATE SKIP LOCKED), events.reservation.expired (partition key orderId, consumer = Order only, Payment intentionally not subscribed), the state-driven consumer rule across all four cross-topic events with a written PR-003 race resolution, the 6-step cookie↔Bearer per-request flow on cross-cutting.auth, the order.update-status-admin transitions table with explicit-disallowed examples, and frontend-web complexity flipped to 'complex' with a clear rationale. All four BA↔TL cross-checks reconcile cleanly. One low/plan_polish nit on a BA citation. No new high or medium defects observed; verdict is advisory_only — fan-out can proceed.",
+  "round_1_verification": [
+    {
+      "id": "PR-001",
+      "status": "resolved",
+      "note": "inventory.reservation.sweep-expired exists with 30s cadence, batch=200, FOR UPDATE SKIP LOCKED, and a documented per-row tx (lock stock_levels, release reserved→available, mark reservation RELEASED, write outbox events.reservation.expired). events.reservation.expired exists with partition_key=orderId and consumers=order; failure_modes spell out Order's PENDING_PAYMENT→PAYMENT_EXPIRED transition and Payment's intentional non-consumption (with the late-callback PAYMENT_INTENT_TERMINAL fallback). Order component depends on events.reservation.expired. RESERVATION_TTL_MINUTES=15 is centralized in cross-cutting.pricing.constants so reservation.create.expiresAt and the sweeper share one source of truth."
+    },
+    {
+      "id": "PR-002",
+      "status": "resolved",
+      "note": "BA in_scope line under checkout encodes '§11.2 MVP shipping fee tier (subtotal < 1500 THB ⇒ shippingFee = 60 THB; subtotal ≥ 1500 THB ⇒ shippingFee = 0 THB)' and adds two boundary ACs (subtotal=1499 → fee 60 grandTotal 1559; subtotal=1500 → fee 0 grandTotal 1500). TL's cross-cutting.pricing encodes the identical formula with explicit 'Boundary is inclusive at 1500'. checkout.preview and checkout.commit response shapes both reference the formula and reflect shippingFee + total accordingly. BA and TL boundary-inclusivity agree."
+    },
+    {
+      "id": "PR-003",
+      "status": "resolved",
+      "note": "events.payment.completed, events.payment.failed, events.payment.expired, events.order.cancelled, AND events.reservation.expired all carry the state-driven consumer rule (SELECT ... FOR UPDATE on the affected aggregate, act on current row state, ignore implicit fromStatus). events.order.cancelled.idempotency_rules and ordering_guarantees explicitly call event.fromStatus 'audit/debug only'. The canonical PR-003 race (cancel + payment-success on different topics) is named in events.payment.completed.failure_modes and events.order.cancelled.failure_modes with the COMMITTED→sold→available branch as resolution."
+    },
+    {
+      "id": "PR-004",
+      "status": "resolved",
+      "note": "cross-cutting.auth.token_acquisition_flow now spells out two HttpOnly cookies (access 15m, refresh 14d) with Secure/SameSite=Lax/Path=/, the 6-step per-request flow (read access cookie, decode-and-check exp, fall through to refresh if absent/expired, call identity.refresh, set-cookie rotated values, forward Bearer), single-use refresh rotation, and AUTH_REVOKED handling on refresh failure. The transport field also flags the statelessness of Next.js route handlers explicitly to prevent the original ambiguity from re-emerging."
+    },
+    {
+      "id": "PR-005",
+      "status": "resolved",
+      "note": "BA in_scope line now reads 'admin-cancel is allowed only from PENDING_PAYMENT or PAID; admin-cancel from PACKING / SHIPPED / DELIVERED is rejected with INVALID_ORDER_STATE'. AC #26 covers both branches (success path emits order.cancelled; PACKING-or-later returns 409). Aligns 1:1 with TL's order.update-status-admin transitions table."
+    },
+    {
+      "id": "PR-006",
+      "status": "resolved",
+      "note": "BA added an explicit MVP-policy in_scope line ('admin-cancel of a PAID order auto-restocks the previously-sold stock back to availableQty (sold→available) — MVP policy'). AC #25 carries the 'per MVP policy' qualifier. TL events.order.cancelled handler branches on COMMITTED → sold→available with a note tying it to BA's PR-006 policy. Policy is named, not assumed."
+    },
+    {
+      "id": "PR-007",
+      "status": "resolved",
+      "note": "components.json#/components[name=frontend-web].complexity is 'complex' and complexity_rationale documents the 36+ contract surfaces, sole ownership of cookie↔Bearer translation, client-side Idempotency-Key generation, and applies the 'same yardstick as checkout' reasoning. The component_complexity_legend on line 6 is updated in lockstep."
+    },
+    {
+      "id": "PR-008",
+      "status": "resolved",
+      "note": "ba.json#/edge_cases includes 'Customer hits checkout.commit but never simulates payment (browser closed / user walks away)' with expected outcome PENDING_PAYMENT → PAYMENT_EXPIRED, reserved stock released back to availableQty, status_history row written. The expected outcome lines up with TL's sweeper + events.reservation.expired so QA-L1 has a deterministic test (within 15min TTL + 30s sweep cadence)."
+    },
+    {
+      "id": "PR-009",
+      "status": "resolved",
+      "note": "order.update-status-admin now has a transitions object with allowed[] (5 entries: PAID→PACKING, PACKING→SHIPPED w/trackingNumber, SHIPPED→DELIVERED, PENDING_PAYMENT→CANCELLED w/reason, PAID→CANCELLED w/reason restock-per-MVP) and explicitly_disallowed_examples[] (PACKING/SHIPPED/DELIVERED→CANCELLED, SHIPPED→PAID, PENDING_PAYMENT→PACKING, PAYMENT_FAILED|EXPIRED→*). Returns 409 INVALID_ORDER_STATE on disallowed pairs. Matches §9.2/§9.3 and BA's PR-005 wording."
+    }
+  ],
+  "new_findings": [
+    {
+      "id": "PR-015",
+      "severity": "low",
+      "diagnosis_tag": "plan_polish",
+      "routes_to": null,
+      "locus": "ba.json#/edge_cases entry for 'Customer hits checkout.commit but never simulates payment'",
+      "description": "The edge case cites '(INV-004, PAY-004, ORD-009)' but PAY-004 specifically refers to customer-simulated timeout. The actual mechanism here is the inventory.reservation.sweep-expired sweeper (TTL-driven, no customer action). Citation is slightly off; the observable outcome and acceptance signal are correct, so this is wording polish only."
+    }
+  ]
+}

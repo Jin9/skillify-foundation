@@ -1,6 +1,5 @@
 ---
 name: review-frontend-code
-version: 1.0.0
 description: >
   Adversarially verify React/TypeScript code emitted by a Generate stage
   against the approved UI design and the 12 banking-grade frontend
@@ -16,35 +15,36 @@ description: >
   Do NOT use for backend code (use review-backend-code). Do NOT use for
   Lighthouse / Web Vitals optimization (use analyze-frontend-performance).
   Do NOT use for greenfield architecture review.
-stage_type: review
-status: ready-for-phase-6
-input_schema: schemas/input.json
-output_schema: schemas/output.json
-banking_grade: {idempotent: true, reversible: n/a, audit_level: detailed}
-expected_duration_p95_seconds: 90
-max_retries_recommended: 2
-compatibility: claude-code, codex, opencode
+compatibility: [claude-code, codex, opencode]
+metadata:
+  version: 1.0.0
+  stage_type: review
+  status: ready-for-phase-6
+  input_schema: schemas/input.json
+  output_schema: schemas/output.json
+  banking_grade: {idempotent: true, reversible: n/a, audit_level: detailed}
+  expected_duration_p95_seconds: 90
+  max_retries_recommended: 2
 ---
 
 # Review Frontend Code
 
 ## Purpose
 
-Verify that Generate-stage output for one React/TypeScript feature actually
+Verify that previously-generated code for one React/TypeScript feature actually
 satisfies the approved UI design and the banking-grade frontend rule set.
-Trust-but-verify the Generate stage's claims (a11y compliance, security
+Trust-but-verify the implementation's claims (a11y compliance, security
 review, PII handling, state ownership, bundle impact, analytics events),
 scan the emitted code against the 12 non-negotiables and 9 v2 augmentations,
-and issue a machine-readable verdict the workflow engine routes per
-Section 8 Review Pattern. Read-only — emits no code, no remediation patches.
+and issue a machine-readable verdict. A caller MAY map the verdict to its own
+routing. Read-only — emits no code, no remediation patches.
 
 ## When to use this skill
 
-- Use when: the workflow's next stage is `validate-frontend-build` and the
-  Generate stage's output needs verification first.
-- Use when: a `review`-type stage selects this skill for a React / TypeScript
-  target.
-- Use when: a Generate stage emits `uncertainty_flags` of kind `token_gap` /
+- Use when: generated React/TypeScript code needs verification before a
+  build/validation step.
+- Use when: a review step selects this skill for a React / TypeScript target.
+- Use when: the implementation emits `uncertainty_flags` of kind `token_gap` /
   `bundle_overrun` / `convention_conflict` that need triage.
 - Do NOT use when: the task is a full security audit across infra / gateways
   / K8s — defer to `reviewing-software-security`.
@@ -54,7 +54,7 @@ Section 8 Review Pattern. Read-only — emits no code, no remediation patches.
 - Do NOT use when: the task is Web Vitals / Lighthouse optimization —
   defer to `analyze-frontend-performance`.
 - Do NOT use when: the task is writing remediation code — this skill
-  suggests fix shape only; emission belongs to a Generate stage.
+  suggests fix shape only; emission belongs to a code-generation step.
 
 ## Input
 
@@ -62,8 +62,8 @@ Input MUST validate against `schemas/input.json`. Required fields:
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `design_document` | string or object | Same design the Generate stage consumed. |
-| `target_feature_path` | string | Same path the Generate stage targeted. |
+| `design_document` | string or object | Same design the implementation consumed. |
+| `target_feature_path` | string | Same path the implementation targeted. |
 | `implement_stage_output` | object | Verbatim output of `implement-frontend-feature` (per its `schemas/output.json`). |
 | `code_under_review` | array of `{path, content, component_pillar}` | Production files emitted by Generate, with the declared pillar. |
 | `tests_under_review` | array of `{path, content, test_type}` | Companion tests emitted by Generate. |
@@ -74,7 +74,7 @@ Optional: `convention_overrides`, `severity_floor` (default `P3`).
 ## Procedure
 
 Run all 8 steps in order. Step 6 (claims-vs-reality) is non-skippable —
-it is the unique reason this skill exists in the workflow.
+it is the unique reason this skill exists.
 
 1. **Pre-flight — input completeness.** Verify every required field;
    `code_under_review` non-empty. Missing → single finding `P1 /
@@ -130,15 +130,15 @@ Output MUST validate against `schemas/output.json`. Structured fields:
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `verdict` | enum `approve | loop_back | human-queue` | Workflow-engine-routable. |
-| `loop_back_target_stage` | enum `design | implement | null` | Required when verdict is `loop_back`; null otherwise. |
+| `verdict` | enum `approve | loop_back | human-queue` | Machine-readable outcome. `approve` = clean; `loop_back` = request revision by the code-generation step; `human-queue` = escalate to a human. A caller/orchestrator MAY map these to its own routing. |
+| `loop_back_target_stage` | enum `design | implement | null` | Which upstream role to revise (`design` = the design author, `implement` = the code-generation step). Required when verdict is `loop_back`; null otherwise. |
 | `findings` | array of `{severity, confidence, category, rule_violated, file, line, evidence, fix_shape, standards_ref}` | One entry per gap. Empty = clean. |
 | `claims_verified` | array of strings | Generate claims the code substantiates. |
-| `claims_unverified` | array of strings | Generate claims the code does NOT substantiate. Non-empty forces `loop_back` or `human-queue`. |
-| `a11y_verdict` | nested object `{wcag_level_verified, axe_run_evidence_present, role_label_queries_present, focus_management_evident}` | A11y is a banking-grade blocker — surfaced separately so the workflow can route on it without parsing findings. |
+| `claims_unverified` | array of strings | Implementation claims the code does NOT substantiate. Non-empty forces `loop_back` or `human-queue`. |
+| `a11y_verdict` | nested object `{wcag_level_verified, axe_run_evidence_present, role_label_queries_present, focus_management_evident}` | A11y is a banking-grade blocker — surfaced separately so a caller can route on it without parsing findings. |
 | `security_verdict` | nested object `{xss_mitigations_verified, token_storage_verified, pii_helpers_verified, csrf_protections_verified, dependency_additions_detected}` | Same reason — security gets its own routable surface. |
-| `audit_metadata` | object `{rules_evaluated, files_scanned, lines_scanned, claims_checked, review_duration_inferred_seconds}` | For the workflow audit event. `rules_evaluated` floor 26 (12 non-negotiables + 9 augmentations + 5 contract items). |
-| `uncertainty_flags` | array of `{kind, location, note}` | Triage of Generate's flags + any new ambiguities the reviewer surfaces. `design_ambiguity` overrides `loop_back_target_stage` to `design`. |
+| `audit_metadata` | object `{rules_evaluated, files_scanned, lines_scanned, claims_checked, review_duration_inferred_seconds}` | For the caller's audit trail. `rules_evaluated` floor 26 (12 non-negotiables + 9 augmentations + 5 contract items). |
+| `uncertainty_flags` | array of `{kind, location, note}` | Triage of the implementation's flags + any new ambiguities the reviewer surfaces. `design_ambiguity` overrides `loop_back_target_stage` to `design`. |
 
 ## Failure Modes
 
@@ -152,16 +152,16 @@ Output MUST validate against `schemas/output.json`. Structured fields:
 | Design ambiguity discovered (design wrong, not implementation) | Step 2 | `uncertainty_flag` of kind `design_ambiguity`, verdict `loop_back` to `design` |
 | Only `P3` findings, no unverified claims | Step 7 | Verdict `approve` (notes carried forward) |
 | Reviewer suspects finding but cannot cite file:line | Self-review | DO NOT publish at full confidence — emit at `severity_floor` with `[needs verification]` in `evidence` |
-| `bundle_overrun` flag from Generate, no other findings | Step 7 | Verdict `loop_back` to `design` (budget is a design decision) |
+| `bundle_overrun` flag from the implementation, no other findings | Step 7 | Verdict `loop_back` to `design` (budget is a design decision) |
 
 ## Anti-Patterns
 
 - DO NOT emit code, remediation patches, or styled fix snippets — suggest fix shape only (component signature, prop type, helper name).
-- DO NOT approve when any Generate claim is unsubstantiated, even when no other finding exists.
+- DO NOT approve when any implementation claim is unsubstantiated, even when no other finding exists.
 - DO NOT fabricate file:line references, ARIA attributes, CWE numbers, or library APIs. Withhold instead.
 - DO NOT publish P1 / P2 at low confidence without `[needs verification]` tag in `evidence`.
 - DO NOT widen scope beyond `code_under_review` / `tests_under_review` — adjacent observations are `uncertainty_flag` of kind `out_of_scope_observation`, not blocking findings.
-- DO NOT loop indefinitely on the same finding across re-reviews; after 2 loops, escalate to `human-queue` per workflow `max_loops`.
+- DO NOT loop indefinitely on the same finding across re-reviews; after 2 loops, escalate to `human-queue` (the caller's max-loop policy).
 - DO NOT silently downgrade a finding to make the verdict `approve` — verdict is a function of findings, not the other way around.
 - DO NOT process real PII in evidence snippets — if a payload contains PII, redact in `evidence` and note in `uncertainty_flag` of kind `needs_human_judgment`.
 - DO NOT accept "axe clean" claim without finding either a CI axe assertion OR a dev `@axe-core/react` install in the inspected file set.

@@ -1,0 +1,90 @@
+{
+  "template_version": "0.1.0",
+  "review_kind": "reviewer-l1",
+  "component_name": "payment",
+  "skills_invoked": ["expert-software-security-reviewer", "simplify"],
+  "verdict": "block",
+  "summary": "Webhook hot-zones (HMAC constant-time compare, ±5min replay window, server-only dedup-key composition, 7-step ordering with amount-check FIRST, single-tx outbox+transition+dedup, log redaction, internal-secret constant-time compare, owner-check on simulate, sweeper SKIP-LOCKED, EXPIRED no-outbox gate) are correctly implemented per TD. Two real defects routed to Dev: (1) JWT middleware does not enforce role=CUSTOMER as the simulate spec mandates, and the simulate AUTH_FORBIDDEN message leaks ownership to the caller; (2) intent.create handler does not validate the Idempotency-Key=orderId rule and rejects rotated INTERNAL_SHARED_SECRET (no comma-overlap support) — both are TD-mandated. One spec-induced finding routed to Tech-Designer (HMAC secret minimum-length enforcement). Several lower-severity log-hygiene and cosmetic items.",
+  "findings": [
+    {
+      "id": "REV-PAYMENT-001",
+      "severity": "medium",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/payment/app/payment/handler_simulate.go:80-87",
+      "description": "Simulate enforces ownership only by string-comparing intent.OwnerUserID to claims.Sub; the JWT middleware (common/middleware/auth.go:22) does not check claims.Role at all, so an ADMIN/OPERATOR token whose sub coincidentally matches owner_user_id (or any non-CUSTOMER role token) passes the check. The simulate spec mandates 'ADMIN role is REJECTED with 403' and 'role=CUSTOMER required'. Additionally, the AUTH_FORBIDDEN message 'You do not own this payment intent.' leaks ownership; spec requires a generic 'forbidden' message and constant-time UUID compare.",
+      "recommendation": "Add explicit role check (claims.Role != 'CUSTOMER' → 403 AUTH_FORBIDDEN) and use crypto/subtle.ConstantTimeCompare on UUID byte representations. Replace the message with a generic 'Forbidden.' to avoid ownership leakage.",
+      "cwe_refs": ["CWE-285", "CWE-208", "CWE-209", "OWASP-API5:2023", "ASVS-V4.1.3"]
+    },
+    {
+      "id": "REV-PAYMENT-002",
+      "severity": "medium",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "backend/services/payment/app/payment/handler_intent_create.go:18-50",
+      "description": "Handler never reads or validates the 'Idempotency-Key' header against request.OrderId; the create.md spec (steps 3, idempotency section) says missing/mismatched header MUST return 400 VALIDATION_ERROR. As written, malformed or absent keys silently succeed, and the contract documented to Checkout is unenforced.",
+      "recommendation": "In IntentCreate, read c.GetHeader(\"Idempotency-Key\"), and if it is empty or != req.OrderID return 400 VALIDATION_ERROR before invoking svc.CreateIntent.",
+      "cwe_refs": ["CWE-841", "ASVS-V11.1.4"]
+    },
+    {
+      "id": "REV-PAYMENT-003",
+      "severity": "medium",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "backend/services/payment/router/router.go:64-80",
+      "description": "internalSecretMW does a single ConstantTimeCompare against the configured secret. The intent-create spec (auth section) and ADR-008 require comma-separated rotation overlap support ('new,old'). With current code, the standard rotation procedure (deploy with overlap, rotate caller, drop old) cannot work — the second comparator is missing, and a deploy mid-rotation 401s legitimate Checkout traffic.",
+      "recommendation": "Split secret on ','; ConstantTimeCompare against each token (always run the full loop to keep timing constant). Reject when none match.",
+      "cwe_refs": ["CWE-321", "ASVS-V6.4.1"]
+    },
+    {
+      "id": "REV-PAYMENT-004",
+      "severity": "medium",
+      "diagnosis_tag": "spec_induced_security_issue",
+      "routes_to": "Tech-Designer",
+      "locus": "backend/services/payment/config/config.go:53",
+      "description": "callback.md auth section says 'MOCK_PROVIDER_SECRET MIN 32 bytes; recipient validates length at startup; refuses to boot if shorter.' The TD did not surface this as a config_validation rule; the env tag is only `notEmpty`, so a 1-byte secret boots successfully and weakens the HMAC. Either the TD should explicitly call for a startup length-check, or the spec should be relaxed.",
+      "recommendation": "TD: add a config_validation entry for MOCK_PROVIDER_SECRET (and INTERNAL_SHARED_SECRET) requiring len(secret) >= 32 at startup, log_fatal otherwise. Dev then implements in config.C().",
+      "cwe_refs": ["CWE-326", "CWE-521", "ASVS-V2.10.1"]
+    },
+    {
+      "id": "REV-PAYMENT-005",
+      "severity": "low",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/payment/app/payment/process_callback.go:69-79",
+      "description": "Amount-mismatch path logs both expected (intent.AmountMinor) and got (in.AmountFromCaller). callback.md log-redaction step 2 says got=<REDACTED>. While numeric-only and not strictly PII, downstream WARN aggregation could be log-mined to enumerate intent amounts. The error envelope already includes the values for the legitimate caller; logs should not duplicate.",
+      "recommendation": "Drop 'got' from the structured log; keep intent_id + action + expected if needed for forensics, or move both to DEBUG level.",
+      "cwe_refs": ["CWE-209", "CWE-532"]
+    },
+    {
+      "id": "REV-PAYMENT-006",
+      "severity": "low",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/payment/app/payment/signature.go:24-29",
+      "description": "VerifyHMACSignature short-circuits and returns false on hex.DecodeString error before reaching ConstantTimeCompare. Practical impact is nil (the secret never participates in the malformed branch and the MAC is already computed), but a strict reading of constant-time policy prefers compute-then-compare against a zero-buffer of the same length so the timing path is identical for malformed-hex vs wrong-MAC.",
+      "recommendation": "If hex decode fails, fall through to subtle.ConstantTimeCompare(expected, make([]byte, len(expected))) — discard result, return false. Cosmetic.",
+      "cwe_refs": ["CWE-208"]
+    },
+    {
+      "id": "REV-PAYMENT-007",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/payment/app/payment/service.go:196-223",
+      "description": "GetIntentByID inlines the full SELECT instead of reusing IntentStorage; this duplicates the column list and scan logic that already lives in access/storage_intent.go. Drift risk if the table schema changes. Pure consistency, no security impact.",
+      "recommendation": "Add GetByID(ctx, intentID) to IntentStorage interface (non-locking SELECT) and have the service delegate. Removes the inline pgxpool dependency in service.go.",
+      "cwe_refs": []
+    },
+    {
+      "id": "REV-PAYMENT-008",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/payment/app/payment/handler_callback.go:88-130",
+      "description": "bindRawJSON calls plain json.Unmarshal which silently ignores additionalProperties and never enforces the binding tags on CallbackRequest (those tags only fire under gin.ShouldBindJSON). The handler then re-validates a subset manually (intentID, providerStatus enum, ref/amount non-empty) — the providerTimestamp field validation drift between the body's ProviderTimestamp and the header is invisible. Spec callback.md schema sets additionalProperties:false.",
+      "recommendation": "Use json.Decoder with DisallowUnknownFields, or run validator.Struct on the parsed CallbackRequest after Unmarshal so binding tags are honored. Defense-in-depth against payload smuggling.",
+      "cwe_refs": ["CWE-20"]
+    }
+  ]
+}

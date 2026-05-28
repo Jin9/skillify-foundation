@@ -1,0 +1,7 @@
+{
+  "raw_content": "Project: Wire Status Notifications\nType: Story discovery\nPriority: High\n\nDescription:\nCustomers need to see a neutral status when wire transfers are pending review. Compliance says customer copy must not mention AML, sanctions, flagged, suspicious, or investigation. The current agent workflow tells customers too much when a wire cannot complete immediately.\n\nAcceptance Criteria:\n1. Customer sees a neutral pending status for a held wire.\n2. Agent sees internal reason codes in the back-office tool.\n3. Replayed status updates do not send duplicate notifications.\n4. Every status transition emits an audit event.\n\nComments:\nBusiness owner says Legal has not reviewed final wording yet. Mobile push is phase 2.",
+  "idempotency_key": "123e4567-e89b-12d3-a456-426614174000",
+  "source_type": "jira",
+  "tier_hint": "T2",
+  "requested_at": "2026-05-26T09:00:00Z"
+}

@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalogpw
+      POSTGRES_DB: catalog
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U catalog -d catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  catalog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      REF_ID_HEADER_KEY: "X-Ref-ID"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: catalog
+      SECRET_POSTGRES_PASSWORD: catalogpw
+      POSTGRES_DB: catalog
+      JWT_ISSUER: shoppilot
+      JWT_AUDIENCE: shoppilot
+      JWT_PUBLIC_KEY: "set-your-es256-public-key-here"
+      KAFKA_ENABLED: "false"
+      KAFKA_CATALOG_TOPIC: ecom.catalog.events
+      OUTBOX_RELAY_INTERVAL_SECONDS: "5"
+      MIGRATIONS_AUTO_APPLY: "false"
+      INVENTORY_BASE_URL: "http://inventory-svc"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped

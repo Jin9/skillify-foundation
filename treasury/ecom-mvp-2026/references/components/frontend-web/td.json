@@ -1,0 +1,396 @@
+{
+  "template_version": "0.1.0",
+  "component_name": "frontend-web",
+  "required": true,
+  "complexity": "complex",
+  "complexity_rationale": "Post-PR-001 customer-only scope: 30 contract surfaces (24 customer endpoints + 6 cross-cutting). Sole owner of cookie<->Bearer translation per cross-cutting.auth.token_acquisition_flow (6-step withAuth orchestrator); sole owner of customer-facing Idempotency-Key generation/persistence (UUID v4 per checkout-commit click + in-flight Map debounce). Mobile-first Thai UX with 13 routes (5 bottom-tab + 8 full-screen) shaped by the ShopPilot Frontend Spec; visual system, IA, color tokens, typography lifted from the standalone HTML mockup but reimplemented as Next.js 14 App Router + TypeScript + Tailwind. A defect in route-handler auth, idempotency wiring, accidental document.cookie usage, or accidental INTERNAL_SHARED_SECRET leakage blocks every functional Customer AC.",
+  "skills_invoked": ["crafting-frontend-code", "generating-pseudocode"],
+
+  "scaffold": {
+    "framework": "Next.js 14+ (App Router)",
+    "language": "TypeScript 5.x (strict)",
+    "styling": "Tailwind CSS 3.x with brand tokens (theme.colors.brand=#1a8060)",
+    "service_path": "B2C E-Commerce Platform/frontend",
+    "package_manager": "pnpm (locked single tool; .npmrc enables strict-peer-dependencies)",
+    "node_version": ">=20.10 LTS",
+    "viewport": {
+      "design_target": "390x844 (iPhone 14)",
+      "min_width_supported": "360 (Android Chrome) — single column reflow without horizontal scroll",
+      "lang": "th",
+      "currency_format": "฿1,290 prefix; whole THB, no fractional units (per cross-cutting.pricing)",
+      "html_meta": "<meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1' />"
+    },
+    "directory_layout": {
+      "frontend/app/layout.tsx": "Root layout: lang='th', IBM Plex Sans Thai font via next/font/google with subsets ['thai','latin'], CSS variable --brand=#1a8060, Tailwind globals, ToastProvider.",
+      "frontend/app/(tabs)/layout.tsx": "Tab-route layout: renders children + bottom TabBar (5 icons: home/search/cart/orders/profile). Wraps ProtectedShell server-side probeSession only for /orders and /profile via per-page metadata; cart route is browsable as guest until a write action.",
+      "frontend/app/(tabs)/page.tsx": "home tab — Server Component (Frontend Spec §3 home row).",
+      "frontend/app/(tabs)/search/page.tsx": "search tab — Server Component shell + Client filter pane.",
+      "frontend/app/(tabs)/cart/page.tsx": "cart tab — Server Component shell + Client line-item controls. Public read; write actions trigger AUTH_MISSING -> /login flow.",
+      "frontend/app/(tabs)/orders/page.tsx": "orders tab — Server Component (auth required).",
+      "frontend/app/(tabs)/profile/page.tsx": "profile tab — Server Component + Client logout/edit (auth required).",
+      "frontend/app/(full)/layout.tsx": "Full-screen layout: NO tab bar; renders only ShopHeader (top bar with back button + title + optional action).",
+      "frontend/app/(full)/detail/[productId]/page.tsx": "Product detail — Server Component (public).",
+      "frontend/app/(full)/login/page.tsx": "Login + register toggle — Client Component (public).",
+      "frontend/app/(full)/checkout/page.tsx": "Checkout review — Client Component (auth required).",
+      "frontend/app/(full)/checkout/payment/page.tsx": "Payment simulate (mock-QR + 3 buttons) — Client Component (auth required).",
+      "frontend/app/(full)/checkout/orderSuccess/page.tsx": "Confirmation screen — Server Component (auth required).",
+      "frontend/app/(full)/checkout/orderResult/page.tsx": "Failed/expired result screen — Server Component (auth required).",
+      "frontend/app/(full)/orders/[orderId]/page.tsx": "Order detail with timeline — Server Component (auth required).",
+      "frontend/app/(full)/addresses/page.tsx": "Address book + add new + picker mode — Client Component (auth required).",
+      "frontend/app/(full)/orders/[orderId]/review/[itemId]/page.tsx": "Review writer route per Frontend Spec §3 — RESERVED for post-MVP per EPIC_FRONTEND.out_of_scope; route file ships a static placeholder Thai message ('เร็ว ๆ นี้') so deep links don't 404, but no behavior is wired in MVP.",
+      "frontend/app/api/proxy/[...path]/route.ts": "Generic POST proxy for every customer endpoint NOT covered by a dedicated handler. Already exists from runs/01; extended here.",
+      "frontend/app/api/auth/session/route.ts": "GET — pure session probe via probeSession() (no refresh side-effect).",
+      "frontend/app/api/auth/login/route.ts": "POST — calls identity.login, sets HttpOnly access+refresh cookies, returns user object only (strips raw tokens).",
+      "frontend/app/api/auth/refresh/route.ts": "POST — explicit refresh path (rare; standard refresh is implicit inside withAuth). Rotates both cookies.",
+      "frontend/app/api/auth/logout/route.ts": "POST — calls identity.logout with refresh-cookie, ALWAYS clears both cookies regardless of upstream outcome.",
+      "frontend/app/api/auth/register/route.ts": "POST — calls identity.register; does NOT auto-login (frontend redirects to /login).",
+      "frontend/app/api/checkout/preview/route.ts": "POST — withAuth -> checkout.preview (per-request observability headers).",
+      "frontend/app/api/checkout/commit/route.ts": "POST — withAuth -> checkout.commit. Reads idempotencyKey from request body, forwards as 'Idempotency-Key' HTTP header. Rejects 400 VALIDATION_ERROR if body lacks idempotencyKey (never auto-generates).",
+      "frontend/app/api/payment/simulate/route.ts": "POST — withAuth -> payment.simulate (the only customer-facing payment endpoint).",
+      "frontend/lib/auth.ts": "withAuth orchestrator + cookie helpers + probeSession (already scaffolded in runs/01; minor edits to envelope traceId).",
+      "frontend/lib/idempotency.ts": "generateIdempotencyKey() + InFlightMap (already scaffolded in runs/01).",
+      "frontend/lib/http.ts": "fetch wrapper that calls a backend service (POST + envelope handling).",
+      "frontend/lib/format.ts": "thb(amount) -> '฿1,290' formatter (Intl.NumberFormat 'th-TH', currency 'THB', maximumFractionDigits=0, custom prefix).",
+      "frontend/lib/i18n.ts": "Thai status-label map: STATUS_LABEL_TH (PENDING_PAYMENT='รอการชำระเงิน', PAID='ชำระเงินแล้ว', PAYMENT_FAILED='ชำระเงินไม่สำเร็จ', PAYMENT_EXPIRED='หมดเวลาชำระเงิน', PACKING='กำลังแพ็ค', SHIPPED='จัดส่งแล้ว', DELIVERED='ส่งสำเร็จ', CANCELLED='ยกเลิก'); ERROR_LABEL_TH for cross-cutting.error-codes display.",
+      "frontend/components/": "Reusable UI components — see components_ui.",
+      "frontend/tests/unit/": "vitest unit tests (lib/*).",
+      "frontend/tests/e2e/": "Playwright suite covering Frontend Spec §7.1 customer journey spine."
+    }
+  },
+
+  "service_endpoints_env": {
+    "BACKEND_IDENTITY_BASE_URL": "http://identity:8080 (server-only, never exposed)",
+    "BACKEND_CATALOG_BASE_URL": "http://catalog:8080",
+    "BACKEND_INVENTORY_BASE_URL": "http://inventory:8080",
+    "BACKEND_CART_BASE_URL": "http://cart:8080",
+    "BACKEND_CHECKOUT_BASE_URL": "http://checkout:8080",
+    "BACKEND_ORDER_BASE_URL": "http://order:8080",
+    "BACKEND_PAYMENT_BASE_URL": "http://payment:8080",
+    "NEXT_PUBLIC_APP_NAME": "ShopPilot (the only NEXT_PUBLIC_* var; no backend URL ever public)",
+    "INTERNAL_SHARED_SECRET": "EXPLICITLY OMITTED from frontend/.env.example. Frontend MUST NEVER load this. A regression test asserts process.env.INTERNAL_SHARED_SECRET === undefined inside any frontend bundle/runtime."
+  },
+
+  "visual_system": {
+    "brand": {
+      "primary": "#1a8060",
+      "tailwind_token": "theme.extend.colors.brand = { DEFAULT: '#1a8060', dark: '#0f5a44', soft: '#ecfdf5' }",
+      "rationale": "Frontend Spec §2 emerald; matches HTML mockup. Contrast ratio against #fff = 4.85 (WCAG AA pass for normal text)."
+    },
+    "surfaces": {
+      "page_bg": "#f7f7f5",
+      "card_bg": "#fff",
+      "divider": "#f4f4f1"
+    },
+    "text": {
+      "primary": "#111",
+      "secondary": "rgba(0,0,0,0.55)",
+      "tertiary": "rgba(0,0,0,0.4)"
+    },
+    "typography": {
+      "font_family": "IBM Plex Sans Thai (subsets: thai+latin) via next/font/google; weights 400/500/600/700",
+      "type_scale_px": [10, 11, 12, 13, 14, 15, 17, 22, 26],
+      "fallbacks": "system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif"
+    },
+    "shape_and_spacing": {
+      "card_radius": "14-16px",
+      "pill_radius": "999px",
+      "button_radius": "12-14px",
+      "page_padding": "16px (regular density)",
+      "card_gap": "10-12px"
+    },
+    "icons": {
+      "library": "lucide-react (close substitutes for the inlined SVGs in the mockup; ~21 icons used: home, search, package, user, chevron-left, x, chevron-right, plus, minus, check, heart, map-pin, tag, truck, credit-card, qr-code, sliders-horizontal, trash-2, pencil, info, shopping-bag)",
+      "stroke_width": "1.8",
+      "size_range": "18-22px"
+    },
+    "imagery": "ProductImage is a striped diagonal CSS gradient placeholder (Frontend Spec §2 explicit: NOT real photos). 7 tonal variants seeded by product.tone index modulo 7."
+  },
+
+  "pages": [
+    { "route": "/", "screen": "home", "tab": true, "auth": "public", "type": "Server Component", "data_dependencies": ["catalog.product.list (page=1 limit=12 sort=newest)", "catalog.category.list (activeOnly=true)"], "key_components": ["ShopHeader", "Section", "ProductCard", "TabBar"], "ba_journey": "Frontend Spec §3 home; STORY_FRONTEND_HOME", "story_id": "STORY_FRONTEND_HOME" },
+    { "route": "/search", "screen": "search", "tab": true, "auth": "public", "type": "Server Component shell + Client filter chips", "data_dependencies": ["catalog.product.list (page,limit,sort,filter,inStock)", "catalog.category.list"], "key_components": ["ShopHeader", "SearchBar (Client)", "Chip (category)", "PriceRangeSheet (Client)", "ProductGrid", "ProductCard", "TabBar"], "ba_journey": "Frontend Spec §3 search; STORY_FRONTEND_SEARCH", "story_id": "STORY_FRONTEND_SEARCH" },
+    { "route": "/cart", "screen": "cart", "tab": true, "auth": "public-read-write-prompts-login", "type": "Server Component shell + Client line controls", "data_dependencies": ["cart.read (SC initial fetch)", "cart.update-item / cart.remove-item (Client mutations re-fetch)"], "key_components": ["ShopHeader", "CartLineItem (qty stepper, remove, non-checkoutable badge)", "CartSummary (server subtotal)", "BtnCheckout (gated by checkoutable=true on every line; CART-005)", "TabBar"], "ba_journey": "Frontend Spec §3 cart; STORY_FRONTEND_CART", "story_id": "STORY_FRONTEND_CART" },
+    { "route": "/orders", "screen": "orders", "tab": true, "auth": "required", "type": "Server Component + Client filter chips", "data_dependencies": ["order.list-mine (page,limit,status filter='all'|'active'|'done')"], "key_components": ["ShopHeader", "Chip (filter all/active/done)", "OrderSummaryCard", "StatusBadge (Thai labels)", "TabBar"], "ba_journey": "Frontend Spec §3 orders; STORY_FRONTEND_ORDERS", "story_id": "STORY_FRONTEND_ORDERS" },
+    { "route": "/profile", "screen": "profile", "tab": true, "auth": "required", "type": "Server Component + Client logout/edit form", "data_dependencies": ["identity.profile.read", "identity.profile.update", "identity.address.list (default-only)", "POST /api/auth/logout"], "key_components": ["ShopHeader", "ProfileHeader (name/email)", "DefaultAddressCard", "BtnLogout (Client)", "TabBar"], "ba_journey": "Frontend Spec §3 profile; STORY_FRONTEND_PROFILE", "story_id": "STORY_FRONTEND_PROFILE" },
+    { "route": "/detail/[productId]", "screen": "detail", "tab": false, "auth": "public", "type": "Server Component (with Client AddToCartButton island)", "data_dependencies": ["catalog.product.detail"], "key_components": ["ShopHeader (back)", "ProductImage (large)", "ProductPrice", "StockBadge", "ProductDescription", "AddToCartButton (Client; gated by stockStatus & auth)"], "ba_journey": "Frontend Spec §3 detail; STORY_FRONTEND_DETAIL", "story_id": "STORY_FRONTEND_DETAIL" },
+    { "route": "/login", "screen": "login", "tab": false, "auth": "public", "type": "Client Component (form, register/login toggle)", "data_dependencies": ["POST /api/auth/login -> identity.login", "POST /api/auth/register -> identity.register"], "key_components": ["ShopHeader (back)", "ToggleTabs (login | register)", "Field (email/password/name)", "Btn (brand, full)"], "ba_journey": "Frontend Spec §3 login; STORY_FRONTEND_AUTH", "story_id": "STORY_FRONTEND_AUTH", "form_lib": "react-hook-form 7.x + zod 3.x" },
+    { "route": "/checkout", "screen": "checkout", "tab": false, "auth": "required", "type": "Client Component (interactive)", "data_dependencies": ["identity.address.list (address picker)", "checkout.preview (re-runs whenever shippingAddressId changes)", "checkout.commit (on Place Order tap)"], "key_components": ["ShopHeader (back)", "AddressPicker", "OrderItemList (snapshot from preview)", "CouponRow (DISABLED placeholder 'เร็ว ๆ นี้' per EPIC_FRONTEND.out_of_scope)", "CheckoutSummary (server subtotal+shippingFee+grandTotal)", "ShippingFeeExplainer ('ส่งฟรีเมื่อสั่งครบ ฿1,500')", "CheckoutCommitButton"], "ba_journey": "Frontend Spec §3 checkout, §11.2 boundary; STORY_FRONTEND_CHECKOUT", "story_id": "STORY_FRONTEND_CHECKOUT" },
+    { "route": "/checkout/payment", "screen": "payment", "tab": false, "auth": "required", "type": "Client Component", "data_dependencies": ["payment.simulate (outcome=SUCCESS|FAILED|TIMEOUT)", "order.detail (poll on simulate response if needed)"], "key_components": ["ShopHeader (back)", "MockQrCard (static visual; no real QR data)", "PaymentSimulateButtons (3 outcomes; ~1.4s processing indicator)", "OrderRefSummary (orderNumber + grandTotal)"], "ba_journey": "Frontend Spec §3 payment, §5 mock; STORY_FRONTEND_PAYMENT", "story_id": "STORY_FRONTEND_PAYMENT" },
+    { "route": "/checkout/orderSuccess", "screen": "orderSuccess", "tab": false, "auth": "required", "type": "Server Component", "data_dependencies": ["order.detail (orderId from query)"], "key_components": ["SuccessIcon (Lucide CheckCircle2 in brand)", "OrderRefSummary", "BtnViewOrder (-> /orders/[orderId])", "BtnHome"], "ba_journey": "Frontend Spec §3 orderSuccess; STORY_FRONTEND_PAYMENT post-success branch", "story_id": "STORY_FRONTEND_PAYMENT" },
+    { "route": "/checkout/orderResult", "screen": "orderResult", "tab": false, "auth": "required", "type": "Server Component", "data_dependencies": ["order.detail (orderId from query; status in PAYMENT_FAILED|PAYMENT_EXPIRED|CANCELLED)"], "key_components": ["FailIcon (Lucide XCircle/AlertCircle)", "OrderRefSummary", "ReasonText (status-derived Thai message)", "BtnRetryPayment (only if status==PAYMENT_FAILED)", "BtnHome"], "ba_journey": "Frontend Spec §3 orderResult; STORY_FRONTEND_PAYMENT failure branch", "story_id": "STORY_FRONTEND_PAYMENT" },
+    { "route": "/orders/[orderId]", "screen": "orderDetail", "tab": false, "auth": "required", "type": "Server Component (Client island for cancel button)", "data_dependencies": ["order.detail"], "key_components": ["ShopHeader (back)", "StatusBadge", "OrderStatusTimeline (5 stages from order.statusHistory)", "AddressSnapshotCard", "OrderItemRow (snapshot fields: priceSnapshot, productNameSnapshot, productImageUrlSnapshot)", "TrackingCard (visible only when status=SHIPPED|DELIVERED; trackingNumber + carrier)", "BtnCancel (Client; visible only when status=PENDING_PAYMENT)"], "ba_journey": "Frontend Spec §3 orderDetail; STORY_FRONTEND_ORDER_DETAIL", "story_id": "STORY_FRONTEND_ORDER_DETAIL" },
+    { "route": "/addresses", "screen": "addresses", "tab": false, "auth": "required", "type": "Client Component (CRUD + picker mode via ?mode=pick&returnTo=/checkout)", "data_dependencies": ["identity.address.list", "identity.address.create", "identity.address.update", "identity.address.delete", "identity.address.set-default"], "key_components": ["ShopHeader (back)", "AddressCard (with default badge)", "BtnAddAddress (-> Sheet AddressForm)", "AddressForm (RHF+zod: receiverName/phone/addressLine/district/province/postalCode; isDefault toggle)", "PickerSelectButton (only in picker mode; on tap returns to /checkout?addressId=...)"], "ba_journey": "Frontend Spec §3 addresses; STORY_FRONTEND_ADDRESSES", "story_id": "STORY_FRONTEND_ADDRESSES" }
+  ],
+
+  "page_count": 13,
+
+  "route_handlers": [
+    { "method_path": "GET /api/auth/session", "downstream_contract": "probeSession (local; reads access cookie, returns claims if valid; NO refresh side-effect)", "auth_flow": "pure read; no refresh", "purpose": "Used by (full)/(tabs) layouts and SessionContext to determine auth UI state without burning a refresh round-trip.", "response_shape": "{authenticated:boolean, user?:{userId,email,name,role}}" },
+    { "method_path": "POST /api/auth/login", "downstream_contract": "identity.login", "auth_flow": "public; on 200 set access+refresh HttpOnly cookies with locked attributes; response body strips raw tokens (returns user object only)", "purpose": "Login endpoint; cookies are the only auth surface" },
+    { "method_path": "POST /api/auth/register", "downstream_contract": "identity.register", "auth_flow": "public; on success do NOT set cookies (registration does not auto-login per BA AUTH-001 — caller hits /login next)", "purpose": "Register endpoint" },
+    { "method_path": "POST /api/auth/refresh", "downstream_contract": "identity.refresh", "auth_flow": "Read 'refresh' cookie -> POST identity.refresh; on 200 rotate both cookies; on AUTH_REVOKED clear both cookies and return 401 AUTH_REVOKED", "purpose": "Explicit refresh path (rare; standard refresh is implicit inside withAuth wrapping every protected handler)" },
+    { "method_path": "POST /api/auth/logout", "downstream_contract": "identity.logout", "auth_flow": "Read 'refresh' cookie -> POST identity.logout {refreshToken}; ALWAYS clear both cookies (Max-Age=0) regardless of downstream outcome", "purpose": "Best-effort revoke + always-clear cookies" },
+
+    { "method_path": "POST /api/proxy/identity/profile/read", "downstream_contract": "identity.profile.read", "auth_flow": "withAuth (6-step)" },
+    { "method_path": "POST /api/proxy/identity/profile/update", "downstream_contract": "identity.profile.update", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/identity/address/create", "downstream_contract": "identity.address.create", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/identity/address/list", "downstream_contract": "identity.address.list", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/identity/address/update", "downstream_contract": "identity.address.update", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/identity/address/delete", "downstream_contract": "identity.address.delete", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/identity/address/set-default", "downstream_contract": "identity.address.set-default", "auth_flow": "withAuth" },
+
+    { "method_path": "POST /api/proxy/catalog/product/list", "downstream_contract": "catalog.product.list", "auth_flow": "public passthrough; if access cookie present forward Bearer (no behavior change for catalog list)" },
+    { "method_path": "POST /api/proxy/catalog/product/detail", "downstream_contract": "catalog.product.detail", "auth_flow": "public passthrough" },
+    { "method_path": "POST /api/proxy/catalog/category/list", "downstream_contract": "catalog.category.list", "auth_flow": "public passthrough" },
+
+    { "method_path": "POST /api/proxy/cart/add-item", "downstream_contract": "cart.add-item", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/cart/update-item", "downstream_contract": "cart.update-item", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/cart/remove-item", "downstream_contract": "cart.remove-item", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/cart/read", "downstream_contract": "cart.read", "auth_flow": "withAuth" },
+
+    { "method_path": "POST /api/checkout/preview", "downstream_contract": "checkout.preview", "auth_flow": "withAuth", "notes": "Dedicated handler so we can attach a per-request trace correlation header." },
+    {
+      "method_path": "POST /api/checkout/commit",
+      "downstream_contract": "checkout.commit",
+      "auth_flow": "withAuth",
+      "client_idempotency_key": "REQUIRED. Client (browser) generates a UUID v4 via crypto.randomUUID() per logical Place-Order click; route handler reads it from the request body field 'idempotencyKey' and forwards as 'Idempotency-Key' HTTP header to checkout.commit. The handler MUST reject (400 VALIDATION_ERROR) requests missing the field — never auto-generate server-side.",
+      "notes": "On 409 IDEMPOTENCY_KEY_INFLIGHT: handler returns the envelope verbatim with Retry-After echoed; client retries once after 1s. On 409 IDEMPOTENCY_KEY_REUSED: handler surfaces the original orderId in envelope.data and the client navigates to /orders/[orderId] WITHOUT creating a new order."
+    },
+
+    { "method_path": "POST /api/proxy/order/list-mine", "downstream_contract": "order.list-mine", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/order/detail", "downstream_contract": "order.detail", "auth_flow": "withAuth" },
+    { "method_path": "POST /api/proxy/order/cancel-mine", "downstream_contract": "order.cancel-mine", "auth_flow": "withAuth" },
+
+    { "method_path": "POST /api/payment/simulate", "downstream_contract": "payment.simulate", "auth_flow": "withAuth", "notes": "Customer-facing mock screen; outcome is one of SUCCESS|FAILED|TIMEOUT (request body field 'outcome')." }
+  ],
+
+  "route_handler_count": 25,
+
+  "route_handler_topology": {
+    "dedicated": [
+      "GET /api/auth/session (probe-only)",
+      "POST /api/auth/login (cookie set)",
+      "POST /api/auth/register (no cookie)",
+      "POST /api/auth/refresh (cookie rotate)",
+      "POST /api/auth/logout (cookie clear)",
+      "POST /api/checkout/preview (observability header)",
+      "POST /api/checkout/commit (Idempotency-Key wiring)",
+      "POST /api/payment/simulate (customer-facing)"
+    ],
+    "generic_proxy": "POST /api/proxy/[...path]/route.ts handles the remaining 17 customer endpoints (identity.profile.* + identity.address.* + catalog.product.* + catalog.category.list + cart.* + order.list-mine + order.detail + order.cancel-mine). Generic handler reads the rest segments, maps the first segment ('identity'|'catalog'|'cart'|'order') to the matching BACKEND_*_BASE_URL env var, applies withAuth (or public passthrough for catalog), forwards body verbatim, returns envelope verbatim.",
+    "explicit_route_files": "The 'method_path' rows above with /api/proxy/<svc>/<aggregate>/<action> are implemented BY the generic [...path] handler; we list them for traceability rather than as separate route.ts files. ONLY the 8 dedicated rows have their own route.ts.",
+    "rationale": "Keep the surface lean: cookie semantics + Idempotency-Key wiring + observability headers must live in dedicated handlers. Everything else is a stateless POST forward and benefits from a single tested path."
+  },
+
+  "auth_flow_pseudocode": "// withAuth — 6-step token acquisition per cross-cutting.auth.token_acquisition_flow.\n// Lives in frontend/lib/auth.ts. Called by every authenticated route handler.\n// STATELESS per-request: there is NO shared in-memory cache across requests.\n//\n// Inputs: NextRequest req, downstream(bearer) async function returning Response.\n// Output: Response (with Set-Cookie when refresh fired).\n\nasync function withAuth(req, downstream) {\n  // Step 1: read 'access' cookie (HttpOnly so JS cannot, but server can)\n  let access = readCookie(req.headers.get('cookie'), 'access')\n\n  // Step 2: if present and not within 30s of exp, forward immediately\n  if (access) {\n    const claims = decodeJwtNoVerify(access) // base64url-decode payload only\n    if (Date.now()/1000 + 30 < claims.exp) {\n      return downstream(access)              // happy path, NO refresh call\n    }\n  }\n\n  // Step 3: missing or expired -> need refresh; refresh cookie required\n  const refresh = readCookie(req.headers.get('cookie'), 'refresh')\n  if (!refresh) {\n    return envelope401('AUTH_MISSING', 'No session found. Please log in.')\n  }\n\n  // Step 4: call identity.refresh\n  let refreshRes\n  try {\n    refreshRes = await fetch(`${BACKEND_IDENTITY_BASE_URL}/api/v1/identity/user/refresh`, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ refreshToken: refresh })\n    })\n  } catch {\n    return envelope502('UPSTREAM_TIMEOUT', 'Identity service unreachable')\n  }\n  const body = await refreshRes.json()\n\n  // Step 6: revoked/invalid -> clear both cookies + 401 AUTH_REVOKED\n  if (refreshRes.status === 401 || body.code === 'AUTH_REVOKED' || body.code === 'AUTH_INVALID') {\n    return envelope401WithClearedCookies('AUTH_REVOKED', 'Session expired. Please log in again.')\n  }\n  if (body.code !== 'SUCCESS' || !body.data) {\n    return envelope502('UPSTREAM_TIMEOUT', 'Unexpected identity response')\n  }\n\n  // Step 5: rotate both cookies, forward original request with new access\n  const { accessToken, refreshToken } = body.data\n  const downstreamRes = await downstream(accessToken)\n  const headers = new Headers(downstreamRes.headers)\n  headers.append('Set-Cookie', buildAccessCookie(accessToken))   // HttpOnly; SameSite=Lax; Secure (prod); Path=/; Max-Age=900\n  headers.append('Set-Cookie', buildRefreshCookie(refreshToken)) // HttpOnly; SameSite=Lax; Secure (prod); Path=/; Max-Age=1209600\n  return new Response(downstreamRes.body, { status: downstreamRes.status, headers })\n}\n\nfunction decodeJwtNoVerify(jwt) {\n  // split('.'), base64url-decode payload, JSON.parse. NEVER attempts signature verify.\n  // Verification authority remains the BACKEND middleware.\n}\n\nfunction buildAccessCookie(value) {\n  const secure = process.env.NODE_ENV === 'production' ? ' Secure;' : ''\n  return `access=${value}; Path=/; HttpOnly; SameSite=Lax;${secure} Max-Age=900`\n}\n\nfunction buildRefreshCookie(value) {\n  const secure = process.env.NODE_ENV === 'production' ? ' Secure;' : ''\n  return `refresh=${value}; Path=/; HttpOnly; SameSite=Lax;${secure} Max-Age=1209600`\n}\n",
+
+  "idempotency_strategy": {
+    "owner": "frontend (browser)",
+    "generator": "crypto.randomUUID() — UUID v4. Never timestamp, counter, or user-data-derived.",
+    "scope": "ONE key per (user, Place-Order click). A second click of the Place-Order button generates a NEW key (a new logical attempt).",
+    "in_flight_dedup": "CheckoutCommitButton holds a Map<'checkout-commit', Promise> in lib/idempotency.ts (InFlightMap). While one attempt is unresolved: (a) the button is disabled, (b) any duplicate click is dropped client-side. This prevents accidental double-submit without minting a new key.",
+    "persistence": "Held in React state in CheckoutCommitButton ONLY. NOT persisted to localStorage. If the user refreshes mid-submit, a fresh key is generated on the next click; the previously-submitted orderId is what survives — via the URL the user is redirected to (/checkout/payment?orderId=...).",
+    "header_forwarding": "Client POSTs body { idempotencyKey, ...other } to /api/checkout/commit. The route handler reads idempotencyKey, forwards as 'Idempotency-Key' HTTP header on the downstream POST to checkout.commit. Body-field carriage chosen over client-set HTTP header because (a) auditable in handler logs, (b) avoids any future cross-origin preflight concern.",
+    "rejection_path": "Route handler rejects with 400 VALIDATION_ERROR (code surfaced as 'VALIDATION_ERROR') if the body lacks idempotencyKey. The handler MUST NOT auto-generate one — auto-generation defeats replay-safety on user re-submit.",
+    "409_handling": {
+      "IDEMPOTENCY_KEY_INFLIGHT": "Wait Retry-After (default 1s); retry once with the SAME body (same key). If still INFLIGHT, surface a soft toast 'กำลังประมวลผล…' and stop.",
+      "IDEMPOTENCY_KEY_REUSED": "Read envelope.data.orderId (per checkout.commit failure_modes); router.push(`/orders/${orderId}`); show toast 'คำสั่งซื้อนี้ถูกสร้างไว้แล้ว'. Do NOT retry.",
+      "PAYMENT_INTENT_TERMINAL": "Toast + redirect to /orders/[orderId]."
+    }
+  },
+
+  "components_ui": [
+    "TabBar — bottom 5-tab nav (home/search/cart/orders/profile); active state in --brand emerald; icons from lucide-react; Server-Component-rendered with usePathname() inside a 'use client' wrapper child for active highlighting",
+    "ShopHeader — top bar (back button optional, title, optional action); 56px height; sticky on scroll inside scrollable views",
+    "Section — white rounded card container with optional title and 'see all' action",
+    "Btn — variant: 'brand' | 'dark' | 'light' | 'ghost'; full-width prop; disabled state; loading spinner state",
+    "Chip — pill filter (active boolean); used in /search category filter, /orders all/active/done filter",
+    "Stars — 5-star display (read-only); reserved for future review module (placeholder render only in MVP)",
+    "ProductImage — striped diagonal CSS-gradient placeholder seeded by tone index; height/radius props",
+    "ProductCard — image + name + ฿ price + optional compareAt; tap navigates to /detail/[productId]; compact prop for grid-vs-list",
+    "ProductGrid — 2-column responsive grid with 12px gap; pagination handled via SC search-param fetch",
+    "SearchBar (Client) — debounced 300ms input bound to URL search params via router.replace",
+    "PriceRangeSheet (Client) — bottom Sheet with min/max sliders; commits to URL search params on close",
+    "CartLineItem — image + name + ฿ price + qty stepper (+/-) + remove icon + line subtotal + 'ไม่สามารถสั่งซื้อได้' badge when checkoutable=false (CART-005)",
+    "CartSummary — server-supplied subtotal block with 'ดำเนินการชำระเงิน' Btn",
+    "AddressPicker — selectable list of identity.address.list rows; defaultSelected = isDefault; tap to choose; 'จัดการที่อยู่' link -> /addresses",
+    "AddressForm — RHF + zod: receiverName(1..120), phone(E.164-ish), addressLine(1..200), district(1..80), province(1..80), postalCode(/^\\d{5}$/), isDefault(boolean)",
+    "CheckoutSummary — renders subtotal + shippingFee + couponDiscount(=0 disabled) + grandTotal verbatim from server (NEVER recomputes); §11.2 explainer line 'ส่งฟรีเมื่อสั่งครบ ฿1,500' below shippingFee row",
+    "ShippingFeeExplainer — small helper text under shippingFee row that updates from the server preview only",
+    "CheckoutCommitButton (Client) — generates idempotencyKey on click; debounces re-clicks via InFlightMap; POST /api/checkout/commit; success -> router.push('/checkout/payment?orderId=...'); 409 handling per idempotency_strategy.409_handling",
+    "PaymentSimulateButtons (Client) — three buttons (สำเร็จ / ไม่สำเร็จ / หมดเวลา) wired to outcome=SUCCESS|FAILED|TIMEOUT; ~1.4s processing indicator; navigation depends on payment.simulate response status, NEVER an optimistic guess (PAY-002/003/004 + Frontend Spec §5)",
+    "MockQrCard — static visual placeholder (no real QR data), Frontend Spec §3 mock-payment row",
+    "OrderSummaryCard — orderNumber + StatusBadge + total + createdAt; tap navigates to /orders/[orderId]",
+    "StatusBadge — colored pill mapping enum -> Thai label via lib/i18n.STATUS_LABEL_TH; color tokens differ by status family (PAID/SHIPPED/DELIVERED=brand emerald, PENDING_PAYMENT=amber, PAYMENT_FAILED/PAYMENT_EXPIRED=rose, CANCELLED=slate, PACKING=violet)",
+    "OrderStatusTimeline — 5-step horizontal progress (PENDING_PAYMENT, PAID, PACKING, SHIPPED, DELIVERED); current status highlighted; renders timestamps from order.statusHistory ascending; CANCELLED/PAYMENT_FAILED/PAYMENT_EXPIRED short-circuit the chain at the failure point",
+    "OrderItemRow — uses snapshot fields (productNameSnapshot, priceSnapshot, productImageUrlSnapshot per CAT-009/ORD-007) so soft-deleted products still render in historical orders",
+    "AddressSnapshotCard — receiverName, phone, addressLine, district, province, postalCode (server snapshot)",
+    "TrackingCard — visible only when status=SHIPPED|DELIVERED; renders trackingNumber + carrier ('mock_express' label per PAY-006/ORD-006)",
+    "BtnCancel (Client) — visible only when order.status=='PENDING_PAYMENT' (ORD-004); confirm dialog; POST /api/proxy/order/cancel-mine",
+    "ProfileHeader — name + email row",
+    "DefaultAddressCard — single address card from identity.address.list filter isDefault==true",
+    "BtnLogout (Client) — POST /api/auth/logout; on response (success or fail) clears local SessionContext and router.push('/')",
+    "Field — text/password/tel/email input with label, helper text, error state (Frontend Spec §6 atom)",
+    "Sheet — bottom modal (used by PriceRangeSheet and AddressForm)",
+    "ToggleTabs — login/register switcher on /login route",
+    "ErrorBoundary — per-segment error.tsx; renders envelope code + message + traceId footer",
+    "Toast — success/error notifications; queue with dismiss on tap",
+    "LoadingSkeleton — Suspense fallback for SC pages",
+    "ProtectedShell — server-side wrapper around auth-required page bodies that runs probeSession() and 307-redirects to /login?next=<encoded original> on AUTH_MISSING/AUTH_REVOKED",
+    "SessionContext (Client) — React Context populated once per navigation by /api/auth/session probe; child Client Components consume {authenticated, user}"
+  ],
+
+  "components_ui_count": 38,
+
+  "state_management": {
+    "approach": "Server Components by default for read-once pages (home, search shell, detail, orders, orderDetail, orderSuccess, orderResult, profile). 'use client' ONLY where interactivity is required: cart line controls, search filters, login/register form, address form, addresses page, checkout summary+commit button, payment simulate buttons, logout button, cancel-order button.",
+    "context_usage": "React Context exclusively for auth-derived state (SessionContext: {authenticated, user}). Populated once per top-level navigation by /api/auth/session probe in the layout; child Client Components either consume via useSessionContext() or re-fetch on demand.",
+    "no_redux": "No Redux. No Zustand. No SWR. No React Query. The cookie holds the JWT; cart and order state are server-truth via cart.read / order.list-mine / order.detail. This keeps the dependency surface small for MVP.",
+    "data_fetching": "Server Components: native fetch with revalidate:0 (cookie-bearing requests are dynamic by definition). Client Components: native fetch + useState/useEffect; AbortController on unmount.",
+    "rationale": "Cart state living server-side prevents drift with backend stock/price changes. Cookie holds JWT; the session probe makes user identity available to the layout server-side; child Client Components either receive it via SessionContext or re-fetch /api/auth/session on demand (negligible cost, in-memory probe)."
+  },
+
+  "i18n": {
+    "language": "Thai-only (lang='th')",
+    "currency_format": "฿1,290 prefix (whole-THB; no fractional units per cross-cutting.pricing); helper lib/format.ts thb()",
+    "font": "IBM Plex Sans Thai via next/font/google with subsets:['thai','latin']",
+    "buddhist_calendar": "Optional in MVP; ADR-010 mentions Buddhist-era for date display. Implement via Intl.DateTimeFormat('th-TH-u-ca-buddhist'). Limited to /orders and /orders/[id] timestamps; backend timestamps remain ISO-8601 UTC.",
+    "status_labels": "lib/i18n.STATUS_LABEL_TH maps every order status enum to its Thai display label per ADR-010; the underlying API contract remains English enums.",
+    "error_labels": "lib/i18n.ERROR_LABEL_TH maps cross-cutting.error-codes registry to Thai user-facing strings (validation/insufficient-stock/network); INTERNAL_ERROR maps to 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง'.",
+    "i18n_extensibility": "Thai strings centralized in lib/i18n.ts and component-local string maps. No deep-tree string interpolation that would block a future i18next/next-intl drop-in. Multi-language is OUT OF SCOPE per EPIC_FRONTEND but data model is i18n-clean."
+  },
+
+  "security_posture": {
+    "cookies": {
+      "names": ["access", "refresh"],
+      "attributes_production": "HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age = matching token expiry (access 15min, refresh 14d)",
+      "attributes_local_dev": "Same as production but Secure flag OMITTED on http://localhost (browsers reject Secure on insecure origins). Driven by NODE_ENV.",
+      "rotation": "On every successful identity.refresh both cookies are re-set with rotated values (Set-Cookie x2).",
+      "clearance": "On AUTH_REVOKED (refresh-rejected) and on /api/auth/logout, both cookies are cleared via Set-Cookie name=; Max-Age=0; same Path."
+    },
+    "no_javascript_jwt": "Lint rule bans document.cookie reads outside lib/auth.ts (custom ESLint regex); HttpOnly attribute prevents JS read anyway. No code path serializes JWT into HTML or NEXT_PUBLIC_* env. CSP connect-src 'self' prevents JS exfiltration via fetch.",
+    "no_internal_secret": "REV-L2-013: frontend/.env.example explicitly OMITS INTERNAL_SHARED_SECRET. Route handlers NEVER set X-Internal-Secret. A regression test asserts (a) the env var is undefined at runtime and (b) no outgoing fetch from the frontend runtime carries an X-Internal-Secret header (Playwright network interception in CI).",
+    "xss": "React default escaping. dangerouslySetInnerHTML is FORBIDDEN repo-wide (eslint rule react/no-danger=error). User-supplied product description rendered as plain text only.",
+    "csrf": "SameSite=Lax on both cookies neutralizes cross-site form submissions. All mutating route handlers require Content-Type: application/json (rejects form-urlencoded), blocking naive HTML-form CSRF. Same-origin POST from our SPA carries cookies as expected.",
+    "csp_headers_baseline_next_config": {
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains (production only)",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+    },
+    "csp_no_unsafe_eval": "'unsafe-eval' is NOT included in script-src. 'unsafe-inline' for script-src is a known Next.js App Router constraint pre-nonce-middleware; tracked as a follow-up to add per-request nonces. Style 'unsafe-inline' stays for Tailwind JIT injected styles.",
+    "input_size_limits": "Route handlers cap body size at 1 MB via Next.js route segment config (custom JSON body-parser limit) to mitigate DoS.",
+    "secrets": "All BACKEND_*_BASE_URL env vars are server-only (no NEXT_PUBLIC_ prefix). They are referenced inside route handlers (server runtime) and never bundled into client JS."
+  },
+
+  "error_handling": {
+    "envelope_unwrap": "lib/http.ts unwraps {code, message, data, traceId}. Success codes (SUCCESS, CREATED) return data; non-success throw an ApiError carrying {code, message, traceId, http}.",
+    "ui_mapping": {
+      "AUTH_MISSING|AUTH_REVOKED": "Layout 307-redirects to /login?next=<encoded current path>",
+      "AUTH_FORBIDDEN": "Render 403 segment error page with traceId footer",
+      "VALIDATION_ERROR": "Form shows field-level errors (zod parse on response.data.fields[] when present) plus generic toast",
+      "INSUFFICIENT_STOCK": "Cart/checkout shows per-item availableQty vs requestedQty inline; 'ลดลงเหลือ {availableQty}' quick action",
+      "PRODUCT_INACTIVE|PRODUCT_DELETED": "Cart line shows non-checkoutable badge; checkout commit blocked until line removed (CART-005)",
+      "IDEMPOTENCY_KEY_REUSED": "Route to /orders/[orderId] from envelope.data; toast 'คำสั่งซื้อถูกสร้างไว้แล้ว'",
+      "IDEMPOTENCY_KEY_INFLIGHT": "Toast 'กำลังประมวลผล…' + retry once after Retry-After",
+      "PAYMENT_INTENT_TERMINAL": "Toast + redirect to /orders/[orderId]",
+      "INVALID_ORDER_STATE": "Refresh order.detail and re-render allowed transitions (cancel-button visibility)",
+      "ORDER_NOT_OWNED|NOT_FOUND": "Render NOT_FOUND segment page with Thai message",
+      "DATABASE_UNAVAILABLE|UPSTREAM_TIMEOUT|INTERNAL_ERROR": "Generic 'เกิดข้อผิดพลาด กรุณาลองอีกครั้ง' toast with traceId mono-footer for support correlation"
+    },
+    "trace_id_visibility": "Every error toast includes the traceId in a small monospace footer; copy-to-clipboard on tap for support."
+  },
+
+  "test_strategy": {
+    "unit": {
+      "tool": "vitest 1.x + @testing-library/react",
+      "targets": [
+        "lib/auth.ts: isExpired (boundary at exp, skew 30s, malformed token returns expired=true)",
+        "lib/auth.ts: withAuth — present+valid (no refresh call), missing access+valid refresh (1 refresh call, both cookies rotated), AUTH_REVOKED path (both cookies cleared, 401 returned), no refresh cookie (AUTH_MISSING)",
+        "lib/auth.ts: probeSession (returns null for absent/expired access; claims for valid)",
+        "lib/idempotency.ts: generateIdempotencyKey calls crypto.randomUUID; InFlightMap prevents double-submit",
+        "lib/http.ts: envelope unwrap success vs error codes",
+        "lib/format.ts: thb() formatter (whole-THB, prefix, locale)",
+        "lib/i18n.ts: STATUS_LABEL_TH covers every enum value; ERROR_LABEL_TH covers cross-cutting.error-codes registry",
+        "components/CheckoutCommitButton: generates idempotencyKey, debounces re-clicks via InFlightMap, surfaces 409 IDEMPOTENCY_KEY_REUSED -> route to existing orderId"
+      ]
+    },
+    "integration": {
+      "tool": "Playwright 1.x",
+      "primary_journey_§7_1_spine": [
+        "Spine: register -> login -> browse / -> filter on /search by category -> open /detail/[id] -> add to cart -> /cart shows server subtotal -> /checkout pick default address -> see server subtotal+shippingFee+grandTotal -> Place Order (asserts Idempotency-Key header on intercepted downstream request) -> /checkout/payment click 'สำเร็จ' -> /checkout/orderSuccess -> /orders/[id] shows status='ชำระเงินแล้ว' with PENDING_PAYMENT and PAID rows in the timeline"
+      ],
+      "additional_scenarios": [
+        "Payment FAILED: same up to /checkout/payment; click 'ไม่สำเร็จ' -> /checkout/orderResult; /orders/[id] shows status='ชำระเงินไม่สำเร็จ'",
+        "Payment TIMEOUT: same; click 'หมดเวลา' -> /checkout/orderResult; /orders/[id] shows status='หมดเวลาชำระเงิน'",
+        "Idempotency replay: intercept first commit, re-submit form with the same idempotencyKey body field -> assert single orderId and a 200 envelope (proves CHK-009 client-side wiring)",
+        "Re-click Place Order rapidly: only one network call leaves the browser (in-flight de-dup); if forced second click is allowed, a NEW UUID is sent (proves 'one key per click')",
+        "Auth refresh: log in, fast-forward access cookie expiry (set Max-Age=1, wait), navigate to /orders -> route handler refreshes cookies transparently AND no re-login is required (AUTH-005)",
+        "AUTH_REVOKED: tamper refresh cookie -> next protected nav 307-redirects to /login and both cookies are cleared",
+        "Auth deep-link resume: open /orders/[id] unauthenticated -> redirected to /login?next=%2Forders%2F<id>; on login success router.push(next) takes the customer back to the original orderDetail",
+        "Pricing boundary: cart subtotal=1499 -> shippingFee=฿60 grandTotal=฿1,559; subtotal=1500 -> shippingFee=฿0 grandTotal=฿1,500 (Frontend Spec §5 + §11.2)",
+        "Cart non-checkoutable flag: seed an INACTIVE product in cart -> /cart shows 'ไม่สามารถสั่งซื้อได้' badge AND 'ดำเนินการชำระเงิน' button is disabled (CART-005)",
+        "Soft-delete snapshot: admin soft-deletes a product (via curl) -> /products list excludes it AND /orders/[id] historical row still renders snapshot fields (CAT-009 / ORD-007)",
+        "Cancel pending: customer cancels a PENDING_PAYMENT order -> status flips to CANCELLED; cancel button hides (ORD-004)",
+        "Mobile viewport: every route renders at 390x844 without horizontal scroll AND reflows down to 360 (matchMedia in Playwright)",
+        "Thai-only assertions: every page declares lang='th'; ฿ prefix appears wherever an amount is rendered; emerald (#1a8060) computed-style on every primary CTA",
+        "No-internal-secret regression: Playwright network-interception asserts no outgoing request from the frontend runtime carries 'X-Internal-Secret' header (REV-L2-013 verified-correct posture)"
+      ],
+      "fixtures": "Playwright runs against the docker-compose stack (7 backends + frontend). Test data seeded via direct backend POSTs in a globalSetup (no admin UI exists)."
+    },
+    "lint_and_static": "ESLint with next/core-web-vitals + react/no-danger=error + custom rule banning document.cookie reads outside lib/auth.ts. TypeScript strict mode (no implicit any, no unchecked indexed access)."
+  },
+
+  "observability": {
+    "trace_propagation": "Route handlers read incoming traceparent (W3C) header from the browser if present and forward it to backend POSTs as 'traceparent' header. If absent, generate one (crypto.randomUUID-derived) so backend logs correlate.",
+    "client_logging": "console.error on ApiError with traceId; production builds have console.log/info stripped via Next.js compiler removeConsole option (keep error/warn).",
+    "no_pii_in_logs": "Email/phone/address never logged on the client; only userId (UUID) and traceId."
+  },
+
+  "ba_acceptance_mapping": [
+    { "ba_ac_id": "STORY_FRONTEND_HOME AC1+AC2 (lang=th, 390-wide, tab bar, ฿ prefix, emerald CTA, sections render, navigation to detail) — CAT-001, Frontend Spec §1+§2+§3", "page_or_handler": "/ + ProductCard + TabBar", "test_name": "playwright: home-tab-renders-and-navigates" },
+    { "ba_ac_id": "STORY_FRONTEND_SEARCH AC1+AC2 (filters drive grid; pagination + empty state) — CAT-001..005, Frontend Spec §3", "page_or_handler": "/search + ProductFilters + ProductGrid", "test_name": "playwright: search-filter-and-paginate" },
+    { "ba_ac_id": "STORY_FRONTEND_DETAIL AC1 (name/image/฿/stock/desc/CTA) + edges (out-of-stock disables CTA; unauth tap prompts login) — CAT-006, CART-001, Frontend Spec §3", "page_or_handler": "/detail/[productId] + AddToCartButton", "test_name": "playwright: product-detail-renders-and-add-to-cart" },
+    { "ba_ac_id": "STORY_FRONTEND_AUTH AC1+AC2 (login + register on one route via toggle; navigate to next or /) — AUTH-001, AUTH-002, AUTH-007", "page_or_handler": "/login + POST /api/auth/login + POST /api/auth/register", "test_name": "playwright: login-register-toggle-and-redirect" },
+    { "ba_ac_id": "STORY_FRONTEND_AUTH_GUARD AC1+AC2 (deep-link redirects to /login then resumes; transparent refresh; rapid-nav coalescing) — AUTH-005, Frontend Spec §3", "page_or_handler": "ProtectedShell layouts + withAuth orchestrator", "test_name": "playwright: auth-deep-link-resume; auth-refresh-on-expired-access; auth-revoked-redirect" },
+    { "ba_ac_id": "STORY_FRONTEND_CART AC1+AC2 (line items render; +/- updates qty + server subtotal) + edges (over-availableQty error; INACTIVE flagged) — CART-002..005, Frontend Spec §3", "page_or_handler": "/cart + CartLineItem + CartSummary", "test_name": "playwright: cart-add-update-remove-and-flag" },
+    { "ba_ac_id": "STORY_FRONTEND_CHECKOUT AC1+AC2+AC3 (§11.2 boundary at 1499 vs 1500; commit with Idempotency-Key; double-tap reuses key) — CHK-001/002/005/009, §11.2, Frontend Spec §5", "page_or_handler": "/checkout + CheckoutSummary + CheckoutCommitButton + POST /api/checkout/commit", "test_name": "playwright: shipping-fee-boundary; idempotent-replay-returns-same-order; checkout-commit-double-tap-single-order" },
+    { "ba_ac_id": "STORY_FRONTEND_PAYMENT AC1+AC2 (3 simulate buttons drive navigation by service status; ~1.4s indicator; not optimistic) + edges (browser-close TTL; idempotent simulate-success) — PAY-002/003/004/005, Frontend Spec §3+§5", "page_or_handler": "/checkout/payment + PaymentSimulateButtons + POST /api/payment/simulate", "test_name": "playwright: simulate-success / simulate-failed / simulate-timeout" },
+    { "ba_ac_id": "STORY_FRONTEND_ORDERS AC1+AC2 (filter all/active/done; Thai status badges; tap row -> orderDetail; empty state) — ORD-001/002, Frontend Spec §3", "page_or_handler": "/orders + OrderSummaryCard + StatusBadge", "test_name": "playwright: orders-filter-and-navigate" },
+    { "ba_ac_id": "STORY_FRONTEND_ORDER_DETAIL AC1+AC2 (end-to-end completes status=PAID; SHIPPED shows tracking + carrier; timeline renders) + edges (snapshot fields survive soft-delete; foreign order -> NOT_FOUND/FORBIDDEN) — ORD-001/002/006/007/009, CAT-009, Frontend Spec §3+§6", "page_or_handler": "/orders/[orderId] + OrderStatusTimeline + OrderItemRow + TrackingCard", "test_name": "playwright: §7.1-end-to-end-paid-happy-path; soft-deleted-product-still-shows-in-historical-order" },
+    { "ba_ac_id": "STORY_FRONTEND_ADDRESSES AC1+AC2 (list + default badge + add CTA; picker mode returns selected addressId to /checkout; recalculates totals) + edges (validation errors; empty -> add-first) — CUST-003/004, CHK-002, Frontend Spec §3", "page_or_handler": "/addresses + AddressPicker + AddressForm", "test_name": "playwright: address-crud-and-set-default; address-picker-from-checkout" },
+    { "ba_ac_id": "STORY_FRONTEND_PROFILE AC1 (name/email/default-address render; logout clears local session and routes home) + edges (logout network failure still clears client) — CUST-001, AUTH-004, Frontend Spec §3", "page_or_handler": "/profile + BtnLogout + POST /api/auth/logout", "test_name": "playwright: profile-and-logout" },
+    { "ba_ac_id": "Cross-cutting envelope on every API + traceId visibility", "page_or_handler": "lib/http.ts + Toast + ErrorBoundary", "test_name": "vitest: envelope-unwrap; playwright: error-toast-shows-traceid" },
+    { "ba_ac_id": "REV-L2-013 no-internal-secret regression posture", "page_or_handler": "frontend runtime + every route handler", "test_name": "playwright: no-x-internal-secret-on-customer-requests" }
+  ],
+
+  "open_contract_ambiguities_surfaced_to_tech_lead": [
+    {
+      "issue": "Payment route convention path: cross-cutting.route-convention.examples.payment lists 'POST /api/v1/payment/intent/simulate' (intent aggregate). frontend handler /api/payment/simulate must hard-code that downstream URL. Same pattern for payment.intent.callback (server-to-server only; not a frontend concern).",
+      "frontend_assumption": "Use POST {BACKEND_PAYMENT_BASE_URL}/api/v1/payment/intent/simulate per route-convention.examples.payment[1]. No frontend behavior change needed; documented for traceability.",
+      "severity": "informational"
+    },
+    {
+      "issue": "checkout.commit Idempotency-Key transport (header vs body): contract specifies 'Idempotency-Key' HTTP header. Browsers can set custom headers on same-origin fetch without preflight, so the client could send the header directly. We choose body-field carriage ({idempotencyKey}) and let the route handler map to the downstream HTTP header — for auditability and to eliminate any future cross-origin preflight concern. Backend contract is unaffected.",
+      "frontend_assumption": "Client sends UUID v4 in body field 'idempotencyKey'; handler maps to downstream 'Idempotency-Key' HTTP header. Tech-Lead: flag if body-field convention is unacceptable; switch to header-direct is one-line.",
+      "severity": "low"
+    },
+    {
+      "issue": "GET /api/auth/session is the only GET handler in our surface. cross-cutting.route-convention.trailing_rules says 'GET reserved for /liveness, /readiness, /metrics' on backend services; frontend route handlers are NOT backend services and the convention does not bind them. We use GET because the session probe is a pure read with no body.",
+      "frontend_assumption": "GET /api/auth/session is approved frontend-side (Cache-Control: no-store still applied). If Tech-Lead wants strict POST-everywhere even on frontend route handlers, switch is one-line.",
+      "severity": "informational"
+    },
+    {
+      "issue": "Frontend Spec §3 lists a 'review' route for star-rating + comment on an orderDetail item. EPIC_FRONTEND.out_of_scope[1] explicitly defers the review module. We ship a placeholder route file at /orders/[orderId]/review/[itemId] that renders a Thai 'เร็ว ๆ นี้' message so deep links don't 404, but no behavior is wired. The 13 routes count in this spec is the post-defer count and matches Frontend Spec §3 minus the deferred review row count.",
+      "frontend_assumption": "Routes table sticks to the 13-row deliverable per the prompt; placeholder file exists for graceful 200 on deep link. No AC depends on it.",
+      "severity": "informational"
+    },
+    {
+      "issue": "Buddhist-era date formatting: ADR-010 mentions Buddhist-era 'where date is rendered to the customer' but no story AC specifies it. We default to Intl.DateTimeFormat('th-TH-u-ca-buddhist') for orders/orderDetail timestamps. If Tech-Lead prefers Gregorian, switch via lib/format.ts is trivial.",
+      "frontend_assumption": "Buddhist-era for customer-visible timestamps; ISO-8601 UTC remains the underlying API value.",
+      "severity": "informational"
+    }
+  ]
+}

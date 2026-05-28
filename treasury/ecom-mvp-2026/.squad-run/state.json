@@ -1,0 +1,101 @@
+{
+  "run_id": "ecom-mvp-2026-05-08-002",
+  "started_at": "2026-05-08",
+  "source_workflow": "B2C E-Commerce Platform/requirement/ecommerce_mvp_agentic_ai_requirement.md",
+  "additional_inputs": [
+    "B2C E-Commerce Platform/requirement/ShopPilot Frontend Spec.md",
+    "B2C E-Commerce Platform/requirement/ShopPilot Mobile (standalone).html"
+  ],
+  "previous_run": ".squad-run/runs/01/state.json",
+  "iteration_plan": "docs/v0.7-plan.md",
+  "mode": "hybrid",
+  "current_stage": "terminal",
+  "last_event": "ship_with_caveats — Phase 4 complete; KNOWN_ISSUES + ADVISORY + PLAN_NOTES + run-report.md emitted; v0.7.1 follow-up tracked via FEEDBACK + STRATEGY",
+  "components": [
+    "identity",
+    "catalog",
+    "inventory",
+    "cart",
+    "checkout",
+    "order",
+    "payment",
+    "frontend-web"
+  ],
+  "deviations_from_docs": [
+    {
+      "role": "Plan-Reviewer",
+      "docs_assignment": "GPT-5.5 xHigh (cross-family vs Claude BA+TL)",
+      "run_assignment": "Claude Opus 4.7 xHigh + red-team prompt",
+      "reason": "harness session does not support GPT dispatch; honored hybrid lock at the plan level but cannot honor it at dispatch level"
+    },
+    {
+      "role": "Tech-Designer",
+      "docs_assignment": "GPT-5.5 xHigh",
+      "run_assignment": "Claude Sonnet 4.6 (Opus on complex)",
+      "reason": "same"
+    },
+    {
+      "role": "QA-L1",
+      "docs_assignment": "GPT-5.5 high (cross-family vs Claude Dev)",
+      "run_assignment": "Claude Sonnet 4.6 high",
+      "reason": "same"
+    }
+  ],
+  "locked_decisions": {
+    "persistence": "PostgreSQL via common/database (pgx) — same as run #1",
+    "route_convention": "POST /api/v1/{domain}/{aggregate-boundary}/{action}",
+    "auth": "JWT ES256 only via common/token",
+    "frontend_stack": "Next.js App Router + TypeScript + Tailwind",
+    "backend_scaffold": "B2C E-Commerce Platform/backend/go-template",
+    "common_lib": "B2C E-Commerce Platform/backend/common",
+    "refactor_mode": "incremental — edit-in-place over dry-run #1 outputs",
+    "html_mockup_role": "reference asset only; TD extracts visual system; Dev reimplements as React/Next.js"
+  },
+  "phase_1_prereqs": {
+    "F#P0-2_traceId_in_wrapper": "completed",
+    "F#P0-8_profile_read_unstub": "completed (handler + 5-case test sibling; frontend covered by [...path]/route.ts catch-all)",
+    "F#P0-5_go_sum_in_6_services": "completed (also patched 5 services' replace directives from gitlab.com/.../common.git@v0.0.2 to local ../../common path; pre-existing build errors recorded for Reviewer-L1)",
+    "_pre_existing_build_errors_for_reviewer_l1": {
+      "cart": "import cycle: app/cart/access/storage_cart.go imports app/cart",
+      "inventory": "import cycle: app/inventory/access/storage_outbox.go imports app/inventory",
+      "payment": "import cycle: app/payment/access/storage_callback_dedup.go imports app/payment",
+      "catalog": "type mismatch: handler_product_create.go:157 uses string where wrapper.Message expected",
+      "checkout": "type mismatch: handler_commit.go:291 uses string where wrapper.Code expected"
+    },
+    "F#P0-1_structural_validators": "completed (3 Python scripts: validate_ba.py, validate_story_trace.py, validate_components.py)",
+    "S#P0-1_skills_registry": "completed (docs/skills.md; closes decisions.md open #3)",
+    "S#P0-3_prompt_templates": "completed (10 files in docs/prompts/)"
+  },
+  "cycle_counts": {
+    "plan_stage": 0,
+    "td_tl": {},
+    "dev_td": {},
+    "rev1_dev": {},
+    "rev1_td": {},
+    "rev2_tl": 0,
+    "rev2_td": {},
+    "ql2_tl": 0,
+    "ql2_ba": 0
+  },
+  "stage_outputs": {
+    "ba": ".squad-run/ba.json",
+    "tl_contracts": "design/architecture/contracts.json",
+    "tl_components": "design/architecture/components.json",
+    "plan_review": ".squad-run/plan-review.json",
+    "components": {
+      "identity":     {"qa_l1": ".squad-run/components/identity/qa-l1.json",     "rev_l1": ".squad-run/components/identity/rev-l1.json"},
+      "catalog":      {"qa_l1": ".squad-run/components/catalog/qa-l1.json",      "rev_l1": ".squad-run/components/catalog/rev-l1.json"},
+      "inventory":    {"qa_l1": ".squad-run/components/inventory/qa-l1.json",    "rev_l1": ".squad-run/components/inventory/rev-l1.json"},
+      "cart":         {"qa_l1": ".squad-run/components/cart/qa-l1.json",         "rev_l1": ".squad-run/components/cart/rev-l1.json"},
+      "checkout":     {"qa_l1": ".squad-run/components/checkout/qa-l1.json",     "rev_l1": ".squad-run/components/checkout/rev-l1.json"},
+      "order":        {"qa_l1": ".squad-run/components/order/qa-l1.json",        "rev_l1": ".squad-run/components/order/rev-l1.json"},
+      "payment":      {"qa_l1": ".squad-run/components/payment/qa-l1.json",      "rev_l1": ".squad-run/components/payment/rev-l1.json"},
+      "frontend-web": {"qa_l1": ".squad-run/components/frontend-web/qa-l1.json", "rev_l1": ".squad-run/components/frontend-web/rev-l1.json"}
+    },
+    "layer2_qa": ".squad-run/layer-2/qa-l2.json",
+    "layer2_rev": ".squad-run/layer-2/rev-l2.json",
+    "run_report": ".squad-run/run-report.md"
+  },
+  "terminal_state": "ShipWithCaveats",
+  "terminal_reason": "Reviewer-L2 cycle 1 of cap 1 used to close 3 cross-component highs (REV-L2-101 Order orderId derivation, REV-L2-102 common/middleware tokenType check, REV-L2-105 Checkout outbound X-Internal-Secret); 3 highs remain unresolved and carried as caveats (REV-L2-103 stub consumers, REV-L2-104 Idempotency-Key heterogeneity, plus per-component highs from Reviewer-L1). All 4 prior-run REV-L2 highs from dry-run #1 closed (3 fully, 1 partially). Sole-writer rule HELD across all 7 backends. Skill bundle artifacts: backend services 7 + frontend reshape, design tree (8 TD specs + 7 ERDs + 56 API spec MDs + 6 architecture docs + 10 ADRs), 8 EPICs + 39 stories, KNOWN_ISSUES.md (13 P0/P1 caveats), ADVISORY.md (~30 lows), PLAN_NOTES.md, run-report.md."
+}

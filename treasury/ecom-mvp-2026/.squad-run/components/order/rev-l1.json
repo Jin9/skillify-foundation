@@ -1,0 +1,90 @@
+{
+  "template_version": "0.1.0",
+  "review_kind": "reviewer-l1",
+  "component_name": "order",
+  "skills_invoked": ["expert-software-security-reviewer", "simplify"],
+  "verdict": "block",
+  "summary": "Order service implements the sole-writer invariant correctly at the storage layer (UpdateStatus is the only UPDATE on orders.status, callers consistently acquire SELECT ... FOR UPDATE in the same tx, status_history + outbox + admin_action_log are wired to the same transactional boundary, and constant-time internal-auth compare via subtle.ConstantTimeCompare is correct). The state machine is a pure function with thorough unit tests covering 10 allowed and 14 forbidden transitions. However, two HIGH defects break correctness: (1) HandleCreateFromCheckout generates a fresh uuid.New() (UUID v4) instead of using the client-supplied req.IdempotencyKey as orders.id, defeating the cross-cutting idempotency rule (Checkout retry creates duplicate orders) and (2) PK-conflict-on-replay is treated as 500 instead of an idempotent 200, so a checkout retry surfaces an internal error to the customer flow. Two MEDIUM defects: the payment.completed consumer bypasses the canonical ValidateTransition gate (uses inline status check), eroding ADR-003's single-gate guarantee, and the outbox publisher goroutine that ships events.order.cancelled to Kafka is never started (rows accumulate forever once cancel paths are implemented). One MEDIUM spec/code mismatch: idx_orders_buyer_email is created without LOWER() although td.json/erd.md mandate idx_orders_buyer_email_lower for case-insensitive admin search. Three remaining handlers (cancel-mine, update-status-admin, list-admin) are 501 stubs as expected at this stage and out of scope for L1 beyond the stub-quality nits called out below.",
+  "findings": [
+    {
+      "id": "REV-ORDER-001",
+      "severity": "high",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "backend/services/order/app/order/handler_create_from_checkout.go:42",
+      "description": "HandleCreateFromCheckout calls `orderID := uuid.New().String()` (UUID v4) and then sets `IdempotencyKey: &idempKey` separately. td.json + cross-cutting.idempotency.internal_orderId_rule require that orders.id == request.idempotencyKey (the client-supplied UUID v7 from Checkout) so duplicate INSERT raises a PK violation that the handler treats as a replay. As implemented, every Checkout retry creates a brand-new order row with a different id, defeating exactly-once order creation and producing duplicate billings/inventory holds when checkout.commit retries.",
+      "recommendation": "Use `orderID := req.IdempotencyKey` (after validating it parses as a UUID), and persist it as both orders.id and orders.idempotency_key. Add a UUID format binding to CreateFromCheckoutRequest.IdempotencyKey.",
+      "cwe_refs": ["CWE-362", "CWE-694", "ASVS-V11.1.4"]
+    },
+    {
+      "id": "REV-ORDER-002",
+      "severity": "high",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "backend/services/order/app/order/handler_create_from_checkout.go:100-108",
+      "description": "Once REV-ORDER-001 is fixed and the request idempotencyKey is used as orders.id, a Checkout retry will hit the orders_pk constraint. The current Insert error path collapses ALL Insert errors into a generic 500 CodeInternalError. The contract idempotency rule requires PK violation to be treated as a successful replay (return 200/201 with the existing order's data), not surfaced as 500.",
+      "recommendation": "Detect PostgreSQL error code 23505 (unique_violation) on orders_pk inside the Insert error branch; on conflict, SELECT the existing row by id and return the same CreateFromCheckoutResponse with HTTP 200 (not 201).",
+      "cwe_refs": ["CWE-754", "CWE-694"]
+    },
+    {
+      "id": "REV-ORDER-003",
+      "severity": "medium",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/order/app/order/consumer.go:94-101",
+      "description": "onPaymentCompleted uses an inline `if order.Status != StatusPendingPayment` check instead of calling `ValidateTransition(order.Status, StatusPaid, RoleSystem)`. The state-machine docstring (state_machine.go:88-89) declares ValidateTransition is 'the single gate through which ALL state-changing paths must pass'. cancel-on-checkout-failure honors that contract; the consumer does not. The hidden risk: when payment.failed / payment.expired / reservation.expired consumers are implemented, copy-pasting this inline pattern silently bypasses terminal-state and wrong-actor protections that ValidateTransition enforces uniformly.",
+      "recommendation": "Replace the inline status check with `if err := ValidateTransition(order.Status, StatusPaid, RoleSystem); err != nil { /* commit no-op */ }`. Apply the same pattern to the three TODO consumer stubs as they are filled in.",
+      "cwe_refs": ["CWE-840", "CWE-1188"]
+    },
+    {
+      "id": "REV-ORDER-004",
+      "severity": "medium",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "backend/services/order/app/order/access/storage_outbox.go:42-81",
+      "description": "MarkPublished and PollUnpublished are implemented but no goroutine calls them. main.go starts the HTTP server and Kafka subscriber, never an outbox publisher. handler_cancel_on_checkout_failure (and future cancel-mine / update-status-admin) writes outbox_events rows that will never reach Kafka, so events.order.cancelled is never delivered to inventory + payment. ADR-004 outbox pattern is half-finished.",
+      "recommendation": "Wire an OutboxPublisher goroutine in router.go (sibling to StartSubscriber): polls PollUnpublished on a ~1s ticker, publishes via the kafka.Producer, calls MarkPublished. Single-threaded per pod, panic-recovery, ORDER BY id ASC, LIMIT 100 — exactly as td.json's outbox_publisher contract specifies.",
+      "cwe_refs": ["CWE-754"]
+    },
+    {
+      "id": "REV-ORDER-005",
+      "severity": "medium",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": "Dev",
+      "locus": "backend/services/order/migrations/003_create_orders.up.sql:46-47",
+      "description": "Index is created as `idx_orders_buyer_email ON orders (buyer_email_snapshot)` but td.json + erd.md mandate `idx_orders_buyer_email_lower ON orders (LOWER(buyer_email_snapshot))` to back the admin case-insensitive email search. As written, `WHERE LOWER(buyer_email_snapshot) = LOWER($1)` cannot use this index, forcing a full table scan once order volume grows.",
+      "recommendation": "Change the migration to `CREATE INDEX idx_orders_buyer_email_lower ON \"order\".orders (LOWER(buyer_email_snapshot))`. Coordinate with the future list-admin handler to ensure its WHERE clause matches the index expression.",
+      "cwe_refs": ["CWE-405"]
+    },
+    {
+      "id": "REV-ORDER-006",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": null,
+      "locus": "backend/services/order/app/order/handler_cancel_on_checkout_failure.go:103, 114",
+      "description": "Hardcoded `Code: \"ORD409\"` string literal appears twice. Other codes in this package (CodeOrderNotOwned, CodeOrderNotFound, CodeAuthInvalid) are exported typed constants; this one is not. Style nit only — typed constant prevents drift if the code value ever changes.",
+      "recommendation": "Add `CodeOrderInvalidState app.Code = \"ORD409\"` and `MessageOrderInvalidState app.Message = \"order is not in PENDING_PAYMENT state\"` near the other typed codes in handler_detail.go and use them here.",
+      "cwe_refs": []
+    },
+    {
+      "id": "REV-ORDER-007",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": null,
+      "locus": "backend/services/order/app/order/handler_cancel_mine.go:23-26, handler_update_status_admin.go:23-26, handler_list_admin.go:20-23",
+      "description": "Three stub handlers return HTTP 501 Not Implemented with `Code: app.CodeInternalError` and Message `\"not implemented\"`. Mixing 501 with the InternalError app code muddles the operator/SRE signal — InternalError implies a defect, not a deliberate gap. Stubs are expected at this stage; this is purely a clarity nit.",
+      "recommendation": "Introduce `CodeNotImplemented app.Code = \"ORD501\"` (or reuse a common one if it exists) and use it for the three stubs until they ship. Or omit the body and let wrapper.Respond produce a minimal 501 envelope.",
+      "cwe_refs": []
+    },
+    {
+      "id": "REV-ORDER-008",
+      "severity": "low",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": null,
+      "locus": "backend/services/order/app/order/handler_detail.go:167-175",
+      "description": "claimRole defaults to 'CUSTOMER' when claims.Extra is nil or 'role' is missing. This is the safe failure mode (least-privilege; an admin with a malformed token sees only their own orders). Flagging only because future admin handlers (currently 501 stubs) will inherit this fallback — list-admin / update-status-admin must NOT rely on claimRole alone for authorization. They need an explicit `if claimRole(claims) != \"ADMIN\" { 403 AUTH_FORBIDDEN }` guard at the top, not silent CUSTOMER downgrade.",
+      "recommendation": "When implementing the admin handlers, add an explicit ADMIN role guard that rejects with 403 AUTH_FORBIDDEN on any non-ADMIN role (including missing role). Do not call claimRole() and rely on the default.",
+      "cwe_refs": ["CWE-285", "ASVS-V4.1.1", "OWASP-API1:2023"]
+    }
+  ]
+}

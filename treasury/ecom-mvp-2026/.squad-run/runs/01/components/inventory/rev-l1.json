@@ -1,0 +1,140 @@
+{
+  "reviewer": "Reviewer-L1",
+  "component": "inventory",
+  "verdict": "REJECT_BLOCKING",
+  "summary": "Severe lock-order inversion between sweeper (stock→reservations) and release/consumer paths (reservations→stock) creates a real deadlock under load. Four of five Kafka consumers and stock.adjust are stubs — INV-005, INV-006, INV-007, PR-003 race resolution, PR-006 soft-cancel, and product seeding are not implemented. Auth middleware is absent on every route. Idempotency dedup uses a SELECT-then-INSERT pattern with no INFLIGHT row, so concurrent same-key calls race to PK violation rather than serializing on a row lock. CHECK constraints + sweeper SKIP LOCKED + outbox shape are correct.",
+  "findings": [
+    {
+      "id": "INV-L1-01",
+      "severity": "high",
+      "type": "latent_bug",
+      "title": "Lock-order inversion: release / consumer paths lock reservations BEFORE stock_levels",
+      "evidence": [
+        "handler_reservation_create.go:363 ReservationReleaseHandler calls ResvStorage.FindByOrderIDForUpdate (locks reservations rows FOR UPDATE) BEFORE the stock_levels FOR UPDATE on lines 394 / 428.",
+        "consumer.go:122 handlePaymentCompleted calls FindByOrderIDForUpdate (reservations FOR UPDATE) BEFORE StockStorage.GetBySKUForUpdate at line 131.",
+        "sweeper.go:143 processCandidate locks stock_levels FIRST (correct), then reservations at line 148.",
+        "TD concurrency_model.lock_ordering: 'ALWAYS lock stock_levels(sku) BEFORE reservations(id) inside any state-mutating tx.'"
+      ],
+      "impact": "Classic cross-path lock-order inversion. Sweeper TX1 holds stock(X) and waits for reservation(R1); release/consumer TX2 holds reservation(R1) and waits for stock(X) → Postgres-detected deadlock, one tx aborted with SQLSTATE 40P01. Under load with concurrent payment.completed events and an actively sweeping replica, this surfaces as 5xx storms and lost events (since the consumer error path returns and Kafka redrives). The misleading inline comment 'LOCK-ORDER PIN: stock_levels BEFORE reservation update' on consumer.go:130 hides the violation: stock is locked AFTER all reservations(order_id) rows are already FOR UPDATE-held.",
+      "remediation": "Two valid fixes: (a) reverse the order in release + all four reservation-mutating consumers — first SELECT reservation rows (no lock) to discover SKUs, lock stock_levels in lex SKU order, then re-SELECT reservations FOR UPDATE; or (b) amend the canonical pin to 'reservations(order_id) FOR UPDATE ORDER BY sku ASC FIRST, then stock_levels(sku) FOR UPDATE in the same sku order' and rewrite the sweeper to match. Option (b) is simpler because reservations are already ORDER BY sku ASC in FindByOrderIDForUpdate. Whatever is chosen, the sweeper must align with the rest. Update the TD pin and add a multi-path concurrency integration test (sweeper + release + payment.completed against same orderId)."
+    },
+    {
+      "id": "INV-L1-02",
+      "severity": "high",
+      "type": "missing_implementation",
+      "title": "Four of five event consumers are TODO stubs; PR-003 race resolution not in code",
+      "evidence": [
+        "consumer.go:171 handlePaymentFailed → slog.Debug + return nil (TODO).",
+        "consumer.go:186 handlePaymentExpired → stub.",
+        "consumer.go:203 handleOrderCancelled → stub. The CRITICAL state-driven branch that ignores event.fromStatus (PR-003 fix) is described only in a comment.",
+        "consumer.go:220 handleProductCreated → stub; stock_levels never seeded.",
+        "TD AC mapping: INV-005 / INV-006 / PR-003 / PR-006 / product seed all require these handlers."
+      ],
+      "impact": "INV-006 (release on payment failure / expiry) silently broken — events are ack'd via 'return nil' so nothing is retried; reservations leak until the sweeper TTL eventually frees them (15 min lag). PR-003 race fix exists ONLY for payment.completed; order.cancelled does not branch on current state, so an admin-cancel of a PAID order does NOT restock (PR-006 violated). product.created stub means no stock_levels rows are ever auto-created — every reservation.create on a new SKU would hit INSUFFICIENT_STOCK with availableQty=0 forever.",
+      "remediation": "Implement the four consumers per td.json event_consumers[] pseudocode. Reuse existing storage primitives (ConsumedStorage.TryInsert + FindByOrderIDForUpdate + Mark*). Add explicit comment on order.cancelled handler: 'IGNORES event.fromStatus — current row state wins, see PR-003.' Add the consumer_integration tests listed in TD test_strategy."
+    },
+    {
+      "id": "INV-L1-03",
+      "severity": "high",
+      "type": "missing_implementation",
+      "title": "stock.adjust handler is 501 stub; INV-007 + INV-008 admin path absent",
+      "evidence": [
+        "handler_stock_adjust.go:20 returns CodeNotImplementedMVP / 501.",
+        "Storage primitive AdjustQuantities exists (storage_stock_level.go:195) but is not wired.",
+        "stock_adjustments table migration 003 exists but no INSERT path."
+      ],
+      "impact": "Admins cannot seed or correct inventory; combined with the product.created stub there is no path to non-zero stock. INV-007 audit row never written. Pre-UPDATE no-negative check (third layer of belt-and-braces) is therefore not present in shipped code.",
+      "remediation": "Implement per TD pseudocode: BEGIN TX, FOR UPDATE row, check available_qty + delta >= 0 else STOCK_NEGATIVE_INVARIANT, AdjustQuantities, INSERT stock_adjustments(actor_user_id from JWT claims), COMMIT. Gate route with ADMIN-only middleware (see INV-L1-05)."
+    },
+    {
+      "id": "INV-L1-04",
+      "severity": "high",
+      "type": "auth_gap",
+      "title": "No JWT/role middleware on any route; stock.adjust ADMIN gate missing",
+      "evidence": [
+        "router/router.go:30-38 middleware chain has SecurityHeaders, AccessControl, Trace, RefID, AutoLogging, Timeout, AccessLog — no JWT validation, no role check.",
+        "router/router.go:55 stockGroup.POST('/adjust', svc.StockAdjustHandler) has no adminOnly wrapper (commented-out reference at line 69 acknowledges the missing wrapper).",
+        "TD endpoint inventory.stock.adjust auth: 'JWT (ADMIN ONLY — CUSTOMER token → AUTH_FORBIDDEN)'."
+      ],
+      "impact": "Any unauthenticated caller can hit reservation.create, reservation.release, stock/* routes once the stubs are filled in. stock.adjust will not enforce ADMIN. This is a CWE-862 missing-authorization defect; OWASP API Top 10 2023 #5 (BFLA).",
+      "remediation": "Add the platform JWT middleware to the inventory route groups, and wrap stock.adjust with an ADMIN-role guard. If the platform convention is gateway-side auth, document that explicitly in router/router.go and add a defensive role check inside stock.adjust handler that reads claims from context (claims.sub is already required by TD pseudocode for actor_user_id)."
+    },
+    {
+      "id": "INV-L1-05",
+      "severity": "medium",
+      "type": "concurrency_correctness",
+      "title": "Idempotency dedup race: no INFLIGHT row; concurrent same-key calls fall through to PK-violation",
+      "evidence": [
+        "handler_reservation_create.go:120 idemFetch SELECT ... FOR UPDATE on a non-existent row returns pgx.ErrNoRows (FOR UPDATE on no row = no lock acquired).",
+        "Both concurrent callers therefore proceed past the idempotency branch.",
+        "They serialize on stock_levels(sku) FOR UPDATE, both succeed in their reservation INSERTs (different reservation UUIDs), and only the idempotency_keys INSERT (line 286) on the second commit fails with PK conflict — that whole tx rolls back, but the FIRST tx already committed N reservations.",
+        "TD td_ambiguity_notes[4] claims: 'Use Postgres FOR UPDATE on idempotency_keys to serialize concurrent same-key calls (waiter blocks until the first commit, then takes the replay branch).' This is incorrect Postgres semantics."
+      ],
+      "impact": "Under genuinely concurrent same-key fire (rare, but happens on retries), the first call commits, the second returns DATABASE_UNAVAILABLE / 5xx instead of replaying or returning IDEMPOTENCY_KEY_INFLIGHT. Stock is correct (only the first commits), but UX and observability are wrong: a perfectly retryable client gets a 5xx for what should be a deterministic replay.",
+      "remediation": "Insert an INFLIGHT marker row up-front: INSERT ... ON CONFLICT (key, endpoint) DO NOTHING with a status='INFLIGHT' column added to idempotency_keys; if RowsAffected=0, take the existing-row branch (which then SELECT FOR UPDATE serializes on the row). On commit, UPDATE status='COMMITTED' with the response_envelope. Alternatively keep the current shape but catch the unique-violation on the final INSERT and re-fetch + replay. The latter is a smaller diff."
+    },
+    {
+      "id": "INV-L1-06",
+      "severity": "medium",
+      "type": "concurrency_correctness",
+      "title": "Sweeper does not log 'commit-after-release' metric; processCandidate no-op log silently absent",
+      "evidence": [
+        "sweeper.go:155 if resvRow.Status != StatusReserved → tx.Rollback + return false, nil. No log line, no metric, no counter increment.",
+        "TD failure_modes calls for 'inventory_reservation_conflict_total' or equivalent."
+      ],
+      "impact": "Not a bug; observability gap. Race between sweeper-scan and a commit-arriving-payment becomes invisible.",
+      "remediation": "Add slog.InfoContext + a counter when processCandidate skips a non-RESERVED row. One-line change."
+    },
+    {
+      "id": "INV-L1-07",
+      "severity": "low",
+      "type": "robustness",
+      "title": "outbox relay aborts entire batch on first publish failure; no per-event retry budget",
+      "evidence": [
+        "outbox_relay.go:97 'Abort this batch on publish failure — row stays unpublished for next tick' returns out of the loop without committing the rows already MarkPublished'd in this tx (which is correct — they roll back) but does not record a failure metric or backoff."
+      ],
+      "impact": "If Kafka is down, the relayer hot-loops every 5s with the same 100 rows. Acceptable for MVP. No correctness defect (rows stay unpublished, at-least-once preserved).",
+      "remediation": "Add exponential backoff on publish failure and a metric counter outbox_publish_failures_total. Optional for MVP."
+    },
+    {
+      "id": "INV-L1-08",
+      "severity": "low",
+      "type": "logging_pii",
+      "title": "Logging is PII-clean",
+      "evidence": [
+        "All slog calls log: sku (public), order_id (uuid, internal-only — acceptable per scope), reservation_id, error string. No customer PII, no payment data, no JWT contents."
+      ],
+      "impact": "None — pass.",
+      "remediation": "n/a."
+    },
+    {
+      "id": "INV-L1-09",
+      "severity": "info",
+      "type": "verified_correct",
+      "title": "CHECK constraints, multi-SKU lex-order on create, SKIP LOCKED, consumer dedup pattern, sweeper crash-safety",
+      "evidence": [
+        "migrations/001 has all three CHECK (>=0) constraints (lines 19-21).",
+        "handler_reservation_create.go:103 sortedSKUs sort.Strings before GetManyBySKUsForUpdate — multi-SKU lex pin honoured.",
+        "storage_reservation.go:79 FindExpiredCandidates uses FOR UPDATE SKIP LOCKED.",
+        "ConsumedEventStorage.TryInsert uses ON CONFLICT DO NOTHING + the SELECT FOR UPDATE on reservations is in the same tx → two-layer dedup pattern is structurally present (in handlePaymentCompleted only; needs replicating in the four stubs).",
+        "Sweeper uses per-row tx so a mid-batch crash leaves a sane state (committed rows stay committed; uncommitted candidate locks evaporate on connection drop) — TD failure_modes confirmed.",
+        "Outbox row written in same tx as RESERVED→EXPIRED transition (sweeper.go:201) — atomicity preserved."
+      ],
+      "impact": "These are the load-bearing pieces and they are correct. Ship them as-is.",
+      "remediation": "n/a."
+    },
+    {
+      "id": "INV-L1-10",
+      "severity": "info",
+      "type": "verified_correct",
+      "title": "PR-003 state-driven consumer pattern present in payment.completed (only)",
+      "evidence": [
+        "consumer.go:127-153 branches on r.Status (CURRENT row state); the orderCancelledPayload struct has a comment 'fromStatus: informational only — DO NOT use for branching' (line 51).",
+        "TD requires this pattern in order.cancelled too — see INV-L1-02."
+      ],
+      "impact": "Pattern correctly applied where implemented; must be replicated to the four stub consumers.",
+      "remediation": "When implementing INV-L1-02, copy the switch-on-r.Status structure and add an explicit comment block on handleOrderCancelled: 'PR-003: this consumer reads CURRENT reservation state and IGNORES event.fromStatus. The race we are guarding: payment.completed is consumed first (RESERVED→COMMITTED) and THEN order.cancelled arrives with fromStatus=PENDING_PAYMENT. We must take the COMMITTED→sold→available branch, not the RESERVED→reserved→available branch.'"
+    }
+  ],
+  "calibration_note": "Lock-order finding (INV-L1-01) is graded HIGH and is load-bearing — the pattern is verified by reading three call sites (sweeper vs. release vs. consumer) against the TD pin. Not a mis-fire; the inversion is real and concurrent invocation is realistic (sweeper runs every 30s on every replica). The four stub consumers (INV-L1-02) and stock.adjust stub (INV-L1-03) are graded HIGH because they break stated AC mapping and INV-006/INV-007/PR-003 directly. Auth gap (INV-L1-04) is HIGH because the routes are public-internet-shaped (POST /api/v1/...). Other items are graded honestly down."
+}

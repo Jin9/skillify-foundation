@@ -1,0 +1,481 @@
+{
+  "template_version": "0.1.0",
+  "spec_version": "0.2.0",
+  "component_name": "payment",
+  "required": true,
+  "complexity": "complex",
+  "complexity_rationale": "Idempotent webhook with strict (paymentIntentId, providerStatus) dedup keyed on sha256(intentId||providerStatus) per ADR-006; payment-intent state machine REQUIRES_PAYMENT -> {SUCCEEDED|FAILED|EXPIRED} guarded by amount-FIRST check (PAY-006) and terminal-state guard; outbox event production on the dedup-cleared path; in-process expiry sweeper (60s tick, FOR UPDATE SKIP LOCKED) that NEVER emits events; producer of two domain events (payment.completed, payment.failed) with strict per-orderId ordering. Producer-only — Order and Inventory consume; Payment NEVER calls Order or Inventory directly. Callback authentication = HMAC-SHA256(rawBody, MOCK_PROVIDER_SECRET) with constant-time compare + timestamp anti-replay. Internal callers authenticate via X-Internal-Secret per ADR-008 (INTERNAL_SHARED_SECRET, crypto/subtle.ConstantTimeCompare).",
+  "skills_invoked": [
+    "crafting-backend-code (pattern-first scaffold for handler + outbox + dedup + sweeper)",
+    "generating-pseudocode (canonical process_callback 7-step ordering — see internal_handlers.process_callback.pseudocode)"
+  ],
+
+  "scaffold": {
+    "from_template": "B2C E-Commerce Platform/backend/go-template",
+    "service_path": "B2C E-Commerce Platform/backend/services/payment",
+    "go_module": "gitlab.com/b2c-e-commerce-platform/platform/backend/services/payment",
+    "common_lib_import": "gitlab.com/b2c-e-commerce-platform/platform/backend/common"
+  },
+
+  "boundaries_and_invariants": {
+    "produces_events": [
+      "events.payment.completed (provider=payment, partition_key=orderId, topic=ecom.payment.events)",
+      "events.payment.failed (provider=payment, partition_key=orderId, topic=ecom.payment.events)",
+      "events.payment.expired (CONTRACT REFERENCED but NOT EMITTED in MVP — see expired_event_decision)"
+    ],
+    "consumes_events": [],
+    "consumes_events_explicit_non_consumption": [
+      "events.reservation.expired — Payment INTENTIONALLY does NOT consume this (ADR-009 + TL PR-001 LOCKED). The reservation sweeper drives PAYMENT_EXPIRED on Order/Inventory side; late callbacks for an expired intent return 409 PAYMENT_INTENT_TERMINAL.",
+      "events.order.cancelled — Payment is a CONSUMER per contract events.order.cancelled.consumers but the MVP transition is no-op for terminal intents and an in-tx flip (REQUIRES_PAYMENT -> CANCELLED) is documented; left for future iteration if a cancel-during-payment race surfaces. NOT in scope for v0.1 because the simulate flow is sync-fast enough to never observe the race."
+    ],
+    "downstream_sync_calls": [],
+    "upstream_sync_callers": [
+      "checkout.commit -> payment.intent.create (X-Internal-Secret + Idempotency-Key=orderId, sync HTTP, step 8 of checkout 9-step orchestration)",
+      "frontend-web -> payment.simulate (customer JWT, role=CUSTOMER; ownership check on intent.owner_user_id)",
+      "mock-provider (or simulate's internal hop) -> payment.callback (HMAC-SHA256 webhook signature)"
+    ],
+    "sole_writer_of": [
+      "payment_intents",
+      "payment_callback_dedup",
+      "payment.outbox_events"
+    ],
+    "never_writes": [
+      "orders.* (Order is sole writer)",
+      "stock_levels.* / reservations.* (Inventory is sole writer)"
+    ]
+  },
+
+  "expired_event_decision": {
+    "decision": "DO NOT EMIT events.payment.expired in MVP",
+    "rationale": "ADR-009 + TL PR-001 (LOCKED): the Inventory reservation sweeper publishes events.reservation.expired which Order consumes to transition PENDING_PAYMENT -> PAYMENT_EXPIRED, and Inventory consumes to release the reservation. Emitting events.payment.expired in addition would create duplicate-cancel cascades and double-handling on consumers. Payment's intent itself still ages out via this service's internal expiry_sweeper (see internal_handlers.expiry_sweeper) so that subsequent late callbacks 409 cleanly with PAYMENT_INTENT_TERMINAL. The producer contract events.payment.expired remains DEFINED in cross-cutting contracts (Order/Inventory keep state-driven consumers for it as a future safety net), but Payment's outbox writer simply does not emit it for any path in MVP.",
+    "future_enablement_path": "If a future provider integration distinguishes provider-driven 'EXPIRED' callbacks from sweeper-driven expiry, the dedup-cleared callback path with providerStatus=EXPIRED can begin emitting events.payment.expired. The handler scaffold reserves the branch (see internal_handlers.process_callback.outbox_emit_rules.EXPIRED) — guarded by feature flag PAYMENT_EMIT_EXPIRED_EVENT (default false in MVP)."
+  },
+
+  "persistence": {
+    "schema_owner": "payment",
+    "schema": "payment",
+    "tables": [
+      { "name": "payment_intents", "primary_key": "intent_id (UUID v7)", "indexes": ["UNIQUE(order_id)", "INDEX(status, expires_at) WHERE status='REQUIRES_PAYMENT'"] },
+      { "name": "payment_callback_dedup", "primary_key": "dedup_key (TEXT = sha256(intent_id || '|' || provider_status))", "indexes": ["INDEX(intent_id)", "INDEX(expires_at)"] },
+      { "name": "outbox_events", "primary_key": "id (UUID v7)", "indexes": ["INDEX(published_at) WHERE published_at IS NULL", "UNIQUE(event_id)"] }
+    ],
+    "migrations": [
+      "001_payment_intents.up.sql",
+      "002_payment_callback_dedup.up.sql",
+      "003_outbox_events.up.sql"
+    ]
+  },
+
+  "endpoints": [
+    {
+      "name": "intent.create",
+      "contract_ref": "payment.intent.create",
+      "method_path": "POST /api/v1/payment/intent/create",
+      "auth_required": "internal_secret",
+      "auth_detail": "X-Internal-Secret header validated via common/middleware/internal_auth.go (per ADR-008): subtle.ConstantTimeCompare against INTERNAL_SHARED_SECRET (or comma-separated rotation overlap value); reject 401 AUTH_INVALID on miss/wrong; NEVER log the supplied or expected secret value. Plain == / != string compare is FORBIDDEN.",
+      "callers": ["checkout.commit (sync HTTP, step 8 of 9-step orchestration)"],
+      "purpose": "Create the payment intent for a freshly-created order. Idempotent on order_id per ADR + cross-cutting.idempotency.internal_orderId_rule. Caches intent.owner_user_id from request body (forwarded from checkout's identity.profile.read) so payment.simulate ownership check needs no sync hop to identity/order.",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["orderId", "amount", "ownerUserId"],
+        "properties": {
+          "orderId": { "type": "string", "format": "uuid" },
+          "amount": { "type": "integer", "minimum": 1, "description": "THB minor units (satang)" },
+          "ownerUserId": { "type": "string", "format": "uuid", "description": "Cached from Checkout's identity.profile.read; pinned at create time so payment.simulate ownership check is a local row read." },
+          "expiresAt": { "type": "string", "format": "date-time", "description": "Optional; defaults to created_at + 15min (matches reservation TTL)" }
+        }
+      },
+      "request_headers": {
+        "Content-Type": "application/json",
+        "X-Internal-Secret": "<INTERNAL_SHARED_SECRET value> (REQUIRED — ADR-008)",
+        "Idempotency-Key": "<orderId UUID v7> (REQUIRED — cross-cutting.idempotency.internal_orderId_rule; handler validates header == request.orderId else 400 VALIDATION_ERROR)"
+      },
+      "response_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "traceId": { "type": "string" },
+          "data": {
+            "type": "object",
+            "required": ["paymentIntentId", "status", "amount", "expiresAt"],
+            "properties": {
+              "paymentIntentId": { "type": "string", "format": "uuid" },
+              "status": { "type": "string", "enum": ["REQUIRES_PAYMENT"] },
+              "amount": { "type": "integer" },
+              "expiresAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "orderId is a valid UUID v7 (common/validator)",
+        "amount > 0 and within int64 range (common/validator gt=0)",
+        "ownerUserId is a valid UUID (common/validator)",
+        "Idempotency-Key header == request.orderId (else 400 VALIDATION_ERROR per cross-cutting.idempotency.internal_orderId_rule)",
+        "If a payment_intents row already exists for orderId AND status=REQUIRES_PAYMENT -> return 200 with the existing intent (idempotent replay)",
+        "If a payment_intents row already exists for orderId AND status TERMINAL (SUCCEEDED|FAILED|EXPIRED) -> 409 CONFLICT { reason: 'intent already TERMINAL for orderId' }"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR", "http_status": 400, "trigger": "any field violates schema OR Idempotency-Key != orderId" },
+        { "code": "AUTH_INVALID", "http_status": 401, "trigger": "missing/wrong X-Internal-Secret (constant-time compare reject)" },
+        { "code": "CONFLICT", "http_status": 409, "trigger": "intent already exists for orderId in TERMINAL state" },
+        { "code": "INTERNAL_ERROR", "http_status": 500, "trigger": "DB failure or panic" },
+        { "code": "DATABASE_UNAVAILABLE", "http_status": 503, "trigger": "pgx connect failure / pool exhaustion" }
+      ],
+      "edge_behavior": {
+        "idempotency": "Idempotent on order_id (UNIQUE constraint backs it). Same orderId returns existing intent. Different request body (e.g. mismatched amount) for an existing REQUIRES_PAYMENT intent -> return existing record verbatim — body mismatch is NOT honored because amount is server-derived from order.total at the Checkout layer. TTL: row lives until terminal-state retention (>= 30 days; cleanup is future-iteration concern).",
+        "side_effects": ["INSERT payment_intents row in single tx; no event emitted at create time"],
+        "transactionality": "single-row INSERT; on UNIQUE violation re-SELECT and return cached payload"
+      },
+      "implementation_hints": [
+        "Use common/middleware/internal_auth.go for X-Internal-Secret",
+        "Use common/database pgx pool for INSERT",
+        "Use common/wrapper.Respond for the {code,message,data,traceId} envelope",
+        "Use common/generator (UUID v7) for intent_id",
+        "Use common/validator struct tags for schema validation"
+      ]
+    },
+
+    {
+      "name": "intent.simulate",
+      "contract_ref": "payment.simulate",
+      "method_path": "POST /api/v1/payment/intent/simulate",
+      "auth_required": "customer_jwt",
+      "auth_detail": "JWT ES256 via common/middleware.JWT; role=CUSTOMER required (else 403 AUTH_FORBIDDEN). After token validation, the handler MUST verify claims.sub == payment_intents.owner_user_id (the cached owner from intent.create); mismatch is 403 AUTH_FORBIDDEN with message 'forbidden' (NEVER 'not your order' — do not leak ownership to the caller).",
+      "callers": ["frontend-web (the customer's mock 'pick a scenario' screen on the payment route)"],
+      "purpose": "Customer-facing mock: translate outcome (success|failed|timeout) to providerStatus (SUCCEEDED|FAILED|EXPIRED), generate a deterministic mock_provider_ref, then INVOKE process_callback() in-process (same canonical idempotent path as the webhook). Does NOT directly write payment_intents.status — every transition goes through process_callback.",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["paymentIntentId", "outcome"],
+        "properties": {
+          "paymentIntentId": { "type": "string", "format": "uuid" },
+          "outcome": { "type": "string", "enum": ["success", "failed", "timeout"] }
+        }
+      },
+      "request_headers": {
+        "Authorization": "Bearer <ACCESS jwt; role=CUSTOMER> (REQUIRED)",
+        "Content-Type": "application/json"
+      },
+      "response_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["paymentIntentId", "providerStatus", "mockPaymentRef", "willTriggerCallback"],
+            "properties": {
+              "paymentIntentId": { "type": "string", "format": "uuid" },
+              "providerStatus": { "type": "string", "enum": ["SUCCEEDED", "FAILED", "EXPIRED"] },
+              "mockPaymentRef": { "type": "string", "maxLength": 64 },
+              "willTriggerCallback": { "type": "boolean", "const": true }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "paymentIntentId resolves to a payment_intents row else PAYMENT_INTENT_NOT_FOUND",
+        "claims.sub (from JWT) == payment_intents.owner_user_id else AUTH_FORBIDDEN",
+        "outcome IN ('success','failed','timeout') (common/validator oneof)",
+        "Map outcome -> providerStatus: success->SUCCEEDED, failed->FAILED, timeout->EXPIRED"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR", "http_status": 400, "trigger": "outcome not in enum or paymentIntentId not a UUID" },
+        { "code": "AUTH_MISSING", "http_status": 401, "trigger": "no Bearer token" },
+        { "code": "AUTH_INVALID", "http_status": 401, "trigger": "JWT signature/exp/iss/aud invalid" },
+        { "code": "AUTH_FORBIDDEN", "http_status": 403, "trigger": "claims.role != CUSTOMER OR claims.sub != intent.owner_user_id" },
+        { "code": "PAYMENT_INTENT_NOT_FOUND", "http_status": 404, "trigger": "no payment_intents row matches paymentIntentId" },
+        { "code": "PAYMENT_INTENT_TERMINAL", "http_status": 409, "trigger": "intent already in SUCCEEDED|FAILED|EXPIRED and outcome differs (delegated to process_callback Step 5 terminal-state guard)" },
+        { "code": "INTERNAL_ERROR", "http_status": 500, "trigger": "DB failure or panic" }
+      ],
+      "edge_behavior": {
+        "idempotency": "First simulate wins. Subsequent simulate with the SAME outcome on a TERMINAL intent -> 200 with replay envelope (process_callback Step 4 returns the cached envelope). Subsequent simulate with a DIFFERENT outcome on a TERMINAL intent -> 409 PAYMENT_INTENT_TERMINAL via Step 5.",
+        "side_effects": ["Inline call into process_callback() which (on dedup-clear) UPDATEs payment_intents row, INSERTs payment_callback_dedup row, INSERTs payment.outbox_events row in same tx"],
+        "transactionality": "delegates to process_callback's single tx (FOR UPDATE on intent + tx-write outbox)"
+      },
+      "implementation_hints": [
+        "Generate mock_provider_ref = 'MOCKPAY-' + base32(sha256(intent_id || outcome))[:10] — deterministic so re-simulate yields same ref; common/hash exposes sha256",
+        "Set provider_timestamp = clock.Now() (common/clock for testability)",
+        "Call into internal_handlers.process_callback in the same goroutine; do NOT cross HTTP boundary",
+        "Use common/middleware.JWT then a tiny per-handler ownership-check middleware that reads the intent and compares claims.sub to owner_user_id"
+      ]
+    },
+
+    {
+      "name": "intent.callback",
+      "contract_ref": "payment.callback",
+      "method_path": "POST /api/v1/payment/intent/callback",
+      "auth_required": "internal_secret",
+      "auth_detail": "Webhook signature: header X-Mock-Provider-Signature = hex(HMAC-SHA256(rawBody, MOCK_PROVIDER_SECRET)). Validation algorithm: (1) verify X-Mock-Provider-Timestamp header is RFC3339 and within +/-5min skew (replay window); (2) compute expected = hmac.New(sha256, MOCK_PROVIDER_SECRET).Write(rawBody).Sum(nil); (3) hex-decode supplied signature; (4) compare via crypto/subtle.ConstantTimeCompare (NEVER plain == / !=); (5) reject 401 AUTH_INVALID on any failure; NEVER log the body, signature, or secret. Algorithm SHA256 is pinned in code (no caller-controlled algo selection — defends CVE-2018-1000613 class). MOCK_PROVIDER_SECRET MIN length 32 bytes validated at startup.",
+      "callers": ["mock provider (real or simulated). In MVP, simulate also goes through process_callback() in-process and skips this HTTP hop entirely."],
+      "purpose": "The dedup + idempotency entry point. Validates HMAC signature + timestamp skew, validates body, then calls internal_handlers.process_callback() — the canonical 7-step ordering.",
+      "request_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["paymentIntentId", "providerStatus", "mockPaymentRef", "amount", "providerTimestamp"],
+        "properties": {
+          "paymentIntentId": { "type": "string", "format": "uuid" },
+          "providerStatus": { "type": "string", "enum": ["SUCCEEDED", "FAILED", "EXPIRED"] },
+          "mockPaymentRef": { "type": "string", "maxLength": 64 },
+          "amount": { "type": "integer", "minimum": 0 },
+          "providerTimestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "request_headers": {
+        "Content-Type": "application/json",
+        "X-Mock-Provider-Signature": "hex(HMAC-SHA256(rawBody, MOCK_PROVIDER_SECRET)) (REQUIRED)",
+        "X-Mock-Provider-Timestamp": "RFC3339 timestamp (REQUIRED; skew tolerance +/-5min)"
+      },
+      "response_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["code", "message", "data", "traceId"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["paymentIntentId", "applied", "providerStatus"],
+            "properties": {
+              "paymentIntentId": { "type": "string", "format": "uuid" },
+              "applied": { "type": "boolean" },
+              "providerStatus": { "type": "string", "enum": ["SUCCEEDED", "FAILED", "EXPIRED"] }
+            }
+          }
+        }
+      },
+      "validation_rules": [
+        "X-Mock-Provider-Signature header present and HMAC-SHA256 verifies via crypto/subtle.ConstantTimeCompare against expected over the RAW body bytes (NOT re-marshaled JSON)",
+        "X-Mock-Provider-Timestamp header present, parses as RFC3339, and is within +/-5min of now (replay protection)",
+        "paymentIntentId resolves to a payment_intents row else PAYMENT_INTENT_NOT_FOUND",
+        "providerStatus IN (SUCCEEDED|FAILED|EXPIRED)",
+        "amount equals payment_intents.amount_minor (PAY-006 PRECEDES dedup_key derivation — see process_callback Step 1 ordering)",
+        "mockPaymentRef non-empty, length <= 64"
+      ],
+      "error_contract": [
+        { "code": "VALIDATION_ERROR", "http_status": 400, "trigger": "schema violation (missing field, bad enum, malformed UUID)" },
+        { "code": "AUTH_INVALID", "http_status": 401, "trigger": "missing/bad signature OR timestamp out of skew window OR missing/wrong INTERNAL guard if reused" },
+        { "code": "PAYMENT_INTENT_NOT_FOUND", "http_status": 404, "trigger": "no payment_intents row for paymentIntentId" },
+        { "code": "PAYMENT_AMOUNT_MISMATCH", "http_status": 409, "trigger": "callback.amount != intent.amount_minor (PAY-006); intent stays REQUIRES_PAYMENT, no dedup row, no outbox" },
+        { "code": "PAYMENT_INTENT_TERMINAL", "http_status": 409, "trigger": "intent already TERMINAL AND incoming providerStatus differs from the original" },
+        { "code": "INTERNAL_ERROR", "http_status": 500, "trigger": "DB failure or panic" }
+      ],
+      "edge_behavior": {
+        "idempotency": "STRICT idempotency on (paymentIntentId, providerStatus). Dedup key = sha256(intent_id || '|' || provider_status). Replay returns the cached envelope; NEVER re-fires outbox event. Different providerStatus against a TERMINAL intent -> 409 PAYMENT_INTENT_TERMINAL.",
+        "dedup_window": "30 days (matches cross-cutting.idempotency floor for payment.callback; matches provider redelivery horizon).",
+        "side_effects": ["Single tx: lock intent FOR UPDATE -> amount-check -> dedup-key compute -> replay return OR terminal-state guard OR transition (UPDATE intent + INSERT outbox row + INSERT dedup row, all same tx)"],
+        "transactionality": "Single Postgres tx in process_callback. FOR UPDATE on payment_intents + UNIQUE on dedup_key are joint defenses against concurrent callbacks."
+      },
+      "implementation_hints": [
+        "Bind raw body via gin's c.GetRawData() BEFORE c.ShouldBindJSON; HMAC must hash exactly the bytes the provider signed",
+        "Use common/middleware/webhook_signature.go (NEW shared helper, pattern-mirrors common/middleware/internal_auth.go) for HMAC verify + timestamp skew",
+        "Use crypto/hmac + crypto/subtle.ConstantTimeCompare directly; NO third-party HMAC libs",
+        "Use common/database tx wrapper for the single-tx process_callback path",
+        "Use common/kafka producer (NOT in handler — outbox publisher is a separate goroutine; see internal_handlers.outbox_relay)"
+      ]
+    }
+  ],
+
+  "internal_handlers": [
+    {
+      "name": "process_callback",
+      "purpose": "SINGLE canonical function invoked by both the HTTP webhook and payment.simulate. Owns the dedup + state-machine transition + outbox-write inside ONE Postgres transaction. The 7-step ordering is the load-bearing security contract.",
+      "inputs": {
+        "intent_id": "UUID (server-validated; from URL/lookup, NEVER directly from caller body alone for dedup-key derivation)",
+        "provider_status": "enum SUCCEEDED|FAILED|EXPIRED (server-validated against closed enum)",
+        "mock_provider_ref": "string (max 64; persisted but NOT in dedup_key)",
+        "amount_from_caller": "BIGINT minor (UNTRUSTED — used ONLY for amount-mismatch validation against payment_intents.amount_minor)",
+        "provider_timestamp": "timestamptz"
+      },
+      "canonical_7_step_ordering": [
+        "1. LOCK intent: SELECT * FROM payment_intents WHERE intent_id=:intent_id FOR UPDATE",
+        "2. AMOUNT-CHECK (BEFORE terminal-state guard): IF amount_from_caller != intent.amount_minor THEN ROLLBACK + RETURN 409 PAYMENT_AMOUNT_MISMATCH. Critical ordering — placing amount-check BEFORE the terminal-state guard means an attacker cannot bypass amount validation by replaying an old (paymentIntentId, providerStatus) pair on a terminal intent with a tweaked amount. Without this ordering, the terminal-state path could write a dedup row keyed on the contradicting status, masking the amount tampering.",
+        "3. DEDUP-KEY DERIVE: dedup_key := sha256(intent.intent_id::text || '|' || provider_status). Server-recorded fields ONLY. NO user-controlled body fields (mockPaymentRef, amount, providerTimestamp) participate.",
+        "4. REPLAY RETURN CACHED ENVELOPE: existing := SELECT * FROM payment_callback_dedup WHERE dedup_key=:dedup_key. IF existing IS NOT NULL THEN COMMIT (no writes) + RETURN existing.envelope WITH existing.http_status. NEVER re-fires outbox.",
+        "5. TERMINAL-STATE GUARD: IF intent.status IN (SUCCEEDED|FAILED|EXPIRED) THEN build envelope=409 PAYMENT_INTENT_TERMINAL { currentStatus, attemptedStatus }, INSERT dedup row keyed on the (intent_id, provider_status) pair so future replays of THIS terminal-conflict get the same cached envelope, COMMIT, RETURN envelope. Reaching here means: same intent already TERMINAL AND incoming status DIFFERS from original.",
+        "6. TRANSITION + OUTBOX in SAME TX: new_status := MAP provider_status (SUCCEEDED->SUCCEEDED, FAILED->FAILED, EXPIRED->EXPIRED). UPDATE payment_intents SET status=new_status, mock_provider_ref=:ref, provider_status=:provider_status, paid_at=(SUCCEEDED ? :provider_timestamp : NULL), updated_at=now(), version=version+1 WHERE intent_id=:intent_id AND version=intent.version. Then emit_outbox_event(intent, new_status) — INSERT one row into payment.outbox_events for SUCCEEDED|FAILED only; EXPIRED is skipped in MVP per expired_event_decision.",
+        "7. DEDUP-SUCCESS ROW: INSERT INTO payment_callback_dedup (dedup_key, intent_id, provider_status, envelope=success_envelope, http_status=200, expires_at=now()+30d). ON CONFLICT (dedup_key) DO NOTHING — defense-in-depth against a concurrent racer that beat us past Step 4 but lost the FOR UPDATE; in that case the racer's envelope is canonical. Then COMMIT; log structured {dedup_key, intent_id, action='APPLIED'}; RETURN envelope."
+      ],
+      "ordering_rationale": [
+        "FOR UPDATE before everything serializes concurrent callbacks for the same intent — race losers wait at Step 1 and find the world post-mutation when they run.",
+        "AMOUNT-CHECK before TERMINAL guard so an attacker cannot bypass amount validation by replaying a (intentId, providerStatus) pair on a terminal intent with a tweaked amount; without this ordering, terminal-state path writes a dedup row that masks the amount tampering.",
+        "DEDUP-KEY composed from server-trusted fields ONLY; if mockPaymentRef or amount were in the key, an attacker could force dedup misses by changing those fields.",
+        "REPLAY RETURN before TERMINAL guard so a same-status replay gets the cached SUCCESS envelope, not a misleading 409 TERMINAL.",
+        "TRANSITION + OUTBOX in SAME tx is the outbox-pattern guarantee (ADR-004): no phantom event without state change, no missing event with state change.",
+        "DEDUP-SUCCESS row written INSIDE the same tx so a crash between transition and dedup write rolls back BOTH; on retry the same callback re-runs cleanly through Step 4."
+      ],
+      "outbox_emit_rules": {
+        "SUCCEEDED": "INSERT outbox_events (id=uuidv7(), event_id=uuidv7(), aggregate_type='payment_intent', aggregate_id=intent_id, event_type='payment.completed', topic='ecom.payment.events', partition_key=intent.order_id, payload={eventId, occurredAt:now(), orderId:intent.order_id, paymentIntentId:intent.intent_id, amount:intent.amount_minor, mockPaymentRef:input.mock_provider_ref}, status='PENDING')",
+        "FAILED": "INSERT outbox_events (... event_type='payment.failed', payload={eventId, occurredAt, orderId, paymentIntentId, reason:'PROVIDER_DECLINED'}, status='PENDING')",
+        "EXPIRED": "DO NOT INSERT outbox row in MVP (see expired_event_decision). Feature flag PAYMENT_EMIT_EXPIRED_EVENT default false; the branch exists in code but is gated."
+      },
+      "concurrency_notes": "FOR UPDATE on payment_intents.intent_id serializes concurrent callbacks for one intent. Two callbacks with the SAME provider_status race -> loser hits Step 4 (REPLAY RETURN) on the next pass. Two callbacks with DIFFERENT provider_status race -> loser hits Step 5 (PAYMENT_INTENT_TERMINAL). The UNIQUE PRIMARY KEY on payment_callback_dedup is defense-in-depth for any cross-replica racer that bypasses the row lock (e.g., split-brain).",
+      "logging_redaction": [
+        "ALWAYS log: dedup_key (the sha256 hash, NOT the inputs), intent_id, order_id, action (APPLIED|REPLAY_HIT|TERMINAL|AMOUNT_MISMATCH), traceId, durationMs.",
+        "NEVER log: the callback request body or any subset of it (mockPaymentRef, providerTimestamp, amount, paymentIntentId-from-body), the X-Mock-Provider-Signature header value, the MOCK_PROVIDER_SECRET, the FULL contents of the dedup envelope (only its http_status + code), provider PII fields if any (future-provider safety)."
+      ]
+    },
+
+    {
+      "name": "expiry_sweeper",
+      "purpose": "In-process periodic job that flips REQUIRES_PAYMENT intents past expires_at to status=EXPIRED so any subsequent late callback returns PAYMENT_INTENT_TERMINAL cleanly via process_callback Step 5. INTERNAL-ONLY — emits NO outbox event (the Inventory reservation sweeper drives Order/Inventory via events.reservation.expired per ADR-009 + TL PR-001).",
+      "schedule": "Every 60 seconds (env PAYMENT_EXPIRY_SWEEP_INTERVAL_SEC, default 60). In-process goroutine started at boot in main.go.",
+      "scan_query": "SELECT intent_id, version FROM payment_intents WHERE status='REQUIRES_PAYMENT' AND expires_at < now() ORDER BY expires_at LIMIT :batch_size FOR UPDATE SKIP LOCKED",
+      "transition": "Per row in its own short tx: UPDATE payment_intents SET status='EXPIRED', updated_at=now(), version=version+1 WHERE intent_id=? AND status='REQUIRES_PAYMENT' AND version=:version. NO outbox write. NO dedup-row write (the dedup table is for callback replays only). Use SKIP LOCKED so multiple replicas of the payment service can run the sweeper concurrently without serializing on a single advisory lock.",
+      "batch_size": "Default 100 per tick; configurable PAYMENT_EXPIRY_SWEEP_BATCH_SIZE.",
+      "metrics": [
+        "counter payment_expiry_sweeper_flipped_total — number of intents flipped REQUIRES_PAYMENT -> EXPIRED",
+        "gauge payment_expiry_sweeper_lag_seconds — max(now() - expires_at) for any still-REQUIRES_PAYMENT past-expiry intent (alarms if lag > 90s)"
+      ],
+      "rationale": "Without this sweeper, a late provider callback could arrive at an unaged REQUIRES_PAYMENT intent, transition it to SUCCEEDED, and emit events.payment.completed. But Order has already moved to PAYMENT_EXPIRED via the reservation sweeper path, so Order's state-driven consumer (ADR-009) would log the late event and ignore it. Functionally correct but operationally opaque — running this sweeper makes Payment's own state honest and produces a clean 409 PAYMENT_INTENT_TERMINAL response for the provider's late retry instead of a misleading 200.",
+      "implementation_hints": [
+        "Pattern-mirror inventory's reservation-sweeper (already documented in inventory td.json)",
+        "Use common/database pgx pool with explicit tx",
+        "Use FOR UPDATE SKIP LOCKED so two pods don't fight over the same row",
+        "Panic-recovery wrapper around the loop body so one bad row doesn't kill the goroutine"
+      ]
+    },
+
+    {
+      "name": "outbox_relay",
+      "purpose": "Single-threaded goroutine per payment service replica that drains payment.outbox_events to Kafka topic ecom.payment.events with partition_key = order_id. ADR-004 outbox pattern.",
+      "schedule": "Every 5s OR when notified via channel by the writer (LISTEN/NOTIFY optional v2 optimization).",
+      "scan_query": "SELECT id, aggregate_id, event_id, event_type, topic, partition_key, payload FROM payment.outbox_events WHERE published_at IS NULL ORDER BY id LIMIT 100",
+      "publish": "common/kafka producer.Send(topic, key=partition_key, value=payload). On success: UPDATE payment.outbox_events SET published_at=now() WHERE id=:id. On failure: increment attempts; backoff; max 10 attempts then mark status=FAILED + alert (counter payment_outbox_failed_total, gauge payment_outbox_pending_count).",
+      "ordering_guarantee": "Per-aggregate (per-orderId) order preserved by ORDER BY id (UUID v7 ~= time-ordered) + partition_key=order_id mapping. NO global ordering across orderIds — that's intentional per ADR-009.",
+      "implementation_hints": [
+        "Use common/kafka producer + producer_interceptor (already in common)",
+        "Single goroutine per replica; if multi-replica throughput becomes an issue, partition the outbox by id hash (deferred)",
+        "Idempotent at consumer side via consumed_events(eventId PK) — see contract events.payment.completed.idempotency_rules"
+      ]
+    }
+  ],
+
+  "event_producers": [
+    { "event_contract_ref": "events.payment.completed", "emit_path": "internal_handlers.process_callback Step 6 outbox_emit_rules.SUCCEEDED -> outbox_relay -> Kafka(ecom.payment.events)", "partition_key": "orderId" },
+    { "event_contract_ref": "events.payment.failed", "emit_path": "internal_handlers.process_callback Step 6 outbox_emit_rules.FAILED -> outbox_relay -> Kafka(ecom.payment.events)", "partition_key": "orderId" }
+  ],
+
+  "event_consumers": [],
+
+  "internal_modules": {
+    "domain_pkg": "app/payment",
+    "key_files": [
+      "app/payment/handler_intent_create.go",
+      "app/payment/handler_intent_simulate.go",
+      "app/payment/handler_intent_callback.go",
+      "app/payment/process_callback.go",
+      "app/payment/expiry_sweeper.go",
+      "app/payment/outbox_relay.go",
+      "app/payment/access/storage_intent.go",
+      "app/payment/access/storage_dedup.go",
+      "app/payment/access/storage_outbox.go",
+      "app/payment/middleware/webhook_signature.go",
+      "app/payment/middleware/ownership_check.go",
+      "router/router.go",
+      "router/deps.go",
+      "main.go"
+    ]
+  },
+
+  "config_env_vars": [
+    { "name": "INTERNAL_SHARED_SECRET", "required": true, "format": "ASCII string MIN 32 bytes; comma-separated values supported for rotation overlap (new,old)", "rationale": "ADR-008; rejects boot if missing or shorter than 32 bytes." },
+    { "name": "MOCK_PROVIDER_SECRET", "required": true, "format": "ASCII string MIN 32 bytes", "rationale": "HMAC-SHA256 secret for payment.callback signature verification; rejects boot if missing or shorter than 32 bytes." },
+    { "name": "PAYMENT_EXPIRY_SWEEP_INTERVAL_SEC", "required": false, "default": "60", "rationale": "expiry_sweeper tick interval." },
+    { "name": "PAYMENT_EXPIRY_SWEEP_BATCH_SIZE", "required": false, "default": "100", "rationale": "expiry_sweeper rows per tick." },
+    { "name": "PAYMENT_INTENT_TTL_MINUTES", "required": false, "default": "15", "rationale": "Default expires_at offset; matches reservation TTL." },
+    { "name": "PAYMENT_OUTBOX_RELAY_INTERVAL_SEC", "required": false, "default": "5", "rationale": "outbox_relay tick interval." },
+    { "name": "PAYMENT_EMIT_EXPIRED_EVENT", "required": false, "default": "false", "rationale": "Future feature flag — if true, the EXPIRED branch in process_callback Step 6 emits events.payment.expired. Default false in MVP per expired_event_decision." }
+  ],
+
+  "test_strategy": {
+    "unit": "table-driven tests per handler with pgxmock or testcontainers Postgres; mock common/kafka producer; mock clock via common/clock; assert log redaction by intercepting slog handler.",
+    "integration": "docker-compose up payment + Kafka + Postgres; curl smoke through intent.create -> simulate(success) -> assert outbox row -> drain to Kafka -> assert event arrives. Replay smoke: post identical callback twice -> assert one outbox row, second response = first envelope verbatim.",
+    "happy_paths": [
+      "intent_create_with_new_orderId_returns_REQUIRES_PAYMENT_intent",
+      "intent_create_with_existing_orderId_REQUIRES_PAYMENT_returns_existing_intent",
+      "simulate_success_transitions_intent_SUCCEEDED_and_emits_payment_completed_outbox",
+      "simulate_failed_transitions_intent_FAILED_and_emits_payment_failed_outbox",
+      "simulate_timeout_transitions_intent_EXPIRED_and_emits_NO_outbox_event",
+      "callback_with_valid_HMAC_and_matching_amount_succeeds",
+      "duplicate_callback_same_status_returns_cached_envelope_no_new_outbox",
+      "expiry_sweeper_flips_overdue_REQUIRES_PAYMENT_to_EXPIRED"
+    ],
+    "negative_paths": [
+      "intent_create_with_idempotency_key_not_equal_to_orderId_returns_400_VALIDATION_ERROR",
+      "intent_create_with_missing_X_Internal_Secret_returns_401_AUTH_INVALID",
+      "intent_create_with_wrong_X_Internal_Secret_returns_401_AUTH_INVALID_with_constant_time_compare",
+      "intent_create_with_existing_TERMINAL_intent_returns_409_CONFLICT",
+      "simulate_with_no_JWT_returns_401_AUTH_MISSING",
+      "simulate_by_non_owner_returns_403_AUTH_FORBIDDEN",
+      "simulate_with_admin_role_returns_403_AUTH_FORBIDDEN",
+      "callback_with_missing_signature_header_returns_401_AUTH_INVALID",
+      "callback_with_bad_signature_returns_401_AUTH_INVALID_no_DB_writes",
+      "callback_with_timestamp_skew_over_5min_returns_401_AUTH_INVALID",
+      "callback_with_amount_mismatch_returns_409_PAYMENT_AMOUNT_MISMATCH_no_state_change",
+      "callback_with_amount_mismatch_writes_NO_dedup_row",
+      "callback_with_amount_mismatch_writes_NO_outbox_row",
+      "callback_with_unknown_intent_returns_404_PAYMENT_INTENT_NOT_FOUND",
+      "callback_with_TERMINAL_intent_DIFFERENT_status_returns_409_PAYMENT_INTENT_TERMINAL",
+      "callback_with_TERMINAL_intent_SAME_status_returns_cached_envelope_via_dedup",
+      "concurrency_10_parallel_callbacks_5_SUCCEEDED_5_FAILED_yields_exactly_one_terminal_state_one_outbox_row",
+      "logs_NEVER_contain_callback_body_or_signature_or_secret",
+      "logs_DO_contain_dedup_key_intent_id_action",
+      "amount_check_runs_BEFORE_terminal_state_guard_attacker_cannot_bypass_amount_validation_via_terminal_replay"
+    ]
+  },
+
+  "ba_acceptance_mapping": [
+    { "story_id": "STORY_PAYMENT_INTENT_CREATE", "ac_index": 0, "endpoint": "intent.create", "test_name": "intent_create_with_new_orderId_returns_REQUIRES_PAYMENT_intent", "ba_ref": "PAY-001" },
+    { "story_id": "STORY_PAYMENT_SIMULATE_SUCCESS", "ac_index": 0, "endpoint": "intent.simulate", "test_name": "duplicate_callback_same_status_returns_cached_envelope_no_new_outbox", "ba_ref": "PAY-002 + PAY-005" },
+    { "story_id": "STORY_PAYMENT_SIMULATE_SUCCESS", "ac_index": 1, "endpoint": "intent.simulate", "test_name": "simulate_success_transitions_intent_SUCCEEDED_and_emits_payment_completed_outbox", "ba_ref": "PAY-007 — payment_intents persists mock_provider_ref, provider_status, paid_at" },
+    { "story_id": "STORY_PAYMENT_SIMULATE_FAILED_OR_TIMEOUT", "ac_index": 0, "endpoint": "intent.simulate", "test_name": "simulate_failed_transitions_intent_FAILED_and_emits_payment_failed_outbox", "ba_ref": "PAY-003 + INV-006 (Inventory consumes events.payment.failed)" },
+    { "story_id": "STORY_PAYMENT_SIMULATE_FAILED_OR_TIMEOUT", "ac_index": 1, "endpoint": "intent.simulate", "test_name": "simulate_timeout_transitions_intent_EXPIRED_and_emits_NO_outbox_event", "ba_ref": "PAY-004 + ORD-009 — Order's PAYMENT_EXPIRED is driven by Inventory's events.reservation.expired sweeper, NOT by Payment emitting events.payment.expired" },
+    { "story_id": "STORY_PAYMENT_AMOUNT_VALIDATION", "ac_index": 0, "endpoint": "intent.callback", "test_name": "callback_with_amount_mismatch_returns_409_PAYMENT_AMOUNT_MISMATCH_no_state_change", "ba_ref": "PAY-006" },
+    { "story_id": "STORY_PAYMENT_AMOUNT_VALIDATION", "ac_index": 1, "endpoint": "intent.callback", "test_name": "callback_with_valid_HMAC_and_matching_amount_succeeds", "ba_ref": "PAY-002 + PAY-006 — exact match transitions PAID" }
+  ],
+
+  "security_posture_for_reviewer_l1": [
+    "Webhook signature: HMAC-SHA256(rawBody, MOCK_PROVIDER_SECRET); algo PINNED in code (no caller-controlled selection); secret per-env via config; constant-time compare via crypto/subtle.ConstantTimeCompare; body MUST be the raw bytes (not parsed JSON re-serialized).",
+    "Replay protection: X-Mock-Provider-Timestamp header REQUIRED, parsed RFC3339, compared against now() with +/-5min skew tolerance; reject 401 outside the window.",
+    "Internal-secret auth (intent.create): X-Internal-Secret validated via crypto/subtle.ConstantTimeCompare per ADR-008; INTERNAL_SHARED_SECRET env-var name LOCKED; MIN 32 bytes; comma-separated rotation supported. Plain == / != comparison is a high-severity reviewer finding.",
+    "Idempotency-Key on intent.create MUST equal request.orderId (cross-cutting.idempotency.internal_orderId_rule); else 400 VALIDATION_ERROR.",
+    "Dedup key composition: server-recorded fields ONLY (intent_id from validated lookup + provider_status from validated enum). NO user-controlled body fields (mockPaymentRef, amount, providerTimestamp) in the key.",
+    "Amount-mismatch check runs BEFORE the terminal-state guard (process_callback Step 2 vs Step 5) — attacker cannot bypass amount validation by replaying a (paymentIntentId, providerStatus) pair on a terminal intent with a tweaked amount; without this ordering, the terminal-path dedup row would mask the amount tampering.",
+    "Outbox writes happen in the SAME tx as the intent state transition (process_callback Step 6). ADR-004 outbox pattern.",
+    "Logging redaction: log {dedup_key, intent_id, order_id, action, traceId} only; NEVER log the callback request body, signature header value, MOCK_PROVIDER_SECRET, INTERNAL_SHARED_SECRET, or the FULL dedup envelope (only its http_status + code).",
+    "Auth boundaries: intent.create = X-Internal-Secret only (internal); intent.simulate = customer JWT + ownership check on intent.owner_user_id (claim-against-row, NOT the request body); intent.callback = HMAC signature + timestamp skew. None of the three boundaries trust the request body for authorization.",
+    "Late-callback handling: terminal-state guard returns 409 with a dedup row written so future replays of the conflict get the same envelope (no oscillation between TERMINAL and AMOUNT_MISMATCH on a re-tweaked retry).",
+    "ownership-check (simulate) compares claims.sub to payment_intents.owner_user_id WITHOUT leaking ownership in the error message; AUTH_FORBIDDEN message stays generic ('forbidden'), not 'not your order'.",
+    "ownership-check uses the cached owner_user_id on payment_intents (set at intent.create time) — NO sync hop to identity or order on the simulate hot path."
+  ],
+
+  "qa_l1_test_matrix_anchor": "see test_strategy.happy_paths + test_strategy.negative_paths above; all 22 cases are required acceptance criteria.",
+
+  "open_design_followups": [
+    "outbox_relay shared package consolidation (ADR-004 + REV-L2-011 followup) — payment, order, inventory, catalog all run near-duplicate relays. Promote to common/outbox in v2.",
+    "Future enablement of events.payment.expired emission gated by feature flag PAYMENT_EMIT_EXPIRED_EVENT (see expired_event_decision.future_enablement_path)."
+  ],
+
+  "dependencies": [
+    "cross-cutting.response-envelope",
+    "cross-cutting.auth",
+    "cross-cutting.error-codes",
+    "cross-cutting.route-convention",
+    "cross-cutting.persistence",
+    "cross-cutting.idempotency",
+    "payment.intent.create",
+    "payment.simulate",
+    "payment.callback",
+    "events.payment.completed",
+    "events.payment.failed",
+    "events.payment.expired (CONTRACT REFERENCED but Payment does NOT emit in MVP — see expired_event_decision)",
+    "events.order.cancelled (declared consumer per contract; MVP scope is no-op-on-terminal)"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "prompt_version": "0.1.0",
+  "component": "checkout",
+  "verdict": "code_mismatch",
+  "summary": "2 routes confirmed (preview, commit). 9-step commit orchestration confirmed in handler_commit.go. §11.2 single source confirmed in pricing.go (ComputeShippingFee; ShippingFeeThreshold=150000 minor; boundary inclusive). Compensation matrix confirmed for 3 branches; HOWEVER: InventoryClient and PaymentClient do NOT carry X-Internal-Secret — they pass bearerToken only (code_mismatch vs ADR-008 + td.json spec requiring X-Internal-Secret for steps 6/8 + compensations). OrderClient correctly sends both bearerToken + internalSecretOption. buyerEmail wire confirmed: step 2 reads identity.profile.read; profile.Email forwarded to order.CreateFromCheckout step 7. INFLIGHT race fix confirmed: INSERT ON CONFLICT (key, customer_user_id) DO NOTHING RETURNING key in TryClaimOrLookup. Compensation retries: 3-retry [50,200,800]ms confirmed in ReleaseReservation and CancelOnCheckoutFailure client methods; handler delegates single call to each client. Test count: 18+11+5 = 34 named cases across 3 test files (14 top-level Test functions); Dev report claims 41 — gap of 7 (code_mismatch). Findings: 2 code_mismatch, 0 spec_incomplete, 0 spec_wrong.",
+  "findings": [
+    {
+      "case_id": "CHK-QA-001",
+      "verdict": "code_mismatch",
+      "scenario": "InventoryClient and PaymentClient do not send X-Internal-Secret on internal hops",
+      "expected": "td.json steps 4b (inventory.stock.bulk-read), 6 (inventory.reservation.create), 8 (payment.intent.create), and both compensation calls (reservation.release) MUST use X-Internal-Secret per ADR-008. NewInventoryClient and NewPaymentClient constructor signatures accept no internalSecret parameter; all three call sites use bearerAuthOption(bearerToken) only.",
+      "actual": "client_inventory.go: NewInventoryClient(baseURL string, ...) — no internalSecret field. BulkReadStock, CreateReservation, ReleaseReservation all pass bearerAuthOption(bearerToken) only. client_payment.go: NewPaymentClient(baseURL string, ...) — same pattern. Only OrderClient (client_order.go) correctly sends both bearerAuthOption + internalSecretOption.",
+      "ac_id": "ADR-008",
+      "story_id": "checkout.commit steps 4b/6/8 + compensations",
+      "evidence": "backend/services/checkout/app/checkout/client_inventory.go:21,58,120,179; client_payment.go:20,56"
+    },
+    {
+      "case_id": "CHK-QA-002",
+      "verdict": "code_mismatch",
+      "scenario": "Test count mismatch: Dev report claims 41; actual named cases = 34",
+      "expected": "Dev report: 41 tests",
+      "actual": "handler_commit_test.go: 7 top-level Test functions, 18 named table cases (10 in PreDBValidation, 4 in IdempotencyKey_DecisionMatrix, 2 in ComputeRequestHash_Determinism, 5 in IsValidIdempotencyKey via slice, 4 in TestExtractOrderIDFromEnvelope, 1 TestCompensationBackoffShape, 1 TestServiceConstruction). handler_preview_test.go: 5 top-level Test functions, 11 named table cases (7 in PreCallValidation, 4 in PricingTier_BAPR002, plus TestStockBySkU/TestFindAddress/TestPreview_EmptyCartEnvelopeShape). access/storage_idempotency_race_test.go: 2 top-level Test functions, 5 named table cases in TestTryClaimOrLookup_HandlerBranchMatrix plus TestTryClaimOrLookup_APIExists. Grand total named cases: 34; top-level Test funcs: 14. Neither matches 41.",
+      "ac_id": "dev_report_test_count",
+      "story_id": "checkout",
+      "evidence": "backend/services/checkout/app/checkout/handler_commit_test.go, handler_preview_test.go, access/storage_idempotency_race_test.go — grep 'func Test' = 14 top-level functions; named table rows = 34"
+    }
+  ],
+  "confirmed_pass": [
+    "2_routes: POST /api/v1/checkout/checkout/preview (handler_preview.go) and POST /api/v1/checkout/checkout/commit (handler_commit.go) — both registered",
+    "9_step_orchestration: steps 1–9 plus step 10 finalize explicitly labelled in handler_commit.go header comment and code; orchestration_pseudocode in td.json and commit.md match",
+    "single_source_pricing: pricing.go is the only file with ComputeShippingFee; ShippingFeeThreshold=150000 minor (1500 THB); boundary inclusive (subtotalMinor < threshold → 60; else 0); ComputeGrandTotal present; used at handler_commit.go:358 and handler_preview.go",
+    "compensation_matrix_3_branches: step6 fail → no compensation; step7 fail → ReleaseReservation; step8 fail → CancelOnCheckoutFailure then ReleaseReservation — all three branches present in handler_commit.go",
+    "compensation_retries_3x_50_200_800ms: ReleaseReservation (client_inventory.go:165) and CancelOnCheckoutFailure (client_order.go) both implement backoffs = []time.Duration{50ms,200ms,800ms} with for attempt := 0; attempt <= 3 loop",
+    "buyerEmail_wire_step2_to_step7: identity.ReadProfile called at step 2 (handler_commit.go:227); profile.Email passed as BuyerEmail in orderCreateRequest at line 403; confirmed in commit.md step 8 narrative",
+    "INFLIGHT_race_TryClaimOrLookup: INSERT INTO checkout.idempotency_keys ... ON CONFLICT (key, customer_user_id) DO NOTHING RETURNING key in access/storage_idempotency.go:63-68; compile-time guard in storage_idempotency_race_test.go:183-194",
+    "ABANDONED_branch: handler_commit.go:162-182 DELETEs dead row and re-INSERTs INFLIGHT within same tx holding FOR UPDATE lock",
+    "idempotency_key_scoped_per_customer: PK=(key, customer_user_id) enforced in INSERT and SELECT FOR UPDATE",
+    "schema_isolation_ADR001: checkout schema owns only idempotency_keys + saga_log; no orders/payment_intents tables referenced"
+  ],
+  "csv_path": ".squad-run/components/checkout/qa-l1.csv",
+  "skills_invoked": []
+}

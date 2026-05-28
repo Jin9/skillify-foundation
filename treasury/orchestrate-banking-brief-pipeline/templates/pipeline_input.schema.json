@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "decomposed_banking_brief_pipeline_input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["raw_content", "idempotency_key"],
+  "properties": {
+    "raw_content": {
+      "type": "string",
+      "minLength": 200,
+      "maxLength": 200000
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "source_type": {
+      "enum": ["jira", "slack", "email", "meeting-notes", "doc", "mixed", "unknown"]
+    },
+    "tier_hint": {
+      "enum": ["T1", "T2", "T3"]
+    },
+    "requested_at": {
+      "type": "string"
+    },
+    "project_context": {
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "stage2_compliance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stage", "stage_status"],
+  "properties": {
+    "stage": { "const": "compliance" },
+    "stage_status": { "enum": ["complete", "blocked"] },
+    "failure_code": { "type": "string" },
+    "failure_reason": { "type": "string" },
+    "pii_inventory": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/piiRow" }
+    },
+    "stakeholders": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/stakeholder" }
+    },
+    "legal_status_by_epic": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/legalStatus" }
+    },
+    "regulatory_dependencies": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/regulatoryDependency" }
+    },
+    "governance_gaps": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/governanceGap" }
+    },
+    "tipping_off_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "violations"],
+      "properties": {
+        "status": { "enum": ["clean", "violations", "not_applicable"] },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["story_id", "term", "safe_phrase", "legal_signoff_required"],
+            "properties": {
+              "story_id": { "type": "string" },
+              "term": { "type": "string" },
+              "source_ref": { "type": "string" },
+              "safe_phrase": { "type": "string" },
+              "legal_signoff_required": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "blocks_tl_handoff": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "stage_status": { "const": "complete" } }, "required": ["stage_status"] },
+      "then": { "required": ["pii_inventory", "stakeholders", "legal_status_by_epic", "regulatory_dependencies", "governance_gaps", "tipping_off_scan", "blocks_tl_handoff"] }
+    },
+    {
+      "if": { "properties": { "stage_status": { "const": "blocked" } }, "required": ["stage_status"] },
+      "then": { "required": ["failure_code", "failure_reason", "blocks_tl_handoff"] }
+    }
+  ],
+  "definitions": {
+    "piiRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["story_id", "field", "category", "status", "treatment"],
+      "properties": {
+        "story_id": { "type": "string" },
+        "field": { "type": "string" },
+        "category": { "enum": ["direct", "indirect", "regulatory", "financial", "none"] },
+        "status": { "enum": ["applies", "not_applicable", "unknown_p2"] },
+        "treatment": { "type": "string", "minLength": 10 },
+        "retention_rule": { "type": "string" },
+        "residency_rule": { "type": "string" },
+        "masking_rule": { "type": "string" },
+        "access_audit": { "type": "string" }
+      }
+    },
+    "stakeholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "type", "decision_authority", "status"],
+      "properties": {
+        "role": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "enum": ["owner", "sponsor", "approver", "sme", "affected", "external", "meta"] },
+        "decision_authority": { "type": "string" },
+        "authority_mode": { "enum": ["rule", "proposal", "preference", "estimate", "pain"] },
+        "status": { "enum": ["active", "absent", "handing-off", "mentioned_only", "scheduled"] },
+        "engagement_required_for": { "type": "string" }
+      }
+    },
+    "legalStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["epic_id", "legal_status", "evidence"],
+      "properties": {
+        "epic_id": { "type": "string" },
+        "legal_status": { "enum": ["present", "scheduled", "mentioned_only", "absent"] },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "regulatoryDependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["regulator", "code", "citation_status"],
+      "properties": {
+        "regulator": { "type": "string" },
+        "code": { "type": "string" },
+        "revision": { "type": "string" },
+        "citation_status": { "enum": ["pending", "partial", "resolved"] },
+        "promisor": { "type": "string" },
+        "due_date": { "type": "string" }
+      }
+    },
+    "governanceGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "severity", "evidence", "required_action", "blocks_tl_handoff"],
+      "properties": {
+        "type": {
+          "enum": [
+            "legal_absent_on_regulatory",
+            "tipping_off_violation",
+            "pii_inventory_missing",
+            "regulatory_citation_unresolved",
+            "dual_approval_named_owner_missing",
+            "compensating_action_missing",
+            "retention_policy_unstated"
+          ]
+        },
+        "severity": { "enum": ["P1", "P2"] },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "required_action": { "type": "string", "minLength": 10 },
+        "blocks_tl_handoff": { "type": "boolean" }
+      }
+    }
+  }
+}

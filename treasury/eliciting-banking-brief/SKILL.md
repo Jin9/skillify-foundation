@@ -1,6 +1,5 @@
 ---
 name: eliciting-banking-brief
-version: 1.4.1
 description: >
   Convert raw BA input (Jira, Slack, meeting notes, email, mixed prose)
   into a structured epic-plus-stories brief with banking-grade fields
@@ -18,20 +17,17 @@ description: >
   from a finished spec (use implement-from-spec), domain-glossary lookups
   with no work request, inputs containing actual PII values, or inputs
   carrying the training ground-truth annotation block.
-
-stage_type: analyze
-input_schema: schemas/input.json
-output_schema: schemas/output.json
-
-banking_grade: {idempotent: true, reversible: n/a, audit_level: enhanced, tier_default: T2, tier_adaptable: [T1, T2, T3]}
-
-expected_duration_p95_seconds: 120
-max_retries_recommended: 2
-
-recommended_temperature: {T1: 0.1, T2: 0.3, T3: 0.5}
-tier_review_levels: {T1: [L0, L1, L2], T2: [L0, L1, L2], T3: [L0, L1]}
-
 compatibility: [claude-code, codex, opencode]
+metadata:
+  version: 1.4.1
+  stage_type: analyze
+  input_schema: schemas/input.json
+  output_schema: schemas/output.json
+  banking_grade: {idempotent: true, reversible: n/a, audit_level: enhanced, tier_default: T2, tier_adaptable: [T1, T2, T3]}
+  expected_duration_p95_seconds: 120
+  max_retries_recommended: 2
+  recommended_temperature: {T1: 0.1, T2: 0.3, T3: 0.5}
+  tier_review_levels: {T1: [L0, L1, L2], T2: [L0, L1, L2], T3: [L0, L1]}
 ---
 
 # Skill: Eliciting Banking Brief
@@ -74,7 +70,7 @@ Accepts one of: **Jira ticket** (bracketed key `[A-Z]+-\d+`; `Project:`/`Type:`/
 
 ## Output Contract
 
-**Dual emission — JSON is canonical, Markdown directory tree is mechanically derived.** The skill's authoritative output is a JSON document conforming to `schemas/output.json` — this is the contract consumed by downstream Stage 2 (TL handoff) and validated by the orchestrator. Alongside the JSON, the skill emits a structured **Markdown directory tree** rendered deterministically by `scripts/render_markdown_tree.py` per `references/markdown-rendering-spec.md`. The tree provides per-epic and per-story addressability for human review, multi-reviewer assignment, and Stage 2 fan-out routing. The JSON is load-bearing; the Markdown tree is presentation-only and re-derivable from the JSON at any time. When the two are emitted together, the JSON is authoritative on any conflict.
+**Dual emission — JSON is canonical, Markdown directory tree is mechanically derived.** The skill's authoritative output is a JSON document conforming to `schemas/output.json` — this is the contract consumed by the downstream TL-handoff step and validated by the caller. Alongside the JSON, the skill emits a structured **Markdown directory tree** rendered deterministically by `scripts/render_markdown_tree.py` per `references/markdown-rendering-spec.md`. The tree provides per-epic and per-story addressability for human review, multi-reviewer assignment, and downstream fan-out routing. The JSON is load-bearing; the Markdown tree is presentation-only and re-derivable from the JSON at any time. When the two are emitted together, the JSON is authoritative on any conflict.
 
 **Bilingual emission (v1.4.0+; UI-string localization added v1.4.1).** When `processing_metadata.bilingual_output` lists more than one ISO-639-1 language code (lowercase, e.g., `["en", "th"]`), the renderer emits one Markdown subtree per language under `output-{idem8}/<LANG_UPPER>/...` (e.g., `output-{idem8}/EN/00-BRIEF.md` + `output-{idem8}/TH/00-BRIEF.md`). The canonical JSON lives once at `output-{idem8}/output.json` and carries both the English source fields AND per-object `translations` maps (see `schemas/output.json#/definitions/Translations`). When `bilingual_output` is absent, the default is `["en"]` — emission produces `output-{idem8}/EN/...`. Per-field translations missing in `translations[<lang>]` fall back to the English source (graceful degradation). **v1.4.1+ also localizes renderer-emitted UI strings** (section headings, labels, table headers — e.g., `# Open Questions` → `# คำถามที่ยังเปิดอยู่`, `**Why it matters:**` → `**เหตุใดจึงสำคัญ:**`) via `references/ui-strings.json`, looked up by the `t(key)` helper with English-source fallback for any missing key. The BA must produce content translations for every customer-facing text field per `references/bilingual-emission.md` when emitting bilingual; UI strings are handled automatically by the renderer.
 
@@ -101,7 +97,7 @@ Three top-level JSON shapes by `output_type`:
 | FM-06 — Tipping-off risk in customer comms | Customer-facing string contains forbidden terms (sanctions / AML / flagged / suspicious / regulated / SAR / PEP / adverse media / EDD). Internal-only fields exempt. | `tipping_off_scan.violations[]`, safe-phrase mitigations from `references/non-tipping-vocabulary.md`, `legal_signoff_required: true` | Replace violations with safe phrases. If none exists, require Legal sign-off. Block TL handoff until mitigation or sign-off recorded. |
 | FM-07 — Tier classification ambiguous | All overrides run AND no tier confidence ≥ 0.8, OR two rules at distinct tiers with equal weight | `tier_inference.recommended_tier` = higher choice (fail-safe), OQ `confirm_tier_assignment` (P2) | Higher-tier default. Human BA/TL confirms. Document in `processing_metadata.tier_decisions[]`. |
 | FM-09 — Scope unclear (story vs epic vs multi-epic) | Cannot decide. Phrases `(but might need to be|too big\?|may need to split)` OR 3-4 workstreams at boundary | `scope_kind: ambiguous`, `scope_signals`, `recommended_scope_kind`, OQ `confirm_scope_kind` | Clarifying question. May emit draft with `pending_scope_confirmation: true`. |
-| FM-11 — Schema validation failure | banking_grade row `status: null`, story without ACs (no `insufficient_information`), P1 without `required_resolution`, stakeholder ref not in registry | `output_type: schema_validation_failure`, `validation_errors`, `partial_output_available` | Never emit malformed brief. Return errors to orchestrator. Retry with gap-fill prompt; on retry fail, human implementer. |
+| FM-11 — Schema validation failure | banking_grade row `status: null`, story without ACs (no `insufficient_information`), P1 without `required_resolution`, stakeholder ref not in registry | `output_type: schema_validation_failure`, `validation_errors`, `partial_output_available` | Never emit malformed brief. Return errors to the caller. Retry with gap-fill prompt; on retry fail, human implementer. |
 | FM-12 — Ground-truth annotation strip failed | Preprocessing detected block AND strip errored / boundary overlap / multiple blocks / substring survived | `output_type: preprocessing_failure`, `failure_code: ground_truth_strip_failed`, `do_not_proceed: true` | Refuse to produce any brief. Return failure code. Never proceed to AC generation — would constitute fabrication. |
 | FM-13 — PII detected in output path | Post-generation scan finds unredacted PII regex hit; scrubbed `<PII:REDACTED:CLASS=X>` allowed | `output_type: pii_echo_blocked`, `detected_pii`, `auto_redaction_attempted`, `manual_review_required` | Auto-redact; if clean, emit redacted brief. If redaction fails (token cannot be confidently classed), escalate to human BA. |
 | FM-14 — Count consistency | OQ-table header N differs from row count; `stakeholders[]` enumeration missing an `absent` row referenced by a `governance_gap`; `epics[].story_ids[]` cardinality differs from `stories[]` per epic | Schema-validation error with cell-level diff; refuse emit | Re-run Step 5 (stakeholder enumeration) and Step 12 (assembly counts). |
@@ -141,4 +137,4 @@ Progressive disclosure — load only what each step needs:
 - `references/bilingual-emission.md` (v1.4.0+) — contract for producing multilingual briefs: which fields require `translations[<lang>]` entries, fallback behavior, sub-agent prompt guidance, and verification checklist. Loaded at Step 12 when `processing_metadata.bilingual_output` lists more than one language.
 - `references/ui-strings.json` (v1.4.1+) — renderer-emitted UI string translations per language (section headings, labels, table headers). Consulted by `scripts/render_markdown_tree.py`'s `t(key)` helper when rendering non-English language trees. Missing keys fall back to the English source.
 
-Project-context resources (BA best practices, epic-and-stories.template.md) live at the parent project root and are not loaded by the skill; downstream Stage 2 (TL design) consumes them directly.
+Project-context resources (BA best practices, epic-and-stories.template.md) live at the parent project root and are not loaded by the skill; the downstream TL-design step consumes them directly.

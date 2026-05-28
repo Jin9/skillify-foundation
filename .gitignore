@@ -9,3 +9,6 @@
 
 # Ignore the tmp directory
 /tmp
+
+# Ignore timestamped treasury backups
+/treasury.backup-*

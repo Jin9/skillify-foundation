@@ -1,0 +1,55 @@
+{
+  "stage": "extraction",
+  "stage_status": "complete",
+  "source_type": "jira",
+  "parsing_mode": "structured",
+  "scope_kind": "single-epic",
+  "epics": [
+    {
+      "id": "EPIC-WIRE-STATUS",
+      "title": "Wire Status Notifications",
+      "problem_statement": "Customers and agents need consistent status handling for wire transfers that cannot complete immediately.",
+      "workstream": "wire status",
+      "source_refs": ["JIRA-321 Description"]
+    }
+  ],
+  "stories": [
+    {
+      "id": "EPIC-WIRE-STATUS-1",
+      "epic_id": "EPIC-WIRE-STATUS",
+      "title": "Notify Customer Of Pending Wire",
+      "story_candidate": "As a customer, I need a neutral status when a wire is pending review so I know what to do next.",
+      "split_axis": "workflow_step",
+      "raw_acceptance_signals": ["Show neutral status message", "Do not mention sanctions or AML"],
+      "source_refs": ["JIRA-321 AC-1"]
+    }
+  ],
+  "out_of_scope_deferred": [
+    {
+      "topic": "mobile push template",
+      "deferral_reason": "mobile channel named as phase 2",
+      "owner_for_future": "Mobile Owner",
+      "source_ref": "JIRA-321 Comment-4"
+    }
+  ],
+  "glossary_candidates": [
+    {
+      "term": "AML",
+      "surface_form": ["AML"],
+      "possible_definition": "Anti-money-laundering compliance workflow",
+      "pii_sensitivity": "regulatory"
+    }
+  ],
+  "extraction_notes": [
+    {
+      "severity": "info",
+      "message": "One workstream with customer-facing notification constraints.",
+      "source_ref": "JIRA-321 Description"
+    }
+  ],
+  "processing_metadata": {
+    "ground_truth_stripped": {
+      "found": false
+    }
+  }
+}

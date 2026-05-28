@@ -25,7 +25,7 @@ A report is the output of a 6-stage pipeline, run at `depth=deep`:
 3. **extract-findings** — pull findings with source/citation IDs.
 4. **synthesize-report** — write the report from findings.
 5. **review-report** — quality/verification pass.
-6. **report-run** — finalize and publish the run.
+6. **reporting-research-run** — finalize and publish the run.
 
 The 172 reports were produced across 6 batch phases (May 2026).
 

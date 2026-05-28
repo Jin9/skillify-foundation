@@ -1,0 +1,80 @@
+{
+  "template_version": "0.1.0",
+  "review_kind": "reviewer-l1",
+  "component_name": "catalog",
+  "skills_invoked": ["expert-software-security-reviewer", "simplify"],
+  "verdict": "block",
+  "summary": "Catalog backend has solid hot-zone hygiene where it counts: product.list SQL is fully parameterized with $1..$7 (storage_product.go:179-206) and ORDER BY is built from a validated SortOption enum, pagination bounds are enforced at the handler (page>=1, limit 1..100), admin endpoints sit behind the JWT middleware group with handler-level role re-check (handler_product_create.go:56-64), and the product.create transaction correctly co-locates products + product_images + product_status_history + outbox_events INSERTs in a single pgx.Tx via the Querier interface (service.go:179-263) — outbox atomicity is intact. Two issues block: (1) the inStock filter is unwired in code despite being a hot-zone requirement — the TD mandates 504 UPSTREAM_TIMEOUT on inventory failure but the service silently returns an unfiltered list, contradicting the documented contract and creating a latent over-disclosure of OOS items to storefront; (2) the outbox relay goroutine is spawned without panic recovery, so any panic in relayTick (e.g., a future malformed payload, nil pgx pool deref, kafka producer panic) tears down the entire HTTP server. Three medium findings round out: outbox FetchPending releases its FOR UPDATE row locks the moment rows.Close() runs because there is no enclosing tx — the comment overstates the guarantee and a 2-replica deploy will publish duplicates (consumer dedup on eventId still holds, so this is correctness-soft but contract-misleading); the ADMIN role check is duplicated in every handler instead of being a middleware (a future admin endpoint that forgets the inline check accepts CUSTOMER tokens silently); and price ingress is float64 in the DTO and formatted via fmt.Sprintf(\"%.2f\") — acceptable for THB MVP but documented as a known sub-cent drift risk. QA-L1 has already flagged the three code_mismatch items (price-as-string in response, search>200 truncation, broken admin detection on the public detail route) — I do not duplicate those here.",
+  "findings": [
+    {
+      "id": "REV-CATALOG-001",
+      "severity": "high",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "app/catalog/handler_product_list.go:181-190 + app/catalog/service.go:125-130",
+      "description": "The inStock filter is parsed off the request, propagated into ProductListFilter, and then dropped on the floor — both handler_product_list.go and service.go contain only TODO comments where the inventory.stock.bulk-read call should run. When a caller sends inStock=true the handler returns the unfiltered ACTIVE+visible page, directly contradicting td.json product.list edge_behavior which mandates UPSTREAM_TIMEOUT (504) on inventory unavailability and explicitly forbids 'silently return an unfiltered list'. There is also no internal/client/inventory.go file — the inventory client module the TD names does not exist. This is a hot-zone failure (the task brief lists 'safe handling of inStock-filter on inventory timeout' as a hot zone) and a contract violation: storefront callers receive OOS products tagged as available, with no way to distinguish 'inStock=true was honored' from 'inStock=true was silently ignored'.",
+      "recommendation": "Either (a) wire inventory.stock.bulk-read with a 2s common/httpclient timeout, filter items with availableQty>0, and return UPSTREAM_TIMEOUT (504) on inventory 503/timeout per td.json edge_behavior; or (b) if Inventory is genuinely not yet reachable from this service in the workflow's run order, fail fast at the handler with UPSTREAM_TIMEOUT (504) and a clear log line whenever filter.InStock!=nil && *filter.InStock — never silently ignore. Option (b) is the smaller diff and preserves the contract guarantee at MVP scope; option (a) is the production fix. Update the README.md note from 'partially implemented' to either 'wired' or 'rejects inStock=true with 504' to match.",
+      "cwe_refs": ["CWE-840", "CWE-754", "ASVS-V5.1.4"]
+    },
+    {
+      "id": "REV-CATALOG-002",
+      "severity": "high",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "main.go:83 + main.go:114-191",
+      "description": "startOutboxRelay is launched as a bare goroutine (`go startOutboxRelay(ctx, outboxStorage, d.Producer, relayInterval, cfg.Kafka.Enabled)`) with no defer/recover. The defer recover() at main.go:92-96 only protects the main goroutine running srv.ListenAndServe — gin.Recovery() only protects HTTP handler goroutines. A panic anywhere in relayTick (nil deref against a future malformed pgx row, kafka client panic on broker reset, JSON unmarshal of a corrupt payload row reaching map type-assert, etc.) propagates up and kills the entire process — the Postgres pool, the HTTP server, and the storefront browse path all go down even though no HTTP traffic was the trigger. This is the same root cause that the run 01 reviewer flagged (CAT-L1-001) and it is unchanged in run 02.",
+      "recommendation": "Wrap the relay goroutine in defer/recover that logs panic value + runtime/debug.Stack() and continues. Pattern: at the top of startOutboxRelay add `defer func() { if r := recover(); r != nil { slog.Error(\"outbox relay: panic\", \"panic\", r, \"stack\", string(debug.Stack())) } }()`. For a single bad row not to tear down the loop, also wrap the relayTick body in the ticker.C case in a self-recovering closure. Tested via unit injection of a producer that panics on first Send — assert the goroutine logs and the next tick still runs.",
+      "cwe_refs": ["CWE-755", "CWE-248", "ASVS-V11.1.4"]
+    },
+    {
+      "id": "REV-CATALOG-003",
+      "severity": "medium",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "app/catalog/access/storage_outbox.go:55-79 (FetchPending) + main.go:138-191 (relayTick)",
+      "description": "FetchPending runs `SELECT ... FOR UPDATE SKIP LOCKED` directly against the *pgxpool.Pool, not inside a transaction. pgx returns the connection to the pool as soon as rows.Close() runs (the deferred Close at line 68); the implicit single-statement transaction commits and the row locks are released immediately. MarkPublished then runs on a fresh connection. Net: between the FetchPending tick and the MarkPublished bulk update, a second relay (e.g., a 2-replica deploy or a hot-reload restart overlap) is free to SELECT the same rows. At-least-once semantics still hold because the inventory consumer dedups on eventId (UUID v7) per td.json events.produced.consumer note, but the comment 'prevent concurrent relay instances from processing the same row' (storage_outbox.go:53-54) is misleading and the duplicate-publish window is silently real. This is exactly the run 01 finding CAT-L1-003 and it remains unfixed.",
+      "recommendation": "Run FetchPending + Kafka send + MarkPublished inside a single pgx.Tx so the FOR UPDATE locks span the entire publish cycle: `tx, _ := s.db.Begin(ctx); defer tx.Rollback(ctx); rows := tx.Query(...FOR UPDATE SKIP LOCKED...); /* send each */; tx.Exec(\"UPDATE ... WHERE id = ANY($1)\", ids); tx.Commit(ctx)`. Bound batch size at 100 (already done) so the lock-during-Kafka-send window stays small. Alternatively, if at-least-once + consumer dedup is acceptable as the explicit posture, rewrite the comment to say so and remove the implication that FOR UPDATE provides cross-call isolation. Either fix is acceptable; the tx-spanning version matches the TD's stated intent and is the safer long-term default.",
+      "cwe_refs": ["CWE-362", "CWE-820"]
+    },
+    {
+      "id": "REV-CATALOG-004",
+      "severity": "medium",
+      "diagnosis_tag": "code_security_issue",
+      "routes_to": "Dev",
+      "locus": "router/router.go:65-82 + app/catalog/handler_product_create.go:56-64",
+      "description": "The admin route group attaches middleware.JWT(parser, verifier) which (per common/middleware) verifies signature, issuer, audience, and expiry — but does NOT enforce role. Each admin handler then re-reads claims.Extra[\"role\"] and 403s if not ADMIN. This works as defense-in-depth for the three currently-implemented handlers, but four admin handlers (UpdateProduct, SoftDeleteProduct, CreateCategory, UpdateCategory, DeactivateCategory) are stubs that return 501 without ever checking the role — a CUSTOMER token presented to /api/v1/catalog/product/update gets the 501 instead of a 403, so today the leakage is just an information-disclosure of which routes exist. The latent bug is that any future admin endpoint added to adminGroup that forgets the inline role check accepts CUSTOMER tokens silently because the middleware does not enforce role centrally — privilege-escalation-by-omission. This is run 01 finding CAT-L1-004 and is unchanged.",
+      "recommendation": "Add a thin RequireRole(\"ADMIN\") middleware (in common/middleware or local to catalog) and chain it after JWT on adminGroup: `adminGroup.Use(middleware.JWT(parser, verifier), middleware.RequireRole(\"ADMIN\"))`. Then drop the per-handler claims.Extra[\"role\"] check (keep the claims.Sub extraction for actor_user_id auditing). Add a regression test that a CUSTOMER token to /api/v1/catalog/product/create returns 403 before any handler logic runs (handler call counter does not increment).",
+      "cwe_refs": ["CWE-285", "CWE-862", "ASVS-V4.2.1", "API5:2023"]
+    },
+    {
+      "id": "REV-CATALOG-005",
+      "severity": "medium",
+      "diagnosis_tag": "latent_bug",
+      "routes_to": "Dev",
+      "locus": "app/catalog/handler_product_create.go:24 (DTO) + handler_product_create.go:98-107 (price handling) + handler_product_list.go:236-238 (formatDecimal)",
+      "description": "CreateProductRequest.Price is typed `float64` and converted to NUMERIC via `fmt.Sprintf(\"%.2f\", req.Price)`. Float64 cannot represent decimal fractions exactly (19.99 → 19.989999999999998); for THB at 2-decimal granularity %.2f rounds half-to-even cleanly in the cases tested but the JSON ingress still binds float64. The CHECK (price > 0) at the DB does NOT catch a price submitted as 0.001 — Sprintf rounds it to '0.00' which then fails the CHECK with a generic insert error mapped to 500, not 400 VALIDATION_ERROR. More subtly, a price of 19.999 silently rounds up to 20.00 with no caller-visible signal. Same float64 plumbing is in handler_product_list.go formatDecimal for filter min/max — a min=0.001 silently becomes 0.00 in the parameterized arg.",
+      "recommendation": "Bind price (and minPrice/maxPrice) as `json.Number` or `string` at the request DTO; parse via `shopspring/decimal.NewFromString`; reject anything with > 2 decimal places or <= 0 with VALIDATION_ERROR before the SQL. Pattern matches the access layer which already stores price as string. Property test prices in {0.001, 0.01, 19.99, 12345.67, 9999999.99} round-trip exactly through create→detail. If MVP scope must keep float64, document the residual risk in README and add explicit `if v < 0.01 { reject }` so under-cent values never silently round to a CHECK violation.",
+      "cwe_refs": ["CWE-681", "CWE-1339"]
+    },
+    {
+      "id": "REV-CATALOG-006",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": null,
+      "locus": "main.go:92-96 (HTTP server panic recover) + main.go:195-202 (extractSKU)",
+      "description": "Two observability gaps. (1) main.go's `defer recover()` for ListenAndServe logs the panic value but does not capture runtime/debug.Stack() — root-causing a production HTTP-server panic without the stack is hard. (2) extractSKU swallows json.Unmarshal errors silently and returns empty string, which falls through to round-robin Kafka partitioning with no log line and no metric. A corrupt outbox payload row would silently cost ordering guarantees on the inventory consumer side without operator visibility.",
+      "recommendation": "(1) `slog.Error(\"HTTP server panicked\", \"panic\", rec, \"stack\", string(debug.Stack()))`. (2) Add `slog.Warn(\"outbox relay: payload missing sku — partition key empty\", \"outbox_id\", row.ID)` on the unmarshal-error and missing-sku paths in extractSKU (will need plumbing the outbox_id through, or move the extract into relayTick where row.ID is in scope). Both are visibility-only — no behavior change.",
+      "cwe_refs": ["CWE-778", "CWE-754", "ASVS-V8.1.1"]
+    },
+    {
+      "id": "REV-CATALOG-007",
+      "severity": "low",
+      "diagnosis_tag": "code_quality_issue",
+      "routes_to": null,
+      "locus": "router/router.go:60 (publicGroup.POST(\"/list\", h.ListCategories))",
+      "description": "category.list is registered in the public route group with no JWT gate. Per td.json AMB-CAT-002 the activeOnly=false branch is intended to require admin in the post-MVP target state but ships open in MVP. The handler is currently a 501 stub so there is no live exposure today; the concern is that un-stubbing without adding the gate would leak inactive-category metadata to any caller. Not sensitive data but flagged so the gate question is settled before the handler goes live.",
+      "recommendation": "When implementing category.list, either (a) ignore activeOnly=false from non-admin callers (force true server-side), or (b) split into public /api/v1/catalog/category/list (active-only) and admin /api/v1/catalog/admin/category/list (full). Option (a) is the smaller MVP fix and preserves a single route. Document in README either way.",
+      "cwe_refs": ["CWE-200", "ASVS-V4.1.1"]
+    }
+  ]
+}

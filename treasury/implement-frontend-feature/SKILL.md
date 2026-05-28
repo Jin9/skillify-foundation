@@ -1,6 +1,5 @@
 ---
 name: implement-frontend-feature
-version: 1.0.0
 description: >
   Generate production-grade React/TypeScript code for one frontend feature from
   an approved UI design, with banking-grade discipline: WCAG 2.1 AA a11y, no
@@ -14,14 +13,16 @@ description: >
   without component logic. Do NOT use for greenfield architecture decisions
   (defer to design-frontend-feature). Do NOT use for infrastructure or build
   tooling. Do NOT use for fixing existing UI bugs (use generate-frontend-fix).
-stage_type: generate
-status: ready-for-phase-6
-input_schema: schemas/input.json
-output_schema: schemas/output.json
-banking_grade: {idempotent: true, reversible: soft, audit_level: detailed}
-expected_duration_p95_seconds: 180
-max_retries_recommended: 2
-compatibility: claude-code, codex, opencode
+compatibility: [claude-code, codex, opencode]
+metadata:
+  version: 1.0.0
+  stage_type: generate
+  status: ready-for-phase-6
+  input_schema: schemas/input.json
+  output_schema: schemas/output.json
+  banking_grade: {idempotent: true, reversible: soft, audit_level: detailed}
+  expected_duration_p95_seconds: 180
+  max_retries_recommended: 2
 ---
 
 # Implement Frontend Feature
@@ -29,9 +30,9 @@ compatibility: claude-code, codex, opencode
 ## Purpose
 
 Take a single approved frontend design and emit production-grade React /
-TypeScript code plus companion tests for one Generate stage in the frontend
-Dev workflow (`COGNITIVE_OS.md` Phase 6+). Owns code synthesis only —
-analysis, design, review, and validation live in sibling atomic skills.
+TypeScript code plus companion tests for one frontend code-generation pass.
+Owns code synthesis only — analysis, design, review, and validation live in
+sibling atomic skills.
 Banking-grade non-negotiables apply on every output: WCAG 2.1 AA a11y,
 TypeScript strict, no auth token in `localStorage`, no unsanitized HTML
 injection, design-token-only styling, generated API types, PII field-level
@@ -41,8 +42,8 @@ treatment, analytics events at user-significant actions.
 
 - Use when: implementing a React component, page, or feature module from an
   approved UI design.
-- Use when: a workflow stage of `type: generate` selects this skill for a
-  TypeScript / React target package.
+- Use when: a code-generation step selects this skill for a TypeScript /
+  React target package.
 - Use when: a design specifies a11y, PII, and token-storage requirements and
   the next stage is code emission.
 - Do NOT use when: the target is backend, infra, or pure CSS.
@@ -143,7 +144,7 @@ Output MUST validate against `schemas/output.json`. Structured fields:
 | `bundle_impact_estimate_kb` | number | Best-effort estimate. Over `bundle_budget_kb` triggers `uncertainty_flag`. |
 | `compensating_actions` | array | Required for any mutation path (optimistic UI rollback, undo affordance, idempotent retry). Empty for read-only. |
 | `audit_events_emitted` | array of event-type strings | Every user-significant action contributes one entry. Empty only for display-only components. |
-| `uncertainty_flags` | array of `{kind, location, note}` | Non-empty triggers downstream `loop_back`. |
+| `uncertainty_flags` | array of `{kind, location, note}` | Non-empty signals a downstream `loop_back` (revision request). |
 | `decision_metadata` | object `{pillar_choices, state_library_choices, repo_conventions_followed}` | For audit. |
 
 ## Failure Modes
@@ -156,7 +157,7 @@ Output MUST validate against `schemas/output.json`. Structured fields:
 | Cannot meet WCAG `AA` (e.g., design requires gradient text under 4.5:1) | Step 6 a11y | `loop_back` to design — a11y is a BLOCKER, not a warning |
 | Cannot generate component test for an interaction | Step 7 | `loop_back` to design (component is over-scoped or untestable as drawn) |
 | Generated code introduces an XSS / CSRF / token-storage / PII-leak surface without mitigation | Step 8 self-review | `human-queue` — security NO is never `loop_back` |
-| Bundle impact exceeds `bundle_budget_kb` | Step 9 | `uncertainty_flag` of kind `bundle_overrun`, verdict deferred to Review stage |
+| Bundle impact exceeds `bundle_budget_kb` | Step 9 | `uncertainty_flag` of kind `bundle_overrun`, verdict deferred to the review step |
 | Self-review finds NO on type-safety / state / a11y / security | Step 8 | First NO on security / PII: `human-queue`; everything else: `loop_back` |
 
 ## Anti-Patterns
