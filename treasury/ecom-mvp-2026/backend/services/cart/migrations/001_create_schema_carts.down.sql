@@ -1,3 +1,0 @@
--- Rollback 001
-DROP TABLE IF EXISTS cart.carts;
-DROP SCHEMA IF EXISTS cart;

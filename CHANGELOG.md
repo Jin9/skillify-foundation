@@ -4,13 +4,12 @@
 
 ### Added
 
-- Expanded the treasury catalog from 36 committed skills to 93 top-level skills.
-- Added new treasury skill folders across banking delivery, architecture, testing, orchestration, research, operations, and domain product-pack workflows.
-- Added the ShopPilot `ecom-mvp-2026` domain product pack and supporting artifacts.
+- Expanded the treasury catalog from 36 committed skills to 92 top-level skills.
+- Added new treasury skill folders across banking delivery, architecture, testing, orchestration, research, and operations workflows.
 
 ### Changed
 
-- Refreshed the root README and `treasury/README.md` to use the 93-skill purpose-group catalog.
+- Refreshed the root README and `treasury/README.md` to use the 92-skill purpose-group catalog.
 - Renamed focused treasury skills for clearer action-oriented names:
   - `business-analysis-flow` -> `running-business-analysis-workflow`
   - `requirement-analysis` -> `scoping-technical-requirements`
@@ -27,3 +26,7 @@
 
 - Added valid YAML frontmatter to the Go service refactoring skill.
 - Added `.gitignore` coverage for timestamped treasury backup directories.
+
+### Removed
+
+- Removed the ShopPilot `ecom-mvp-2026` domain product pack from the treasury.

@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-93 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+92 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -13,8 +13,7 @@
 | [Security, Governance & Compliance](#security-governance-compliance) | 5 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 6 |
 | [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 7 |
-| [Domain Product Packs](#domain-product-packs) | 1 |
-| **Total** | **93** |
+| **Total** | **92** |
 
 ---
 
@@ -173,16 +172,6 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`rendering-readable-html`](./rendering-readable-html/) | Render structured content the agent already has - tabular data, a markdown or plain-text report, or findings produced this session - into one clean, self-contained,... | existing treasury | references · scripts · templates · examples |
 | [`thai-translator`](./thai-translator/) | Translates English documents into structurally identical bilingual (Thai/English) documents. Use when the user asks to 'translate to thai', 'mirror this document in... | business-analyse | examples |
 
-## Domain Product Packs (1)
-
-Packaged product-domain skill bundles and generated domain packs.
-
-| Skill | Purpose | Source family | Extra assets |
-|-------|---------|---------------|--------------|
-| [`ecom-mvp-2026`](./ecom-mvp-2026/) | Design and build 7 backend services plus a Thai-language mobile customer web frontend that fulfill ShopPilot MVP's brow… | squad-example | references · templates · tests · .squad-run · ADVISORY.md · KNOWN_ISSUES.md · PLAN_NOTES.md · backend · design · frontend · requirement |
-
----
-
 ## Alphabetical Index
 
 | Skill | Purpose Group | Source family |
@@ -213,7 +202,6 @@ Packaged product-domain skill bundles and generated domain packs.
 | [`domain-modeling`](./domain-modeling/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`drafting-ba-stories`](./drafting-ba-stories/) | Banking, BA Delivery & Requirements | business-analyse |
 | [`drafting-stage-prompt`](./drafting-stage-prompt/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
-| [`ecom-mvp-2026`](./ecom-mvp-2026/) | Domain Product Packs | squad-example |
 | [`eliciting-banking-brief`](./eliciting-banking-brief/) | Banking, BA Delivery & Requirements | business-analyse |
 | [`engineer-growth-planning`](./engineer-growth-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`engineering-doc-planning`](./engineering-doc-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
