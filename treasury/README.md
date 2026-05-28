@@ -50,6 +50,7 @@ Design, modeling, planning, and engineering decision support.
 | [`data-modeling`](./data-modeling/) | Design the persistence model safely (schema, source of truth, indexes, constraints) with an expand/contract migration and rollback plan that preserves backward... | business-analyse | — |
 | [`defining-engineering-standards`](./defining-engineering-standards/) | Define and own the team's reusable standard — tech-stack baseline, DDD domain boundaries, a C4 L3/L4 design skeleton, API naming and folder/layer conventions, and... | business-analyse | — |
 | [`delivery-planning`](./delivery-planning/) | Break a chosen solution into a sequenced, estimated execution plan — tasks, critical path, blockers, and a phased timeline honest enough to tell the business. Use... | business-analyse | — |
+| [`designing-tech-lead-handoff`](./designing-tech-lead-handoff/) | Convert an approved BA epic-and-stories brief plus a UX design pack into the full Tech-Lead architecture handoff: integration contracts, component map, infra spec,... | squad-delivery | audit · references · schemas · templates · tests |
 | [`domain-modeling`](./domain-modeling/) | Defines domain boundaries and DDD building blocks so ownership is clear, the model matches the business, and domain logic stays separate from infrastructure. Use... | business-analyse | — |
 | [`engineer-growth-planning`](./engineer-growth-planning/) | Grows an engineer — runs useful 1-on-1s, chooses teach-by-doing vs teach-by-telling, spots underperformance early, delegates to build capability, and reviews... | business-analyse | — |
 | [`engineering-doc-planning`](./engineering-doc-planning/) | Decides what to document and what to deliberately skip, for which audience, keeping docs minimal, findable, and actionable across ADRs, C4 design docs, API... | business-analyse | — |
@@ -63,7 +64,6 @@ Design, modeling, planning, and engineering decision support.
 | [`risk-estimation`](./risk-estimation/) | Size complexity and separate known work from unknown risk, producing a man-day estimate with an explicit confidence and uncertainty multiplier plus the assumptions... | business-analyse | — |
 | [`technical-debt-management`](./technical-debt-management/) | Classify technical debt, prioritize it by business risk and cost-of-delay, make the dangerous debt visible, and negotiate a fix budget with PM/business. Use when... | business-analyse | — |
 | [`technical-feasibility`](./technical-feasibility/) | Decides whether and how a requirement is buildable on the current stack, surfacing the options, dependencies, and risks before anyone commits to a design or a date.... | business-analyse | — |
-| [`tl-design-from-brief`](./tl-design-from-brief/) | Convert an approved BA epic-and-stories brief plus a UX design pack into the full Tech-Lead architecture handoff: integration contracts, component map, infra spec,... | squad-delivery | audit · references · schemas · templates · tests |
 
 ## Implementation, Platform Templates & Code Review (12)
 
@@ -197,6 +197,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`data-modeling`](./data-modeling/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`defining-engineering-standards`](./defining-engineering-standards/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`delivery-planning`](./delivery-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
+| [`designing-tech-lead-handoff`](./designing-tech-lead-handoff/) | Architecture, Engineering Decisions & Planning | squad-delivery |
 | [`developing-langgraph-workflows`](./developing-langgraph-workflows/) | Agent Orchestration & Workflow Infrastructure | langgraph-claude-agent |
 | [`devops-infrastructure-hardener`](./devops-infrastructure-hardener/) | Security, Governance & Compliance | existing treasury |
 | [`domain-modeling`](./domain-modeling/) | Architecture, Engineering Decisions & Planning | business-analyse |
@@ -265,7 +266,6 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`technical-feasibility`](./technical-feasibility/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`testing-strategy`](./testing-strategy/) | Testing, QA & Validation | business-analyse |
 | [`thai-translator`](./thai-translator/) | Code Analysis, Productivity & Publishing | business-analyse |
-| [`tl-design-from-brief`](./tl-design-from-brief/) | Architecture, Engineering Decisions & Planning | squad-delivery |
 | [`universal-spec-validator`](./universal-spec-validator/) | Security, Governance & Compliance | existing treasury |
 | [`validating-banking-implementation`](./validating-banking-implementation/) | Testing, QA & Validation | squad-delivery |
 

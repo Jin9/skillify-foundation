@@ -51,7 +51,7 @@ adrs_referenced: [ADR-NNN]
 estimated_complexity: low | medium | high
 blocking_oqs: []
 created_at: <ISO-8601>
-created_by: tl-design-from-brief-<version>
+created_by: designing-tech-lead-handoff-<version>
 ---
 ```
 

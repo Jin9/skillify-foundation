@@ -1,11 +1,11 @@
-# Test harness guide — tl-design-from-brief
+# Test harness guide — designing-tech-lead-handoff
 
 > Named `harness-guide.md` (NOT `README.md`): `scripts/quick_validate.py`
 > `BANNED_DOCS` refuses any skill folder containing `README.md` at any depth.
 
 ## What the cases assert
 
-`tl-design-from-brief` is generative — output is NOT byte-comparable. Cases
+`designing-tech-lead-handoff` is generative — output is NOT byte-comparable. Cases
 assert **structure and invariants**, not exact bytes:
 
 1. `cases/001-*.input.json` validates against `schemas/input.json`.

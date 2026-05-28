@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://cognitive-os/skills/tl-design-from-brief/output.json",
-  "title": "tl-design-from-brief output contract",
-  "description": "Authoritative, exhaustive output contract for the tl-design stage. The pipeline-boundary schema integration/schemas/tl-design.json is a permissive superset of this one (it enforces only required_fields: component_map, api_contracts, audit_id). additionalProperties:false everywhere except contract payload_shape (free-form per tech-lead-contracts template). oneOf discriminator on output_type: design / partial_design / blocked_design. api_contracts and component_map shapes are lifted byte-faithful from templates/tech-lead-contracts.md and templates/tech-lead-components.md so backend/frontend implement+review stages consume them unchanged.",
+  "$id": "https://cognitive-os/skills/designing-tech-lead-handoff/output.json",
+  "title": "designing-tech-lead-handoff output contract",
+  "description": "Authoritative, exhaustive output contract for the designing-tech-lead-handoff stage. The pipeline-boundary schema integration/schemas/designing-tech-lead-handoff.json is a permissive superset of this one (it enforces only required_fields: component_map, api_contracts, audit_id). additionalProperties:false everywhere except contract payload_shape (free-form per tech-lead-contracts template). oneOf discriminator on output_type: design / partial_design / blocked_design. api_contracts and component_map shapes are lifted byte-faithful from templates/tech-lead-contracts.md and templates/tech-lead-components.md so backend/frontend implement+review stages consume them unchanged.",
   "type": "object",
   "additionalProperties": false,
   "required": ["output_type", "audit_id", "processing_metadata"],
@@ -285,7 +285,7 @@
       "additionalProperties": false,
       "required": ["skill_name", "skill_version", "started_at", "completed_at", "tier", "mode"],
       "properties": {
-        "skill_name": { "type": "string", "const": "tl-design-from-brief" },
+        "skill_name": { "type": "string", "const": "designing-tech-lead-handoff" },
         "skill_version": { "type": "string" },
         "started_at": { "type": "string", "format": "date-time" },
         "completed_at": { "type": "string", "format": "date-time" },

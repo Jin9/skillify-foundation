@@ -1,15 +1,15 @@
 # Assertion — downstream consumability
 
-`delivery-pipeline.yaml` wires tl-design outputs into four stages. On a
+`delivery-pipeline.yaml` wires designing-tech-lead-handoff outputs into four stages. On a
 `design` output, assert each selected field exists with a consumable shape:
 
-- `backend-implement.input.from_stage.tl-design: [api_contracts, component_map]`
+- `backend-implement.input.from_stage.designing-tech-lead-handoff: [api_contracts, component_map]`
   → both present, `api_contracts` is the tech-lead-contracts shape,
   `component_map` is the tech-lead-components shape.
-- `backend-review.input.from_stage.tl-design: [api_contracts]` → present.
-- `frontend-implement.input.from_stage.tl-design: [api_contracts, component_map]`
+- `backend-review.input.from_stage.designing-tech-lead-handoff: [api_contracts]` → present.
+- `frontend-implement.input.from_stage.designing-tech-lead-handoff: [api_contracts, component_map]`
   → both present.
-- `frontend-review.input.from_stage.tl-design: [api_contracts]` → present.
+- `frontend-review.input.from_stage.designing-tech-lead-handoff: [api_contracts]` → present.
 - Stage `required_fields: [component_map, api_contracts, audit_id]` ⊆ the
   emitted top-level keys; `audit_id` is a uuid.
 

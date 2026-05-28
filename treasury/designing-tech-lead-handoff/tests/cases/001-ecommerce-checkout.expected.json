@@ -1,5 +1,5 @@
 {
-  "_comment": "SHAPE SKELETON, not a byte-equality fixture. tl-design-from-brief is generative; assert top-level key presence + types + the assertions/ invariants only. A clean ready-for-tl single-epic checkout brief (multi-aggregate + compensation + temporal signals) should yield output_type=design with one orchestrator (orch-checkout).",
+  "_comment": "SHAPE SKELETON, not a byte-equality fixture. designing-tech-lead-handoff is generative; assert top-level key presence + types + the assertions/ invariants only. A clean ready-for-tl single-epic checkout brief (multi-aggregate + compensation + temporal signals) should yield output_type=design with one orchestrator (orch-checkout).",
   "output_type": "design",
   "component_map": {
     "template_version": "0.1.0",
@@ -110,7 +110,7 @@
   "open_questions": [],
   "audit_id": "00000000-0000-4000-8000-000000000001",
   "processing_metadata": {
-    "skill_name": "tl-design-from-brief",
+    "skill_name": "designing-tech-lead-handoff",
     "skill_version": "0.1.0",
     "started_at": "2026-05-17T00:00:00Z",
     "completed_at": "2026-05-17T00:05:00Z",

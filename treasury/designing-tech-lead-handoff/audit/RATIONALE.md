@@ -1,4 +1,4 @@
-# RATIONALE — tl-design-from-brief
+# RATIONALE — designing-tech-lead-handoff
 
 > **Audience**: humans reviewing the skill before merge / promotion.
 > **Not loaded into LLM context.** Skills load `SKILL.md` + `references/`;
@@ -9,6 +9,15 @@
 > (the procedure spec), `reference/squad-flow-snapshot/docs/roles.md`
 > (Tech-Lead emission order), and the templates under
 > `reference/squad-flow-snapshot/docs/templates/`.
+>
+> **Rename note (2026-05-28).** Renamed `tl-design-from-brief` →
+> `designing-tech-lead-handoff`; pipeline stage `tl-design` →
+> `designing-tech-lead-handoff` and failure queue `tl-design-pending` →
+> `designing-tech-lead-handoff-pending`. The external `integration/` wiring
+> (`delivery-pipeline.yaml` stage id + skill path, `integration/schemas/tl-design.json`,
+> the `tl-design.skill_version` pin) lives outside this repo and must be updated
+> there for the rename to take effect end-to-end. Old tokens and external
+> scaffold/pipeline paths below are preserved as authoring-time provenance.
 
 ## 1. Why this skill exists
 

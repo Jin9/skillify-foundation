@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://cognitive-os/skills/tl-design-from-brief/input.json",
-  "title": "tl-design-from-brief input contract",
-  "description": "Input for the tl-design stage. Consumes the ba-analyze brief fields (epic|epics+initiative, stories, governance_gaps) and the ux-intake path strings (tokens_path, route_map_path, component_inventory_path) plus the workflow idempotency_key. The Epic/Story/Stakeholder/AcceptanceCriterion/BankingGradeRow/GovernanceGap/Translations definitions are inline-copied byte-faithful from ba-squad/skills/eliciting-banking-brief/schemas/output.json @ v1.4.x \u2014 keep in sync; drift is caught by tests/assertions/. No cross-file $ref is used because the orchestrator hands values across the stage boundary, not files (no artifact-handoff skill exists yet \u2014 see WORKFLOW_GAP_ANALYSIS GAP-03).",
+  "$id": "https://cognitive-os/skills/designing-tech-lead-handoff/input.json",
+  "title": "designing-tech-lead-handoff input contract",
+  "description": "Input for the designing-tech-lead-handoff stage. Consumes the ba-analyze brief fields (epic|epics+initiative, stories, governance_gaps) and the ux-intake path strings (tokens_path, route_map_path, component_inventory_path) plus the workflow idempotency_key. The Epic/Story/Stakeholder/AcceptanceCriterion/BankingGradeRow/GovernanceGap/Translations definitions are inline-copied byte-faithful from ba-squad/skills/eliciting-banking-brief/schemas/output.json @ v1.4.x \u2014 keep in sync; drift is caught by tests/assertions/. No cross-file $ref is used because the orchestrator hands values across the stage boundary, not files (no artifact-handoff skill exists yet \u2014 see WORKFLOW_GAP_ANALYSIS GAP-03).",
   "type": "object",
   "additionalProperties": false,
   "required": [

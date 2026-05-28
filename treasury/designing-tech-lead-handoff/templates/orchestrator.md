@@ -35,7 +35,7 @@ timeout_seconds: <int>
 compensation_required: true | false
 retry_policy: <time-based-delay | batch-inquiry | selective-replay>
 created_at: <ISO-8601>
-created_by: tl-design-from-brief-<version>
+created_by: designing-tech-lead-handoff-<version>
 ---
 ```
 

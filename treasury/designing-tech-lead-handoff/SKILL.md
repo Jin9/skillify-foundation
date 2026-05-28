@@ -1,5 +1,5 @@
 ---
-name: tl-design-from-brief
+name: designing-tech-lead-handoff
 description: >
   Convert an approved BA epic-and-stories brief plus a UX design pack into the
   full Tech-Lead architecture handoff: integration contracts, component map,
@@ -18,19 +18,10 @@ description: >
   (planning-banking-tests), greenfield architecture chat
   (architecting-fintech-systems), or inputs not past the BA ready-for-tl gate.
 compatibility: [claude-code, codex, opencode]
-metadata:
-  version: 0.1.0
-  stage_type: design
-  input_schema: schemas/input.json
-  output_schema: schemas/output.json
-  banking_grade: {idempotent: true, reversible: n/a, audit_level: enhanced, tier_default: T2, tier_adaptable: [T1, T2, T3]}
-  expected_duration_p95_seconds: 300
-  max_retries_recommended: 0
-  recommended_temperature: {T1: 0.1, T2: 0.2, T3: 0.4}
-  tier_review_levels: {T1: [L0, L1, L2], T2: [L0, L1, L2], T3: [L0, L1]}
+metadata: {version: 0.1.0, stage_type: design, input_schema: schemas/input.json, output_schema: schemas/output.json, banking_grade: {idempotent: true, reversible: n/a, audit_level: enhanced, tier_default: T2, tier_adaptable: [T1, T2, T3]}, expected_duration_p95_seconds: 300, max_retries_recommended: 0, recommended_temperature: {T1: 0.1, T2: 0.2, T3: 0.4}, tier_review_levels: {T1: [L0, L1, L2], T2: [L0, L1, L2], T3: [L0, L1]}}
 ---
 
-# Skill: Tech-Lead Design From Brief
+# Skill: Designing Tech-Lead Handoff
 
 ## Purpose
 
@@ -47,7 +38,7 @@ artifacts per context.
 ## When to use this skill
 
 - Use: a BA `eliciting-banking-brief` output with `frontmatter.status:
-  ready-for-tl` and a `generate-ux-pack` pack is available; the `tl-design`
+  ready-for-tl` and a `generate-ux-pack` pack is available; the `designing-tech-lead-handoff`
   pipeline stage fires.
 - Use: per-story L4 fan-out after a master pass (`mode: spec`).
 - Do NOT use: BA elicitation, code generation, review, QA test design, or
@@ -182,18 +173,18 @@ entries (contracts.json, components.json, the 4 MD docs, `ADRs/`,
 
 | ID | Trigger | Output | Route |
 |---|---|---|---|
-| FM-TL-01 | BA not ready-for-tl / P1 governance unresolved | `blocked_design` `BLOCK-BA-NOT-READY`/`BLOCK-P1-GOVERNANCE` | tl-design-pending |
-| FM-TL-02 | UX contract incomplete (no tokens.json / route-map) | `blocked_design` `BLOCK-UX-CONTRACT` | tl-design-pending |
-| FM-TL-03 | Orphan contract dependency (component cites non-existent contract_name) | `partial_design` + structural finding | tl-design-pending |
-| FM-TL-04 | Vague contract (`idempotency_rules:"Idempotent"`, `failure_modes:["Various"]`, async w/o partition key) | `partial_design` + per-contract finding | tl-design-pending |
-| FM-TL-05 | Command/event naming violation | block offending L4; `partial_design` | tl-design-pending |
+| FM-TL-01 | BA not ready-for-tl / P1 governance unresolved | `blocked_design` `BLOCK-BA-NOT-READY`/`BLOCK-P1-GOVERNANCE` | designing-tech-lead-handoff-pending |
+| FM-TL-02 | UX contract incomplete (no tokens.json / route-map) | `blocked_design` `BLOCK-UX-CONTRACT` | designing-tech-lead-handoff-pending |
+| FM-TL-03 | Orphan contract dependency (component cites non-existent contract_name) | `partial_design` + structural finding | designing-tech-lead-handoff-pending |
+| FM-TL-04 | Vague contract (`idempotency_rules:"Idempotent"`, `failure_modes:["Various"]`, async w/o partition key) | `partial_design` + per-contract finding | designing-tech-lead-handoff-pending |
+| FM-TL-05 | Command/event naming violation | block offending L4; `partial_design` | designing-tech-lead-handoff-pending |
 | FM-TL-06 | Unjustified Orchestrator (no signal) OR missing Orchestrator (signal present) | architecture-smell; revise or ADR | inline |
-| FM-TL-07 | Output fails `schemas/output.json` | hard fail — `max_retries:0` → straight to human-queue | tl-design-pending |
+| FM-TL-07 | Output fails `schemas/output.json` | hard fail — `max_retries:0` → straight to human-queue | designing-tech-lead-handoff-pending |
 | FM-TL-08 | UX route↔story coverage gap | non-blocking `coverage_gaps[]` | inline |
 
 Note: this skill is configured with `max_retries: 0` / `on_failure:
 human-queue` — there is no retry budget; any hard failure escalates to a
-human (the caller's `tl-design-pending` queue or equivalent).
+human (the caller's `designing-tech-lead-handoff-pending` queue or equivalent).
 
 ## Anti-Patterns
 
