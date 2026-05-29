@@ -8,7 +8,7 @@ description: >
   calibrated confidence, and one integrated answer to the proposition framed
   for the audience. This is an OPEN moderator (it sees panelist_id) — so it
   MUST judge only on the rubric + grounding evidence, never by which model
-  said what, and must emit an explicit no-favoritism self-check. Use as the
+  said what, and must emit an explicit no-favoritism self-check. Use when the workflow runs the
   synthesize-consensus stage of workflows/brainstorm.yaml. Single-pass; it
   merges, it does not re-debate. Do NOT use to argue or critique.
 compatibility: claude-code, codex, copilot, gemini, antigravity
@@ -20,7 +20,7 @@ inputs:
   - { name: debate_brief,     type: object, required: true,  source: stages.frame-debate.debate_brief,                 description: "proposition, contested questions, rubric, grounding flag" }
   - { name: grounding_pack,   type: object, required: true,  source: stages.frame-debate.grounding_pack,               description: "the same [g-n] closed world the panel used" }
   - { name: audience,         type: string, required: false, source: workflow.inputs.audience,                         description: "frames the final answer's tone/vocabulary" }
-  - { name: final_positions,  type: array,  required: true,  source: stages.revise-positions.revised_positions ?? stages.panel-open.positions, description: "attributed last-round positions (panelist_id visible)" }
+  - { name: final_positions,  type: array,  required: true,  source: "stages.revise-positions.revised_positions ?? stages.panel-open.positions", description: "attributed last-round positions (panelist_id visible)" }
   - { name: debate_exchanges, type: array,  required: true,  source: stages.cross-examine.critiques,                   description: "attributed critiques across all rounds ([] when rounds=quick)" }
 outputs:
   - { name: answer,      type: string, description: "the single integrated final answer, audience-framed, [g-n] cited" }

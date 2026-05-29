@@ -7,7 +7,7 @@ description: >
   stats table, content metrics, file inventory, a short distillation
   paragraph from the final report, and the top risks copied from
   review_notes. Use as the final stage of the researcher workflow, or as
-  a standalone replay against an existing run directory. Trigger phrases:
+  a standalone replay against an existing run directory. Triggers on:
   "generate run report", "summarise this run", "produce RUN_REPORT.md".
   Do NOT use to author research content, extract claims, re-review the
   report, or replace any earlier stage. Graceful when metrics.json is

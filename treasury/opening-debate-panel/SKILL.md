@@ -8,7 +8,7 @@ description: >
   proposition and every contested question, citing only [g-n] items from the
   grounding pack and naming the strongest counterargument to its own view.
   The panelist does NOT see any other panelist's output at this stage
-  (independence prevents early herding). Use as the panel-open stage of
+  (independence prevents early herding). Use when the workflow runs the panel-open stage of
   workflows/brainstorm.yaml. Do NOT critique peers (cross-examine), revise
   (revise-positions), or merge (synthesize-consensus). One panelist, one
   call, one position object.

@@ -9,7 +9,7 @@ description: >
   success_criteria), the panel roster echo, and a self-contained grounding
   pack the panel CLIs argue against. Degrades to a free-form topic +
   source_text brief when no researcher artifacts are present. Use as the
-  frame-debate stage of workflows/brainstorm.yaml, or when asked to "set up
+  frame-debate stage of workflows/brainstorm.yaml. Use when asked to "set up
   a debate on X", "turn this research into a debate brief", "frame the
   contested questions". One stage = one LLM call; no clarifying-question
   loops, no recursion. Do NOT use to argue a position (opening-debate-panel), critique
