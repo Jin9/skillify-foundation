@@ -26,6 +26,15 @@ Skills shape agent behavior. Treat every installed skill like executable influen
    - Unused skills waste context window space
    - Review installed skills quarterly
 
+## Provenance and Supply Chain (installed or third-party skills)
+
+Skills are increasingly distributed through package managers and registries (for example `npx skills add` via skills.sh, or `gh skill` for GitHub-hosted skills). Treat an installed skill as untrusted code until reviewed:
+
+1. **Inspect before install.** Read the `SKILL.md` and every file under `scripts/` at the source before adding the skill, not after.
+2. **Check provenance.** Prefer skills that record their origin (source repository plus a pinned ref or commit) and a declared license. Unsourced or unlicensed skills are higher risk.
+3. **Pin versions.** Install a fixed version or commit rather than a moving `latest`, and re-review on upgrade.
+4. **Re-run the audits above.** Apply the exfiltration, destructive-command, and vendor-bias checks to the installed copy — registry presence is not a safety guarantee.
+
 ## Frontmatter Security Rules
 
 - **No XML angle brackets** (`<` `>`) in frontmatter. They can inject instructions into the system prompt.

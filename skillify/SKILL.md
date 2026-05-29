@@ -22,10 +22,8 @@ Create, improve, and validate focused `SKILL.md` files plus the minimum supporti
 
 ## Scope Boundary
 
-- Produce skill folders, `SKILL.md` files, references, templates, scripts, assets, examples, or skill review reports.
-- Do not generate the downstream artifact that a requested skill would later produce.
-- Do not edit repo-policy files such as `AGENTS.md`, `CLAUDE.md`, or `.github/copilot-instructions.md` unless the user explicitly asks for platform-policy adaptation.
-- Do not handle one-off prompts that do not need a reusable skill.
+- Produce skill folders, `SKILL.md` files, references, templates, scripts, assets, examples, or skill review reports — engineering `SKILL.md` *workflows*, not custom-agent personas, tool permissions, or model selection (see `references/platform-compatibility.md`).
+- For what this skill must not do, see Constraints.
 
 ## Modes
 
@@ -140,6 +138,7 @@ Finish with the mode-specific report fields:
 ## Constraints
 
 - DO NOT generate the target artifact when the user asked for a skill that would generate it.
+- DO NOT handle one-off prompts or system-prompt files that do not need a reusable skill.
 - DO NOT edit `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, or other repo-policy files unless the user explicitly asks for platform-policy adaptation.
 - DO NOT modify or delete files in Review or Audit modes.
 - DO NOT invent trigger phrases, target users, or output contracts when the user has not provided them; ask once first.
@@ -151,7 +150,7 @@ For frontmatter rules (kebab-case names, reserved-vendor-name ban, no XML angle 
 
 ## Troubleshooting
 
-- **Stuck after three iteration passes**: stop, surface the remaining blocker, and ask the user before continuing.
+- **Stuck after the iteration cap** (see `references/mode-playbooks.md`): stop, surface the remaining blocker, and ask the user before continuing.
 - For under-triggering, over-triggering, scope creep, context bloat, execution drift, validation drift, platform drift, and staleness, see the Signal-to-Action map in `references/lifecycle-and-iteration.md`.
 
 ## References

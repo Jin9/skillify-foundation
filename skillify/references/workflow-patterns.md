@@ -188,6 +188,30 @@ ELSE:
 
 ---
 
+## Cross-Cutting Techniques
+
+These apply across patterns; reach for them when a skill calls tools, will be reused by other skills, or retries.
+
+### Observation–action loop (tool-using skills)
+
+When a skill drives external tools, do not fix the whole plan up front. Alternate: take one concrete action, read the observation, then revise the plan before the next action. This keeps the skill responsive to real tool output instead of a stale plan.
+
+### Composition contract (reusable skills)
+
+A skill that other skills or agents will call should state its contract:
+
+- **Preconditions** — what must be true before it runs.
+- **Postconditions** — what is guaranteed true after it succeeds.
+- **Failure output** — the structured signal it returns when it cannot succeed.
+
+Explicit contracts let skills compose without the caller reading the body.
+
+### Bounded failure capture (retrying skills)
+
+When a skill retries, cap attempts (default 3), record a one-line lesson per failed attempt, and carry only recent lessons forward. State an escalation path for when the cap is hit instead of looping.
+
+---
+
 ## Choosing Your Pattern
 
 | Pattern | Best For | Degree of Freedom |

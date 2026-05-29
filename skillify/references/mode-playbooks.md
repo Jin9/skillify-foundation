@@ -48,7 +48,7 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 3. Move that content to one-level-deep reference files with clear ownership.
 4. Replace moved content with one-line pointers from `SKILL.md`.
 5. Delete duplicate content instead of keeping both versions.
-6. Run `scripts/check_links.py` and re-check the `SKILL.md` line count.
+6. Run the Validation gate from `SKILL.md` and re-check the `SKILL.md` line count.
 7. Stop when `SKILL.md` is under the user-specified budget or, if no budget was given, under 350 lines and 5,000 tokens. Do not compress further than that without confirmation.
 8. Report the reduction and any behavior risk introduced by compression.
 
@@ -59,7 +59,7 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 3. Propose the new skill names, descriptions, and negative triggers before moving content; wait for user approval on names before creating folders.
 4. Create separate skill folders and allocate references to the one skill that owns them.
 5. Add sibling negative triggers where over-triggering is likely.
-6. Run validation on each new folder.
+6. Run the Validation gate from `SKILL.md` on each new folder.
 7. Report the mapping from old content to new skills and identify anything intentionally dropped.
 
 ## Merge
@@ -69,7 +69,7 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 3. If merging is justified, choose the clearest name and unify the trigger phrases. If neither original name covers the merged scope, propose a new name and announce that all incoming pointers will need updating; wait for user approval before creating the folder.
 4. Deduplicate references and keep each topic in exactly one file.
 5. Preserve negative triggers for tasks that were intentionally left out.
-6. Validate the merged skill against the one-responsibility rule; abort if it becomes a "do everything" skill.
+6. Run the Validation gate from `SKILL.md` on the merged skill, then validate it against the one-responsibility rule; abort if it becomes a "do everything" skill.
 7. Report merged files, removed duplicates, and any rejected source content.
 
 ## Adapt
@@ -80,4 +80,4 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 4. Preserve workflow logic and replace vendor/tool-specific language with generic tool capability names.
 5. For Codex packaging, document any needed `agents/openai.yaml` UI metadata: `display_name`, `short_description`, and `default_prompt`.
 6. Add or update a concise `compatibility:` field when the target platform supports it.
-7. Run validation and report platform-specific caveats.
+7. Run the Validation gate from `SKILL.md` and report platform-specific caveats.

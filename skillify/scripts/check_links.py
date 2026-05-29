@@ -13,7 +13,7 @@ from pathlib import Path
 # A bare path token in prose (e.g. "examples/framing" meaning "examples and
 # framing") is not a link and must not be treated as a missing resource.
 RESOURCE_RE = re.compile(
-    r"`(?P<path>(?:references|templates|scripts|assets|examples)/[A-Za-z0-9._/\-]+(?:#[A-Za-z0-9._\-]+)?)`"
+    r"`(?P<path>(?:references|templates|scripts|assets|examples|platforms)/[A-Za-z0-9._/\-]+(?:#[A-Za-z0-9._\-]+)?)`"
 )
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((?P<target>[^)]+)\)")
 

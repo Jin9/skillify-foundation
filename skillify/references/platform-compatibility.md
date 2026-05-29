@@ -6,6 +6,17 @@ platform metadata. Repo instruction files such as `AGENTS.md`,
 `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` are
 always-on policy files, not substitutes for an on-demand skill.
 
+## Skill vs Adjacent Surfaces
+
+A `SKILL.md` is one of several host configuration surfaces. Keep them distinct; do not fold one into another:
+
+- **Skill** — a repeatable, triggered *workflow*. This is what skillify engineers.
+- **Custom agent / subagent** — a persistent *persona* with its own tool permissions and model preference. It answers "who should act," not "how to perform this task."
+- **Always-on rules** (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) — durable repository *conventions*.
+- **Memory** — ephemeral, session-scoped *facts*.
+
+A request about a persona, tool permissions, or model choice is custom-agent work, not a `SKILL.md`.
+
 ## Compatibility Matrix
 
 | Platform | User skill locations | Project skill locations | Always-on rules | Activation |
@@ -32,6 +43,15 @@ always-on policy files, not substitutes for an on-demand skill.
 - Prefer `.agents/skills/<name>/` for repository-scoped cross-agent skills.
 - Copy the whole skill folder, not only `SKILL.md`; referenced `scripts/`, `templates/`, and `platforms/` must travel with it.
 - Keep repo policy in always-on rule files. Keep repeatable workflows in `SKILL.md`.
+
+## Activation Mechanisms
+
+Beyond `description`-based implicit loading, some hosts add explicit activation controls. When adapting a skill, map to the host's mechanism instead of assuming description-only loading:
+
+- **Windsurf** uses `activation_mode`: `always_on`, `model_decision` (description-driven, the default), `glob` (path-matched), or `manual`.
+- **Cline** uses a `paths:` glob list to scope activation to matching files; Claude Code's `paths:` field gives the same path-conditional effect.
+
+Treat these as host-specific rule-surface controls, not portable frontmatter; isolate them per the Adapt mode.
 
 ## Adapting Across Platforms
 

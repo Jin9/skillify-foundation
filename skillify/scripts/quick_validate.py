@@ -174,6 +174,25 @@ def validate(skill_dir: Path) -> list[str]:
             if path.is_file() and path.parent != references_dir:
                 errors.append(f"references must be one level deep: {path.relative_to(skill_dir)}")
 
+    # Compatibility/platform cross-check: runs ONLY when a platforms/ dir is present
+    # (skillify-internal cross-host install assets). For each KNOWN host alias in the
+    # `compatibility:` field, require a matching platforms/<host>.md. Unknown or
+    # runtime tokens (e.g. "opencode", "requires network") are ignored, so generated
+    # skills without a platforms/ dir are never affected by this check.
+    platforms_dir = skill_dir / "platforms"
+    if platforms_dir.is_dir():
+        host_alias_files = {
+            "claude-code": "claude.md",
+            "codex": "codex.md",
+            "copilot": "copilot.md",
+            "gemini": "gemini.md",
+            "antigravity": "antigravity.md",
+        }
+        for token in re.split(r"[,\s]+", fields.get("compatibility", "")):
+            expected = host_alias_files.get(token.strip())
+            if expected and not (platforms_dir / expected).is_file():
+                errors.append(f"compatibility lists '{token.strip()}' but platforms/{expected} is missing")
+
     return errors
 
 

@@ -68,6 +68,14 @@ metadata:
 | `metadata.short-description` | string | Short description for UI display |
 | `agents/openai.yaml` | file | UI metadata: `display_name`, `short_description`, `default_prompt` |
 
+## Portability Tiers
+
+Not every field travels across hosts. Classify a field before relying on it:
+
+- **Required (all hosts):** `name`, `description`.
+- **Portable-optional:** `compatibility`, `metadata`, `when_to_use` — widely understood or safely ignored, so they are safe to keep in a cross-host skill.
+- **Host-specific:** the Advanced fields above (`allowed-tools`, `model`, `effort`, `context`, `paths`, `hooks`, `argument-hint`, and the Codex `metadata.short-description` / `agents/openai.yaml`). Useful on their host, ignored or unsupported elsewhere — keep them out of skills meant to run everywhere, or isolate them per the Adapt mode.
+
 ## Security Restrictions
 
 - No XML angle brackets (`<` `>`) in frontmatter
