@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://qa-bootstrap-kit/skills/planning-banking-tests/schemas/input.json",
+  "$id": "https://skillify-treasury/skills/planning-banking-tests/schemas/input.json",
   "title": "planning-banking-tests input v1.0.0",
   "type": "object",
   "additionalProperties": false,

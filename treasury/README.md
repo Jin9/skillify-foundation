@@ -1,11 +1,11 @@
 # Treasury — Production Skill Library
 
-92 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+91 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
 | [Banking, BA Delivery & Requirements](#banking-ba-delivery-requirements) | 14 |
-| [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 20 |
+| [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 19 |
 | [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 12 |
 | [Testing, QA & Validation](#testing-qa-validation) | 4 |
 | [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 10 |
@@ -13,7 +13,7 @@
 | [Security, Governance & Compliance](#security-governance-compliance) | 5 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 6 |
 | [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 7 |
-| **Total** | **92** |
+| **Total** | **91** |
 
 ---
 
@@ -38,7 +38,7 @@ Business-analysis workflows for regulated banking and delivery handoffs.
 | [`scoping-technical-requirements`](./scoping-technical-requirements/) | Turns a messy business requirement into a clear, bounded technical scope a team can safely act on, surfacing the open questions and non-functional requirements that... | business-analyse | — |
 | [`sweep-ambiguities`](./sweep-ambiguities/) | Detect linguistic ambiguities and hidden requirements in a structured banking brief using the eight ambiguity detectors and ten elicitation frames. Use when a user... | craft | references · templates · examples |
 
-## Architecture, Engineering Decisions & Planning (20)
+## Architecture, Engineering Decisions & Planning (19)
 
 Design, modeling, planning, and engineering decision support.
 
@@ -57,7 +57,6 @@ Design, modeling, planning, and engineering decision support.
 | [`generate-ux-pack`](./generate-ux-pack/) | Produce a v1.1 UX-design intake pack from a UX team's drop (bundled prototype HTML, Frontend Spec markdown, BA brief directory). Emits a structured... | squad-delivery | references · schemas · RATIONALE.md |
 | [`integration-design`](./integration-design/) | Design resilient integration with an external/3rd-party system (timeouts, retries, fallback, error mapping, idempotency, and a clear ownership/support model) so... | business-analyse | — |
 | [`model-selection`](./model-selection/) | Assign each agent or stage in an agentic workflow a model and reasoning effort by criteria — a privacy/data-class gate, capability-to-role match,... | business-analyse | — |
-| [`model-selection-updated`](./model-selection-updated/) | Assign each agent or stage in an agentic workflow a model and reasoning effort by criteria — a privacy/data-class gate, capability-to-role match,... | craft | — |
 | [`pr-design-review`](./pr-design-review/) | Review a PR's design and maintainability — business-logic completeness, test coverage, over-engineering, and template conformance — returning tagged, teachable... | business-analyse | — |
 | [`production-readiness`](./production-readiness/) | Verify a feature is safe to ship — observability, rollback, runbook, migration safety, and a passing smoke test — and return a clear go / no-go / conditional... | business-analyse | — |
 | [`refactor-decision`](./refactor-decision/) | Decide whether a refactor is necessary, bound its scope, protect existing behavior with tests first, and avoid cosmetic refactors that have no business reason. Use... | business-analyse | — |
@@ -220,7 +219,6 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`incident-response`](./incident-response/) | Observability, Cost & Incident Operations | business-analyse |
 | [`integration-design`](./integration-design/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`model-selection`](./model-selection/) | Architecture, Engineering Decisions & Planning | business-analyse |
-| [`model-selection-updated`](./model-selection-updated/) | Architecture, Engineering Decisions & Planning | craft |
 | [`multi-agent-handoff-architect`](./multi-agent-handoff-architect/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
 | [`observability-design`](./observability-design/) | Observability, Cost & Incident Operations | business-analyse |
 | [`observability-telemetry-instrumenter`](./observability-telemetry-instrumenter/) | Observability, Cost & Incident Operations | existing treasury |

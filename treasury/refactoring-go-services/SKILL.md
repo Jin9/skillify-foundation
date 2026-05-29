@@ -109,6 +109,18 @@ During refactoring tasks, execute the following strict loop. DO NOT batch unrela
 
 ---
 
+## 7. Output Contract
+
+Per refactoring iteration, report exactly:
+
+1. **Smell + action** — the one detected smell and the single technique chosen for it (e.g. "Orchestrator leak → Move Function to Domain + Extract Function").
+2. **Minimal diff** — only the lines changed for that one action, as a unified diff or a fenced before/after snippet. No unrelated edits.
+3. **Behavior preserved — evidence** — the verification actually run: tests executed and their result, or `go build` / `go vet` status, plus one line on why behavior is unchanged. If you could not run them, say so explicitly and state what the reviewer must run.
+
+When no smell remains, emit a **stop line**: `Refactor complete — <file/package> aligned to <target layer>; N iterations; behavior preserved (verified by <tests/build>).` Do not continue past "good enough".
+
+---
+
 ### Appendix: Go-Style Pseudo Refactor
 
 **Smell: Primitive Obsession & Orchestrator Leak**
@@ -131,6 +143,15 @@ func (s *Service) ProcessAccount(balance float64, currency string, accountType s
 type Money struct {
     Amount   float64
     Currency string
+}
+
+func (m Money) Subtract(o Money) Money {
+    return Money{Amount: m.Amount - o.Amount, Currency: m.Currency}
+}
+
+type Account struct {
+    Type    AccountType
+    Balance Money // was: balance float64 — primitive promoted to a value object
 }
 
 func (a *Account) ApplyMonthlyFee() {

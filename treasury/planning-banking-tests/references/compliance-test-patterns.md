@@ -130,4 +130,4 @@ To add a new regulator (example placeholder for `GDPR-EU`):
 - `tier-aware-test-policy.md` — depth of compliance coverage per tier.
 - `test-data-design.md` — synthetic data rules for PII used in compliance tests.
 - `anti-patterns.md` — full AP-Q1..AP-Q12 catalogue.
-- Holdout source: `/Users/IF640063/Desktop/example/qa-bootstrap-kit/e-commerce-v5/output-e5f8b9c2/06-regulatory-dependencies.md` and `05-pii-inventory.md`.
+- Holdout source: `qa-holdout/e-commerce-v5/output-e5f8b9c2/06-regulatory-dependencies.md` and `05-pii-inventory.md`.

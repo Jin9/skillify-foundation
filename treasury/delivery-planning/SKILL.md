@@ -1,7 +1,7 @@
 ---
 name: delivery-planning
 description: >
-  Break a chosen solution into a sequenced, estimated execution plan — tasks, critical path, blockers, and a phased timeline honest enough to tell the business. Use when the user asks to "break this into tasks", "estimate this work", "what's the critical path", or "plan the delivery / timeline". Applies a disciplined estimation process, complexity multipliers, and the no-estimate-on-volatile-requirements rule, ending at a human commit gate. Do NOT use for sizing complexity and unknown-risk before a date.
+  Break a chosen solution into a sequenced, estimated execution plan — tasks, critical path, blockers, and a phased timeline honest enough to tell the business. Use when the user asks to "break this into tasks", "estimate this work", "what's the critical path", or "plan the delivery / timeline". Applies a disciplined estimation process, complexity multipliers, and the no-estimate-on-volatile-requirements rule, ending at a human commit gate. Do NOT use to size raw complexity or unknown-risk before a date is committed — that is `risk-estimation`.
 ---
 
 # delivery-planning
