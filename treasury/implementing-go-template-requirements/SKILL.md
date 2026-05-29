@@ -27,9 +27,24 @@ Use this skill to translate **one requirement** into code inside a Go service th
 
 ## 1. When to use this skill
 
-Trigger on a pasted requirement/spec/ticket/bug asking for an implementation in this repo: "implement this requirement in the go-template service", "add this endpoint per spec without touching infra", "fix this bug, business logic only", "wire up this Kafka event", "implement spec.md item N", "extend `<domain>` to satisfy `<requirement>`", or "refactor `<handler|consumer|service>` to address a named smell from `references/fowler-patterns.md` §4 (God Handler, Long Parameter List, Too Many Returns, Feature Envy)".
+Trigger on:
 
-Do NOT use for: creating a new service from scratch; changing middleware, security headers, CORS, timeouts, or Gin engine setup; modifying `main.go`, `config/`, `router/deps.go`, `Makefile`, `Dockerfile`, CI, `.scripts/`, `.golangci.yaml`, `.mockery.yaml`, `.env.template`; frontend/Terraform/Kubernetes/non-Go work; or "clean this up" requests with no named §4 smell (ask which smell applies; if none, decline).
+- "implement this requirement in the go-template service"
+- "add this endpoint per spec without touching infra"
+- "fix this bug, business logic only"
+- "wire up this Kafka event from the requirement"
+- "implement spec.md item N"
+- "extend `<domain>` to satisfy `<requirement>`"
+- "refactor `<handler|consumer|service>` to address a named smell from `references/fowler-patterns.md` §4 (God Handler, Long Parameter List, Too Many Returns, Feature Envy, etc.)"
+- A user message that pastes a requirement/spec/ticket and asks for an implementation in this repo
+
+Do NOT use for:
+
+- Creating a new service from scratch (use a scaffolding skill or copy `go-template` manually).
+- Changing middleware, security headers, CORS, timeouts, or the Gin engine setup.
+- Modifying `main.go`, `config/`, `router/deps.go`, `Makefile`, `Dockerfile`, CI pipelines, `.scripts/`, `.golangci.yaml`, `.mockery.yaml`, `.env.template`.
+- Frontend, Terraform, Kubernetes, non-Go work.
+- "Clean this up while we're here" requests with no named smell from `references/fowler-patterns.md` §4. Ask the user which smell applies; if none, decline.
 
 ---
 
@@ -45,7 +60,16 @@ Three zones. Every edit must be classified before it is made.
 
 > The ALLOWED file prefixes realise Fowler's Repository (`storage_*`), Cache (`cache_*`), Gateway (`client_*`), Service Layer (`service_*`), and Domain Model patterns. `router/deps.go` is the Composition Root (FORBIDDEN). See `references/fowler-patterns.md` for the cross-walk and the small-safe-steps refactoring discipline that applies when extending handler/consumer code.
 
-**STOP triggers** — when the requirement crosses the scaffold boundary (new infra/SDK client, new env var, logging/signal/shutdown change, anything touching `go.mod`, `Dockerfile` base image, middleware, or CI), surface the conflict, name the forbidden files, and ask the user to confirm the scaffold delta before continuing. Do not silently edit forbidden files. The full STOP-trigger list, per-file rationale, and the two-path STOP handling are authoritative in `references/scaffold-lock-policy.md`.
+**STOP triggers** — these signal the requirement crosses the scaffold boundary and you must ask before proceeding:
+
+- New infrastructure: new database, cache, queue, external HTTP service that needs a new SDK client.
+- New env var that does not fit an existing config struct branch.
+- Change to logging behavior, signal handling, or graceful shutdown.
+- Anything that would change `go.mod`, `Dockerfile` base image, or CI steps.
+
+When a STOP fires: surface the conflict, name the forbidden files involved, and ask the user to confirm the scaffold delta before continuing. Do not silently edit forbidden files.
+
+Full rationale per file: `references/scaffold-lock-policy.md`.
 
 ---
 
@@ -78,17 +102,39 @@ Run these in order. Every step has an entry and exit condition.
 - Exit: a clean edit plan, all files classified.
 
 **Step 5 — Implement file deltas in dependency order.**
-- Entry: clean edit plan from Step 4. Match the requirement to one recipe (add-endpoint / add-consumer / add-storage-method / fix-bug / new-domain / refactor) and follow its exact ordered file set, templates, and narrow-wiring step in `references/implementation-recipe.md`.
-- Exit: every file in the recipe's set is written and follows naming + style conventions.
+- Entry: clean edit plan from Step 4.
+- Order:
+  1. `app/<domain>/access/storage_<dep>.go` — interface + unexported impl + domain model + sentinel errors, co-located. Use `templates/storage.go.tmpl`.
+  2. `app/<domain>/access/cache_<dep>.go` or `client_<dep>.go` if requirement calls for them.
+  3. `app/<domain>/handler.go` — extend `HandlerConfig` and `handler` ONLY if a new dependency must be injected.
+  4. `app/<domain>/handler_<action>.go` — use `templates/handler.go.tmpl`.
+  5. `app/<domain>/consumer_<action>.go` — use `templates/consumer.go.tmpl`.
+  6. `app/<domain>/service_<action>.go` — split orchestration/business logic OUT of the handler/consumer and **group it here** so the boundary stays thin (bind → call `h.<action>(ctx, …)` → map error→HTTP → respond). Extract whenever the handler runs multi-step orchestration — not only when the logic is reused. The helper is an unexported `*handler` method. See `references/fowler-patterns.md` §2.
+  7. Narrow edit `router/router.go` — add `register<Domain>Routes(r, d)` call and function. Do not touch anything else.
+  8. Narrow edit `router/subscriber.go` — add the event handler entry inside `registerEventRoutes`. Do not touch consumer-group lifecycle.
+  9. `spec.md` — document the new endpoint/event in the existing format. Do not reformat unrelated sections.
+- Exit: every file in the plan is written and follows naming + style conventions.
 
 **Step 6 — Regenerate mocks.**
-- Entry: access-layer interfaces changed. Run `mockery` (existing `.mockery.yaml`, do not edit it); never hand-edit `app/<domain>/access/mocks/mocks.go`.
+- Entry: access-layer interfaces changed (added/removed/renamed methods).
+- Run `mockery` (using the repo's existing `.mockery.yaml` — do not edit it).
+- Never hand-edit `app/<domain>/access/mocks/mocks.go`.
 - Exit: mocks are current.
 
-**Step 7 — Write tests.**
+**Step 7 — Write tests (handlers, consumers, and services only).**
 - Entry: handler/consumer/service code complete.
-- One test file per code file (`handler_<action>_test.go`, `consumer_<action>_test.go`). Use the `mockArgs`/`args`/`want`/`prepare` table-driven shape and the per-branch coverage rules (every `if err != nil`, every required-field case, model-getter parse failures, consumer invalid-JSON + validation cases) authoritative in `references/testing-pattern.md`. Templates: `templates/handler_test.go.tmpl`, `templates/consumer_test.go.tmpl`.
-- Exit: `go test -race -cover ./app/<domain>/...` reports 100% statement coverage in `app/<domain>/` (excluding generated `mocks/`).
+- **Unit-test scope**: `handler_<action>.go`, `consumer_<action>.go`, and `service_<action>.go`. **Out of scope**: the constructor (`NewHandler`/`New*`), the access layer (`storage_*`/`cache_*`/`client_*`), generated `mocks/`, and domain-model getters. Do not write unit tests for those under this skill — access adapters are exercised indirectly at the boundary.
+- One test file per in-scope code file: `handler_<action>_test.go`, `consumer_<action>_test.go`, `service_<action>_test.go`.
+- **Test package by layer**:
+  - Boundary tests (handler/consumer) → external `package <domain>_test`; they call **exported** methods (`h.<Action>`, `h.On<Action>`). Use `templates/handler_test.go.tmpl` / `templates/consumer_test.go.tmpl`.
+  - Service tests → internal `package <domain>`; service helpers are **unexported** `*handler` methods reachable only from inside the package. Use `templates/service_test.go.tmpl`. `package <domain>` and `package <domain>_test` test files coexist in the same directory.
+- Pattern (all layers): `mockArgs` / `args` / `want` local types + `prepare(m, args)` closure + table-driven cases. Full pattern in `references/testing-pattern.md`.
+- Cover every branch:
+  - HTTP handler: success, each missing-required-field case, every `if err != nil` from access/service calls, model-getter parse failures (a bad UUID that makes `GetID()` fail) — these cover the **handler's** error branch, not the getter itself.
+  - Kafka consumer: success, invalid JSON payload, validation failure (missing required fields), uuid parse failure, each `if err != nil` from access calls.
+  - Service helper: success, each sentinel error it returns (assert with `errors.Is`), every `if err != nil` from access calls.
+- Target: **100% statement coverage of in-scope functions** in the `app/<domain>/` package — constructors and the `access/` sub-package are excluded from the gate.
+- Exit: the coverage command in `references/testing-pattern.md` (which filters out `/access/` and `New*`) prints nothing.
 
 **Step 8 — Run the verification gate.**
 - Entry: code + tests complete.
@@ -107,30 +153,78 @@ Run these in order. Every step has an entry and exit condition.
 
 ## 4. Naming and style — load-bearing conventions
 
-The prefix-name rule: the **type prefix comes first** in the filename — `handler_<action>.go`, `consumer_<action>.go`, `service_<action>.go`, `storage_<dep>.go`, `cache_<dep>.go`, `client_<dep>.go`. Never `<action>_handler.go` or `<dep>_storage.go`. `access/` files **co-locate** interface + unexported impl + domain model + sentinel errors + constants in a single file — no separate `model.go`/`errors.go`/`constants.go`.
+The type prefix comes **first** in the filename. Never `<action>_handler.go` or `<dep>_storage.go`.
 
-All other conventions (prefix↔Fowler-pattern cross-walk, package/import rules, constructor-returns-interface, context-first, error wrapping, the `(ctx, ≤3 params) (T, error)` signature shape and its Long-Parameter-List / Too-Many-Returns triggers, `wrapper`/`kafka.BindMessage`/event-name/`slog` rules) are authoritative in `references/naming-conventions.md`. Refactor mechanics: `references/fowler-patterns.md` §4–§5.
+| Prefix | Purpose | Fowler pattern | Example |
+|---|---|---|---|
+| `handler_<action>.go` | HTTP endpoint method on `*handler` | (boundary; DTOs live here) | `handler_create.go` |
+| `consumer_<action>.go` | Kafka event handler method on `*handler` | (boundary) | `consumer_paid.go` |
+| `service_<action>.go` | Private service helper extracted from a handler/consumer | Service Layer | `service_authenticate_google.go` |
+| `storage_<dep>.go` | Persistence repository (Firestore, MySQL, S3) | Repository | `storage_member.go` |
+| `cache_<dep>.go` | Cache repository (Redis, Memcached) | Cache | `cache_product.go` |
+| `client_<dep>.go` | External API gateway | Gateway | `client_google.go` |
+
+`access/` files **co-locate** interface + unexported impl + domain model + sentinel errors + constants in a **single file**. NO separate `model.go`, `errors.go`, or `constants.go` inside `access/`.
+
+Other rules (full list in `references/naming-conventions.md`):
+
+- **Service files group extracted logic.** When you split functions out of a handler/consumer, move them into `service_<action>.go` as unexported `*handler` methods and keep the boundary thin. Each `service_<action>.go` ships a matching `service_<action>_test.go` in the internal `package <domain>`. See `references/fowler-patterns.md` §2.
+- One package per aggregate under `app/`. **No cross-domain imports** — domains communicate via Kafka events.
+- Constructor returns the **interface**; impl struct is **unexported**. Compile-time check: `var _ Interface = (*impl)(nil)`.
+- Context first: `func(ctx context.Context, ...)` on every I/O method.
+- Errors at access layer: `fmt.Errorf("...: %w", err)`. Errors at handler/consumer layer: `serror.Wrap(err).With(slog.String(...))`.
+- **Function signature shape**: `func (recv *T) Name(ctx context.Context, p1, p2, p3 T) (Result, error)`. Max **3 parameters after `ctx`** — 4+ is a Long Parameter List smell and triggers **Introduce Parameter Object** (`<Action>Params` struct) or **Preserve Whole Object**. Return arity defaults to **`(T, error)`**; the only allowed exceptions are `(T, bool)` for lookup-style "found / not-found" checks where a sentinel error would be noisy, and naked `error` for I/O methods that produce no value (`Update`, `Delete`). **3+ return values is forbidden** — apply **Introduce Result Object** (`<Action>Result` struct). Full convention in `references/naming-conventions.md`; refactor mechanics in `references/fowler-patterns.md` §4–§5.
+- HTTP responses: `wrapper.BindJSON[T]` + `wrapper.Respond` + `wrapper.ResponseOption[T]` + `app.Code*` / `app.Message*` constants.
+- Kafka consumers: `kafka.BindMessage(msg.Payload, &target)`. **NEVER** `json.Unmarshal` in a consumer.
+- **Routes**: `/api/v1/<domain>/<aggregate>/<action>` — `<domain>` = API namespace (e.g. `platform`), `<aggregate>` = the `app/` package directory, `<action>` = verb. e.g. `POST /api/v1/platform/promo/apply`.
+- **Event names**: `<DOMAIN>_<AGGREGATE>_<ACTION>` — UPPER_SNAKE, the same three tokens as the route (the event `<action>` is the event verb, usually past tense). e.g. `PLATFORM_PROMO_EXHAUSTED`, `PLATFORM_ORDER_CANCELLED`. The `<aggregate>` token is the `app/` package; the `<domain>` token is the API namespace — distinct from the `app/<domain>/` path placeholder used elsewhere in this skill.
+- **Comments are lean**: one terse doc line on exported identifiers; no inline narration, decorative dividers, or `// Arrange/Act/Assert` markers. Comment only a non-obvious *why* or a real gotcha.
+- Logger: `log/slog` only. No third-party loggers. Logger is initialised once in `main.go` — do not re-initialise.
 
 ---
 
 ## 5. Pre-commit checklist
 
-The diff-allowlist gate is the one box that must be ticked **in the body** before claiming done:
+Before claiming the requirement done, every box must be ticked.
 
-- [ ] **Diff-allowlist gate (Step 9):** `git diff --name-only` against the merge base shows only ALLOWED `app/<domain>/**` paths and NARROW edits confined to their named block (`router/router.go` `register<Domain>Routes`, `router/subscriber.go` `registerEventRoutes`, `spec.md` new entry). Any FORBIDDEN file means the gate failed — revert it.
+- [ ] Step 9 diff check passed: no FORBIDDEN files touched.
+- [ ] File names match the prefix table in §4.
+- [ ] One package per aggregate; no cross-domain imports.
+- [ ] `access/` files co-locate interface + impl + model + sentinel errors.
+- [ ] `var _ Interface = (*impl)(nil)` on every new impl.
+- [ ] Constructor returns interface; impl struct unexported.
+- [ ] `context.Context` first arg on every I/O method.
+- [ ] Access layer wraps errors with `fmt.Errorf("...: %w", err)`.
+- [ ] Handler/consumer layer wraps errors with `serror.Wrap(err).With(slog attrs...)`.
+- [ ] HTTP handlers use `wrapper.BindJSON` + `wrapper.Respond` with `app.Code*` / `app.Message*`.
+- [ ] Kafka consumers use `kafka.BindMessage`; signature `func(ctx context.Context, msg kafka.Message[json.RawMessage]) error`.
+- [ ] Routes follow `/api/v1/<domain>/<aggregate>/<action>`; event names follow `<DOMAIN>_<AGGREGATE>_<ACTION>` (UPPER_SNAKE).
+- [ ] Comments are lean — terse godoc on exported identifiers only; no narration, dividers, or `// Arrange/Act/Assert` markers.
+- [ ] Tests follow `mockArgs` / `args` / `want` / `prepare` pattern.
+- [ ] Each `service_<action>.go` has a matching internal-package `service_<action>_test.go`; boundary (handler/consumer) tests stay in external `package <domain>_test`.
+- [ ] No dedicated test for the constructor (`New*`) and no unit tests for the `access/` layer — both are out of scope.
+- [ ] Mocks regenerated via `mockery` (not hand-edited).
+- [ ] 100% statement coverage of in-scope files (handler/consumer/service); constructors (`New*`) and the `access/` sub-package are excluded from the gate.
+- [ ] `make precommit` (or equivalent) passes.
+- [ ] `spec.md` updated for new endpoint/event (if applicable).
+- [ ] Tell-Don't-Ask in handlers and consumers: orchestration goes through service helpers (`service_<action>.go`); no God Handler smell. See `references/fowler-patterns.md`.
 
-The full 18-item verification checklist (naming, code conventions, tests, coverage, build gates, docs, commit hygiene) with rationale and per-failure remediation is authoritative in `references/verification-checklist.md`. Tick every box there before declaring the requirement done.
+Full checklist with rationale and failure modes: `references/verification-checklist.md`.
 
 ---
 
 ## 6. Constraints (hard rules)
 
 - **DO NOT** edit any file in the FORBIDDEN zone (§2) without explicit user confirmation. The scaffold lock is the core safety property of this skill.
-- **DO NOT** skip the diff allowlist check (Step 9) — it is the final gate that catches scaffold leakage.
+- **DO NOT** add cross-domain imports. `app/product` cannot import `app/member`. Communicate via Kafka events.
+- **DO NOT** create `model.go`, `errors.go`, or `constants.go` inside `access/`. Co-locate them in the file that uses them.
+- **DO NOT** pass raw SDK handles directly to handler/consumer code — always wrap in `access/`.
 - **DO NOT** mix refactor commits with feature commits. Refactor first, commit, run `make precommit`, then add the feature, commit. One refactoring action per commit (Fowler small-safe-steps).
 - **DO NOT** accept refactor requests without a named smell from `references/fowler-patterns.md` §4. "Clean this up" is not a requirement — ask which smell applies; if none, decline.
-
-The remaining hard rules are authoritative in their references: no cross-domain imports and no `model.go`/`errors.go`/`constants.go` inside `access/` (`references/naming-conventions.md`); always wrap raw SDK handles in `access/` and never `json.Unmarshal` in consumers (`references/scaffold-lock-policy.md`, `references/common-module-quickref.md`); no preemptive abstractions and never hand-edit generated mocks (`references/fowler-patterns.md`, `references/implementation-recipe.md`).
+- **DO NOT** use `json.Unmarshal` in Kafka consumers — `kafka.BindMessage` enforces validation tags.
+- **DO NOT** introduce preemptive abstractions. Keep the change concrete and minimal.
+- **DO NOT** edit generated mocks by hand. Regenerate via `mockery`.
+- **DO NOT** skip the diff allowlist check (Step 9) — it is the final gate that catches scaffold leakage.
 
 ---
 
@@ -145,7 +239,6 @@ The remaining hard rules are authoritative in their references: no cross-domain 
 | Quick reference for common-module helpers (`wrapper`, `serror`, `kafka`, `app`) | `references/common-module-quickref.md` |
 | Pre-commit checklist and diff allowlist check | `references/verification-checklist.md` |
 | Fowler pattern cross-walk + code smells + small-safe-steps refactoring discipline (handlers/consumers scope) | `references/fowler-patterns.md` |
-| Worked end-to-end example: input shapes, parsed requirement, file plan | `examples/usage.md` |
 
 ## 8. Templates
 
@@ -155,10 +248,25 @@ The remaining hard rules are authoritative in their references: no cross-domain 
 | `handler_<action>_test.go` skeleton | `templates/handler_test.go.tmpl` |
 | `consumer_<action>.go` skeleton | `templates/consumer.go.tmpl` |
 | `consumer_<action>_test.go` skeleton | `templates/consumer_test.go.tmpl` |
+| `service_<action>_test.go` skeleton (internal-package test for an unexported `*handler` service method) | `templates/service_test.go.tmpl` |
 | `access/storage_<dep>.go` skeleton with interface + impl + model | `templates/storage.go.tmpl` |
 
 ---
 
 ## 9. Troubleshooting
 
-Signal → action table (STOP triggers, coverage gaps, consumer/payload issues, mockery surprises, and each named-smell refactor path) is in `references/implementation-recipe.md` under "Troubleshooting".
+| Signal | Action |
+|---|---|
+| Requirement seems to need a new database or external service | STOP. The requirement crosses scaffold boundary. Surface the conflict, name `router/deps.go` and `config/`, ask the user to approve a scaffold delta. |
+| `git diff` shows `main.go` or `config/` edits | Revert. The scaffold lock failed. Re-read §2 and Step 9. |
+| Coverage stuck below 100% | Add a case per `if err != nil` in the handler/consumer/service. Include model-getter parse failures and `kafka.BindMessage` validation failures. Coverage is measured on in-scope files only — exclude `/access/` and `New*` from the gate (command in `references/testing-pattern.md`). |
+| Coverage gate flags a constructor or `access/` method as uncovered | Expected — they are out of scope. Use the filtered coverage command; do not write tests just to satisfy them. |
+| Need to test an unexported service helper (`h.applyPromo`) | Put the test in internal `package <domain>` (not `<domain>_test`), build the handler via `NewHandler`, and call the method directly. Use `templates/service_test.go.tmpl`. |
+| Kafka consumer accepts invalid payload | Replace `json.Unmarshal` with `kafka.BindMessage` — it deserialises **and** runs binding tags. |
+| `mockery` regenerates an unexpected mock file | Check `.mockery.yaml` (do not edit it — ask the user if the config is wrong). |
+| Test stalls on `mock.MatchedBy` | Confirm `args.ctx` is assigned **before** calling `prepare(m, args)` inside the loop. |
+| User names a smell from `references/fowler-patterns.md` §4 (God Handler, Long Parameter List, Too Many Returns, Feature Envy, …) and asks to refactor | Run **Recipe F** in `references/implementation-recipe.md`. Stay inside ALLOWED zone, one refactoring at a time from §5, tests green between each step. Refactor commit is separate from any feature commit. |
+| User asks to "just refactor while we're here" with no smell named | Ask which smell from `references/fowler-patterns.md` §4 applies. If the user cannot name one, decline — "clean it up" is not a requirement. |
+| New or modified function has 4+ params after `ctx` | Long Parameter List smell. Apply **Introduce Parameter Object** (`<Action>Params` struct) per `references/fowler-patterns.md` §5 before merging. |
+| New or modified function returns 3+ values | Too Many Returns smell. Apply **Introduce Result Object** (`<Action>Result` struct) per `references/fowler-patterns.md` §5. `(T, bool)` lookups and naked `error` are the only allowed exceptions to `(T, error)`. |
+| Handler over ~100 lines, or mixes auth + validation + business + formatting | God Handler smell. Extract a `service_<action>.go` per `references/fowler-patterns.md` §2; apply the small-safe-steps workflow. |

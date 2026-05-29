@@ -8,7 +8,7 @@ A **single requirement** in any of these shapes:
 - A ticket title + acceptance criteria ("PROD-142: add update-product endpoint that validates...").
 - A bug report ("when memberRole is empty, issue-token returns 500 instead of 400").
 - A user story ("as an org admin, I want to delete a product so it no longer appears in list").
-- A Kafka event contract ("consume `INVOICE_PAID`, set invoice status to PAID").
+- A Kafka event contract ("consume `PLATFORM_INVOICE_PAID`, set invoice status to PAID").
 
 The skill works best when the input includes:
 
@@ -53,8 +53,8 @@ If any of these are missing, the skill restates the parsed requirement back and 
    - `router/router.go`: add `productGroup.POST("/update", productHandler.UpdateProduct)` inside the existing block.
    - `spec.md`: add the new endpoint section.
 6. **Regenerate mocks** → no interface changes, skip.
-7. **Tests** → success + missing-productId + missing-name + missing-price + storage error + GetID parse failure + not-found case.
-8. **Verify** → `make precommit` passes; `go tool cover -func` shows 100% in `app/product/`.
+7. **Tests** → success + missing-productId + missing-name + missing-price + storage error + GetID parse failure + not-found case. Boundary test in external `package product_test`; no test for `NewHandler` or the `access/` layer (out of scope). If the handler had grown into a multi-step orchestration, the logic would move to `service_update.go` with an internal-package `service_update_test.go`.
+8. **Verify** → `make precommit` passes; the in-scope coverage gate prints nothing — handler/consumer/service at 100%, with constructors and the `access/` sub-package filtered out (command in `references/testing-pattern.md`).
 9. **Diff allowlist** → only `app/product/...`, `router/router.go`, `spec.md`. Clean.
 
 **Files touched: 4. Files untouched (kept locked): everything else.**
@@ -65,11 +65,11 @@ If any of these are missing, the skill restates the parsed requirement back and 
 
 **Input:**
 
-> Add a consumer for the `MEMBER_SUSPENDED` event. Payload: `{ "memberId": "uuid", "reason": "string" }`. When received, set member status to SUSPENDED in storage.
+> Add a consumer for the `PLATFORM_MEMBER_SUSPENDED` event. Payload: `{ "memberId": "uuid", "reason": "string" }`. When received, set member status to SUSPENDED in storage.
 
 **Agent flow:**
 
-1. **Parse** → kind=new consumer, domain=`member`, event=`MEMBER_SUSPENDED`, action=`suspended`.
+1. **Parse** → kind=new consumer, domain=`member`, event=`PLATFORM_MEMBER_SUSPENDED`, action=`suspended`.
 2. **Locate** → `app/member/access/storage_member.go` exists. Read it.
 3. **Audit access** → existing methods: `GetMemberByEmail`. Missing: `GetMemberByID` and `UpdateMember`. Need to extend interface.
 4. **Scaffold-lock test** → planned files:
@@ -85,7 +85,7 @@ If any of these are missing, the skill restates the parsed requirement back and 
    - Run `mockery`.
    - Write `consumer_suspended.go` from `templates/consumer.go.tmpl`.
    - Write `consumer_suspended_test.go` from `templates/consumer_test.go.tmpl`.
-   - Narrow edit `router/subscriber.go`: `routes["MEMBER_SUSPENDED"] = memberHandler.OnSuspended`.
+   - Narrow edit `router/subscriber.go`: `routes["PLATFORM_MEMBER_SUSPENDED"] = memberHandler.OnSuspended`.
    - Update `spec.md`.
 6. **Tests** → success + invalid JSON + missing memberId + missing reason + memberId not a UUID + GetMemberByID error + UpdateMember error.
 7. **Verify** → green.

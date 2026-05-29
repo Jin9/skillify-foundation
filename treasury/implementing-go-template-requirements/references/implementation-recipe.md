@@ -4,16 +4,18 @@ One recipe per common requirement shape. Each recipe lists the exact file set, t
 
 ## Recipe A — Add a new HTTP endpoint to an existing domain
 
-Use when: requirement says "add `POST /api/v1/platform/<domain>/<action>` that does X".
+Use when: requirement says "add `POST /api/v1/<domain>/<aggregate>/<action>` that does X" (e.g. `/api/v1/platform/product/create`).
 
 Files (in order):
 
 1. **(Optional)** `app/<domain>/access/storage_<dep>.go` — if the endpoint needs a new query, add the method to the interface and impl.
 2. **(Optional)** `app/<domain>/handler.go` — if a new dependency must be injected, add a field to `HandlerConfig` and `handler`, and wire it in `NewHandler`.
 3. `app/<domain>/handler_<action>.go` — request struct, response struct, `func (h *handler) <Action>(c *gin.Context)` using `wrapper.BindJSON` + `wrapper.Respond`.
-4. `app/<domain>/handler_<action>_test.go` — table-driven cases (success + every error branch).
-5. **Narrow edit** `router/router.go` — add `<domain>Group.POST("/<action>", <domain>Handler.<Action>)` inside the existing `register<Domain>Routes` block. If the function does not exist yet, add it and call it from `New()`.
-6. **Narrow edit** `spec.md` — document the endpoint with request/response schemas.
+4. **(If the handler runs multi-step orchestration)** `app/<domain>/service_<action>.go` — move the orchestration into an unexported `*handler` method (`h.<action>`); the handler keeps only bind → call → error→HTTP → respond.
+5. `app/<domain>/handler_<action>_test.go` — boundary cases in external `package <domain>_test` (success + every error branch the handler still owns). Use `templates/handler_test.go.tmpl`.
+6. **(If step 4 applies)** `app/<domain>/service_<action>_test.go` — internal `package <domain>` cases for `h.<action>` (success, each sentinel error via `errors.Is`, each `if err != nil`). Use `templates/service_test.go.tmpl`.
+7. **Narrow edit** `router/router.go` — add `<domain>Group.POST("/<action>", <domain>Handler.<Action>)` inside the existing `register<Domain>Routes` block. If the function does not exist yet, add it and call it from `New()`.
+8. **Narrow edit** `spec.md` — document the endpoint with request/response schemas.
 
 Wiring example (router.go, inside `register<Domain>Routes`):
 
@@ -27,12 +29,15 @@ productGroup := r.Group("/api/v1/platform/product")
 }
 ```
 
-Tests required:
+Path shape `/api/v1/<domain>/<aggregate>/<action>`: namespace `platform`, aggregate (the `app/` package) `product`, action `update`.
+
+Tests required (handler + service only — not the constructor or `access/`):
 
 - Success path.
 - Each missing-required-field case (one per `binding:"required"` tag on the request struct).
 - Each downstream error from access/service calls.
-- Model-getter parse failures if the response includes a UUID from a string-typed field.
+- Model-getter parse failures if the response includes a UUID from a string-typed field (drives the handler's error branch).
+- If logic was extracted in step 4, the branch coverage on `h.<action>` lives in the service test; the handler test only covers the thin boundary.
 
 ## Recipe B — Add a new Kafka consumer to an existing domain
 
@@ -44,14 +49,14 @@ Files (in order):
 2. **(Optional)** `app/<domain>/handler.go` — extend `HandlerConfig` if a new dependency is needed.
 3. `app/<domain>/consumer_<action>.go` — payload struct, `func (h *handler) On<Action>(ctx context.Context, msg kafka.Message[json.RawMessage]) error` using `kafka.BindMessage`.
 4. `app/<domain>/consumer_<action>_test.go` — table-driven cases.
-5. **Narrow edit** `router/subscriber.go` — add `routes["<EVENT_NAME>"] = <domain>Handler.On<Action>` inside `registerEventRoutes`.
+5. **Narrow edit** `router/subscriber.go` — add `routes["<EVENT_NAME>"] = <domain>Handler.On<Action>` inside `registerEventRoutes`. `<EVENT_NAME>` follows `<DOMAIN>_<AGGREGATE>_<ACTION>` (UPPER_SNAKE).
 6. **Narrow edit** `spec.md` — document the event name and payload schema.
 
 Wiring example (subscriber.go, inside `registerEventRoutes`):
 
 ```go
-routes["PRODUCT_CREATED"] = productHandler.OnProductCreated
-routes["INVOICE_PAID"]    = invoiceHandler.OnInvoicePaid  // ← new
+routes["PLATFORM_PRODUCT_CREATED"] = productHandler.OnProductCreated
+routes["PLATFORM_INVOICE_PAID"]    = invoiceHandler.OnInvoicePaid  // ← new
 ```
 
 Tests required:
@@ -138,9 +143,9 @@ Steps:
    - Feature Envy → Move Function (push behaviour onto the Model in `storage_<dep>.go`).
    - Conditional Explosion → Replace Conditional with Strategy.
    Do not chain. One refactoring per step.
-4. **Apply the minimal change.** Stay in `app/<domain>/**` plus any narrow `router/router.go` or `router/subscriber.go` edit that a renamed identifier forces (still NARROW zone — only the existing `register<Domain>*` block).
+4. **Apply the minimal change.** Stay in `app/<domain>/**` plus any narrow `router/router.go` or `router/subscriber.go` edit that a renamed identifier forces (still NARROW zone — only the existing `register<Domain>*` block). When the refactoring is Extract Function (God Handler → `service_<action>.go`), add or extend `service_<action>_test.go` in the **internal** `package <domain>` to cover the moved logic, and thin the handler test down to the boundary it still owns.
 5. **Regenerate mocks** via `mockery` if any `access/` interface signature changed. Never hand-edit `access/mocks/mocks.go`.
-6. **Re-run tests.** `go test -race -cover ./app/<domain>/...` must be green; coverage must equal or exceed the snapshot from step 2.
+6. **Re-run tests.** `go test -race -cover ./app/<domain>/...` must be green; **in-scope** coverage (handlers/consumers/services, excluding constructors and `access/`) must equal or exceed the snapshot from step 2.
 7. **Commit the refactor on its own.** Run `make precommit`. Commit message names the smell and the refactoring (e.g. `refactor(auth): introduce parameter object on resolveExistingMember`).
 8. **Loop or stop.** If the smell from step 1 is gone, stop. If another §4 smell is present, go back to step 3 for a fresh single-action pass.
 9. **No feature work in this commit.** If the requirement also has a feature delta, that is a separate task — close out the refactor commit first, then run Recipe A / B / C / D for the feature on top of the cleaned code.
@@ -158,19 +163,3 @@ Anti-patterns to avoid:
 - Introducing speculative abstractions ("we might need this later"). Apply a refactoring only when a §4 smell is present *now*.
 - Bundling "while I'm here" feature work into the refactor commit.
 - Hand-editing generated mocks instead of running `mockery`.
-
-## Troubleshooting (signal → action)
-
-| Signal | Action |
-|---|---|
-| Requirement seems to need a new database or external service | STOP. The requirement crosses scaffold boundary. Surface the conflict, name `router/deps.go` and `config/`, ask the user to approve a scaffold delta. |
-| `git diff` shows `main.go` or `config/` edits | Revert. The scaffold lock failed. Re-read SKILL.md §2 and Step 9. |
-| Coverage stuck below 100% | Add a case per `if err != nil`. Include model-getter parse failures and `kafka.BindMessage` validation failures. |
-| Kafka consumer accepts invalid payload | Replace `json.Unmarshal` with `kafka.BindMessage` — it deserialises **and** runs binding tags. |
-| `mockery` regenerates an unexpected mock file | Check `.mockery.yaml` (do not edit it — ask the user if the config is wrong). |
-| Test stalls on `mock.MatchedBy` | Confirm `args.ctx` is assigned **before** calling `prepare(m, args)` inside the loop. |
-| User names a smell from `fowler-patterns.md` §4 (God Handler, Long Parameter List, Too Many Returns, Feature Envy, …) and asks to refactor | Run **Recipe F** above. Stay inside ALLOWED zone, one refactoring at a time, tests green between each step. Refactor commit is separate from any feature commit. |
-| User asks to "just refactor while we're here" with no smell named | Ask which smell from `fowler-patterns.md` §4 applies. If the user cannot name one, decline — "clean it up" is not a requirement. |
-| New or modified function has 4+ params after `ctx` | Long Parameter List smell. Apply **Introduce Parameter Object** (`<Action>Params` struct) per `fowler-patterns.md` §5 before merging. |
-| New or modified function returns 3+ values | Too Many Returns smell. Apply **Introduce Result Object** (`<Action>Result` struct) per `fowler-patterns.md` §5. `(T, bool)` lookups and naked `error` are the only allowed exceptions to `(T, error)`. |
-| Handler over ~100 lines, or mixes auth + validation + business + formatting | God Handler smell. Extract a `service_<action>.go` per `fowler-patterns.md` §2; apply the small-safe-steps workflow. |

@@ -24,7 +24,7 @@ The defining property of this skill. Every edit you intend to make must pass thi
 | Path | What you may change | What you must NOT touch |
 |---|---|---|
 | `router/router.go` | Add or modify `register<Domain>Routes(r, d)` function and the matching call inside `New()`. | Middleware chain, `SecurityHeaders`, `CORS`, `TraceContext`, `RefID`, `AutoLogging`, `Timeout`, `AccessLog`, the Gin engine setup, the `New()` skeleton, route groups for other domains. |
-| `router/subscriber.go` | Add one entry inside `registerEventRoutes()` mapping an `UPPER_SNAKE_CASE` event name to your consumer method. | Consumer-group lifecycle, broker parsing, `StartSubscriber`, graceful shutdown wiring, anything outside `registerEventRoutes`. |
+| `router/subscriber.go` | Add one entry inside `registerEventRoutes()` mapping a `<DOMAIN>_<AGGREGATE>_<ACTION>` (UPPER_SNAKE) event name to your consumer method. | Consumer-group lifecycle, broker parsing, `StartSubscriber`, graceful shutdown wiring, anything outside `registerEventRoutes`. |
 | `spec.md` | Add a new endpoint/event entry using the existing format. | Reformatting unrelated sections, renumbering, restructuring. |
 
 ### 🛑 FORBIDDEN — STOP and ask the user

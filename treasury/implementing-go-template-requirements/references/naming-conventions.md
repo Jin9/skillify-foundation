@@ -12,7 +12,8 @@ The type prefix comes **first**. Never `<action>_handler.go` or `<dep>_storage.g
 | `handler_<action>_test.go` | Table-driven test for the matching handler | `handler_create_test.go` |
 | `consumer_<action>.go` | Kafka event handler method on `*handler` | `consumer_create.go`, `consumer_paid.go` |
 | `consumer_<action>_test.go` | Table-driven test for the matching consumer | `consumer_create_test.go` |
-| `service_<action>.go` | Private service helper extracted from a handler/consumer | `service_authenticate_google.go` |
+| `service_<action>.go` | Private service helper(s) split out of a handler/consumer, grouped by action (unexported `*handler` method) | `service_authenticate_google.go`, `service_apply.go` |
+| `service_<action>_test.go` | Internal-package (`package <domain>`) test for the matching service helper | `service_apply_test.go` |
 | `storage_<dep>.go` | Persistence repository (Firestore, MySQL, S3/GCS) | `storage_member.go`, `storage_product.go` |
 | `cache_<dep>.go` | Cache repository (Redis, Memcached) | `cache_product.go` |
 | `client_<dep>.go` | External API gateway | `client_google.go` |
@@ -23,7 +24,7 @@ The type prefix comes **first**. Never `<action>_handler.go` or `<dep>_storage.g
 ## Package and import rules
 
 - **One package per aggregate** under `app/`. Folder name == package name.
-- Tests use the `_test` package suffix: `package product_test`, `package auth_test`.
+- **Boundary** tests (handler/consumer) use the external `_test` package: `package product_test`, `package auth_test`. **Service** tests use the **internal** package: `package product` — service helpers are unexported `*handler` methods, reachable only from inside the package. Both coexist in the same directory. (The `access/` layer is out of unit-test scope under this skill.)
 - The `access/` sub-package is named `access` (no domain prefix). Import it with an alias if needed: `import productaccess ".../app/product/access"`.
 - **No cross-domain imports**. `app/product` MUST NOT import `app/member`. Communicate via Kafka events.
 - The generated mocks package: `package access_mocks` (mockery default for the configured dir).
@@ -57,7 +58,8 @@ Each `access/<prefix>_<dep>.go` file is a self-contained unit. In ONE file, in t
 - Handler config: `HandlerConfig` (exported) → `handler` (unexported) → `NewHandler(cfg HandlerConfig) *handler`.
 - HTTP request/response types live in the same file as the handler that uses them: `CreateProductRequest`, `CreateProductResponse`.
 - Kafka payload types live in the same file as the consumer that consumes them: `CreateProductMessage`, `PaidInvoiceMessage`.
-- Event names (the `UPPER_SNAKE_CASE` topic-keys used in `registerEventRoutes`): `PRODUCT_CREATED`, `INVOICE_PAID`.
+- HTTP routes: `/api/v1/<domain>/<aggregate>/<action>` — `<domain>` = API namespace (e.g. `platform`), `<aggregate>` = the `app/` package directory, `<action>` = verb. e.g. `/api/v1/platform/product/create`.
+- Event names (the topic-keys used in `registerEventRoutes`): `<DOMAIN>_<AGGREGATE>_<ACTION>` in UPPER_SNAKE, mirroring the route's three segments (event `<action>` is the event verb, usually past tense). e.g. `PLATFORM_PRODUCT_CREATED`, `PLATFORM_INVOICE_PAID`. The `<aggregate>` token is the `app/` package; `<domain>` is the API namespace — not the `app/<domain>/` path placeholder used elsewhere in this skill.
 
 ## Function signature conventions
 
@@ -93,9 +95,15 @@ func (recv *T) Name(ctx context.Context, p1, p2, p3 T) (Result, error)
 - Initialised once in `main.go` via the common-module `logger.New`. Do not re-initialise in business logic.
 - Attach structured attrs when logging from a handler: `slog.String("member_id", id.String())`.
 
+## Comment style
+
+- Lean. One terse doc line on exported identifiers; no inline narration, no decorative section dividers (`// --- … ---`), no `// Arrange`/`// Act`/`// Assert` markers. Comment a non-obvious *why* or a real gotcha only — never restate what the code plainly does.
+
 ## Test conventions (overview — full pattern in `testing-pattern.md`)
 
-- Test file package: `<domain>_test`.
+- Unit-test scope: handlers, consumers, services. The constructor (`New*`) and the `access/` layer are **out of scope**.
+- One `_test.go` per in-scope code file: `handler_<action>_test.go`, `consumer_<action>_test.go`, `service_<action>_test.go`.
+- Test file package: external `<domain>_test` for handler/consumer tests; internal `<domain>` for service tests.
 - Local types: `mockArgs`, `args`, `want`.
 - Closure name: `prepare(m mockArgs, args args)`.
 - Mock constructor: `<package>_mocks.New<Interface>Mock(t)` (e.g. `access_mocks.NewMemberStorageMock(t)`).

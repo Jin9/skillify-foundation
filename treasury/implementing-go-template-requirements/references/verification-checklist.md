@@ -31,24 +31,31 @@ If A fails: revert the leaked file. Re-check why the scaffold-lock policy did no
 - [ ] Handler / consumer / service errors use `serror.Wrap(err).With(slog.Attr...)`.
 - [ ] HTTP handlers use `wrapper.BindJSON[T]` + `wrapper.Respond` with `app.Code*` / `app.Message*` constants.
 - [ ] Kafka consumers use `kafka.BindMessage`; signature `func(ctx context.Context, msg kafka.Message[json.RawMessage]) error`.
-- [ ] Event names are `UPPER_SNAKE_CASE`.
+- [ ] Routes follow `/api/v1/<domain>/<aggregate>/<action>`; event names follow `<DOMAIN>_<AGGREGATE>_<ACTION>` (UPPER_SNAKE).
 - [ ] No third-party loggers introduced; only `log/slog`.
 - [ ] No `json.Unmarshal` used in a Kafka consumer.
 
 ## D. Tests
 
+- [ ] Unit-test scope = handlers + consumers + services. **No** unit tests for the constructor (`New*`) or the `access/` layer (`storage_*`/`cache_*`/`client_*`) — both are out of scope under this skill.
+- [ ] Boundary tests (handler/consumer) in external `package <domain>_test`; service tests in internal `package <domain>` (service helpers are unexported `*handler` methods).
 - [ ] `mockArgs` / `args` / `want` / `prepare` pattern followed.
 - [ ] Success case present.
 - [ ] One failing-validation case per `binding:"required"` field on the request or payload struct.
 - [ ] One case per `if err != nil` branch in the handler/consumer/service body.
-- [ ] Model-getter parse failures covered (e.g. `GetID()` with bad UUID).
+- [ ] Each sentinel error a service helper returns has a case (assert with `errors.Is`).
+- [ ] Model-getter parse failures covered (a bad UUID drives the handler's/service's error branch, not the getter itself).
 - [ ] For Kafka consumers: invalid-JSON case AND validation-failure case both present.
 - [ ] Mocks regenerated via `mockery` — no hand-edits to `access/mocks/mocks.go`.
 
-## E. Coverage
+## E. Coverage (in-scope only)
 
 - [ ] `go test -race -coverprofile=coverage.out ./app/<domain>/...` exits 0.
-- [ ] `go tool cover -func=coverage.out | grep -v 100.0%` prints nothing (every function 100%).
+- [ ] In-scope coverage gate prints nothing — the `access/` sub-package and constructors (`New*`) are filtered out:
+  ```bash
+  go tool cover -func=coverage.out | grep '/app/<domain>/' | grep -v '/access/' | grep -v '	New' | grep -v '100.0%'
+  ```
+  (The leading tab before `New` matches the function-name column; full explanation in `references/testing-pattern.md`.)
 
 ## F. Build gates
 
@@ -96,7 +103,7 @@ Any line starting with `FORBIDDEN` means the gate failed — revert and re-plan.
 | Failure | Remediation |
 |---|---|
 | FORBIDDEN file in diff | Revert it (`git checkout -- <file>`). Re-check the requirement: did Step 4 of the workflow correctly classify all files? If the requirement legitimately needs the scaffold edit, surface to the user and ask. |
-| Coverage < 100% | Identify the uncovered branch with `go tool cover -html=coverage.out`. Add the missing test case using the `mockArgs`/`args`/`want`/`prepare` template. |
+| In-scope coverage < 100% | Identify the uncovered branch with `go tool cover -html=coverage.out`. Add the missing test case using the `mockArgs`/`args`/`want`/`prepare` template. If the uncovered line is a constructor (`New*`) or an `access/` method, it is out of scope — ignore it. |
 | Lint failure that involves business-logic style | Fix the code. Do NOT silence the rule. |
 | Lint failure on generated mocks | Regenerate mocks with `mockery`. If still failing, the cause is upstream config (`.mockery.yaml`) — STOP and ask. |
 | `make precommit` fails on `go vet` | Likely an unused import or shadowed variable. Fix in the new code. |

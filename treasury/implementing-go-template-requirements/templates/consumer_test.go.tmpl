@@ -85,7 +85,6 @@ func TestOn<Action>(t *testing.T) {
 			prepare: func(m mockArgs, args args) {},
 			args: args{
 				payload: <DOMAIN>.<Action>Message{
-					// <Field1> omitted
 					<Field2>: validID.String(),
 				},
 			},
@@ -97,7 +96,6 @@ func TestOn<Action>(t *testing.T) {
 			args: args{
 				payload: <DOMAIN>.<Action>Message{
 					<Field1>: "valid-value",
-					// <Field2> omitted
 				},
 			},
 			want: want{err: true},

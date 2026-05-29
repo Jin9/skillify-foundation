@@ -19,7 +19,6 @@ import (
 )
 
 type <Action>Request struct {
-	// Required fields must have `binding:"required"`. Add format validators where applicable.
 	<Field1> string    `json:"<field1>" binding:"required"`
 	<Field2> uuid.UUID `json:"<field2>" binding:"required"`
 }
@@ -36,15 +35,12 @@ func (h *handler) <Action>(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// Build the domain entity from the request.
 	entity := access.<Model>{
-		// map req → entity
 		<EntityField1>: req.<Field1>,
 		<EntityField2>: req.<Field2>.String(),
 		<StatusField>:  access.<Model>StatusDefault,
 	}
 
-	// Call the access layer (storage / cache / client).
 	saved, err := h.<dep>Storage.<Method>(ctx, entity)
 	if err != nil {
 		wrapper.Respond(c, wrapper.ResponseOption[<Action>Response]{
@@ -59,7 +55,6 @@ func (h *handler) <Action>(c *gin.Context) {
 		return
 	}
 
-	// Parse any string-typed UUID from the saved entity (test the parse-failure branch).
 	id, err := saved.GetID()
 	if err != nil {
 		wrapper.Respond(c, wrapper.ResponseOption[<Action>Response]{
@@ -74,7 +69,7 @@ func (h *handler) <Action>(c *gin.Context) {
 	}
 
 	wrapper.Respond(c, wrapper.ResponseOption[<Action>Response]{
-		HTTPStatus: http.StatusCreated, // or http.StatusOK for read endpoints
+		HTTPStatus: http.StatusCreated,
 		Code:       app.CodeSuccess,
 		Message:    app.MessageSuccess,
 		Data: &<Action>Response{

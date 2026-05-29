@@ -80,12 +80,9 @@ func Test<Action>(t *testing.T) {
 		},
 		{
 			name: "fail, case invalid request body - missing <field1>",
-			prepare: func(m mockArgs, args args) {
-				// no storage call expected
-			},
+			prepare: func(m mockArgs, args args) {},
 			args: args{
 				req: <DOMAIN>.<Action>Request{
-					// <Field1> intentionally omitted
 					<Field2>: validID,
 				},
 			},
@@ -101,7 +98,6 @@ func Test<Action>(t *testing.T) {
 			args: args{
 				req: <DOMAIN>.<Action>Request{
 					<Field1>: "valid-value",
-					// <Field2> intentionally omitted
 				},
 			},
 			want: want{
@@ -157,7 +153,6 @@ func Test<Action>(t *testing.T) {
 			w := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(w)
 
-			// Arrange request body
 			var payload bytes.Buffer
 			_ = json.NewEncoder(&payload).Encode(tt.args.req)
 
@@ -183,10 +178,8 @@ func Test<Action>(t *testing.T) {
 				<Dep>Storage: m.<dep>Storage,
 			})
 
-			// Act
 			h.<Action>(ctx)
 
-			// Assert
 			var resp wrapper.ResponseOption[<DOMAIN>.<Action>Response]
 			_ = json.NewDecoder(w.Body).Decode(&resp)
 

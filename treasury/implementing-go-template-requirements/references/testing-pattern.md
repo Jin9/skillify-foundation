@@ -1,10 +1,15 @@
 # Testing pattern
 
-Every business-logic file ships with a matching `_test.go`. Coverage target is **100% statement coverage** in `app/<domain>/` (excluding generated `mocks/`).
+**Unit-test scope**: boundary code (`handler_<action>.go`, `consumer_<action>.go`) and the service layer (`service_<action>.go`). The constructor (`NewHandler`/`New*`), the access layer (`storage_*`/`cache_*`/`client_*`), generated `mocks/`, and domain-model getters are **out of scope** under this skill. Coverage target: **100% statement coverage of in-scope functions** in the `app/<domain>/` package (constructors and the `access/` sub-package excluded).
+
+**Test package by layer** — both kinds of test file coexist in the same directory:
+
+- **Boundary tests** (handler/consumer) → external `package <domain>_test`. They call **exported** methods (`h.<Action>`, `h.On<Action>`).
+- **Service tests** → internal `package <domain>`. Service helpers are **unexported** `*handler` methods, reachable only from inside the package.
 
 ## The shape: `mockArgs` / `args` / `want` / `prepare` + table
 
-The pattern is identical for handlers and consumers — only the act/assert blocks differ.
+The pattern is the same for handlers, consumers, and services — only the package declaration and the act/assert blocks differ.
 
 ```go
 package <domain>_test
@@ -188,24 +193,86 @@ if tt.want.err {
 For invalid-JSON cases, set `msg.Payload = []byte("{ invalid")` and expect an error.
 For validation-failure cases, marshal a struct that omits a `binding:"required"` field and expect an error.
 
+## Service-layer variant (internal package)
+
+Service helpers are **unexported** `*handler` methods (`func (h *handler) applyPromo(ctx, …)`), so their test file must declare the **internal** `package <domain>` — not `<domain>_test`. Build the handler with mocks, call the method directly, and assert on the returned `(value, error)`. No gin context, no HTTP.
+
+```go
+package <domain> // internal — NOT <domain>_test
+
+func Test_<action>(t *testing.T) {
+    // ... fixtures: uuid.New(), access.<Model>{...}
+
+    type mockArgs struct {
+        <dep>Storage *access_mocks.<Dep>StorageMock
+    }
+    type args struct {
+        ctx context.Context
+        // service params after ctx (promoID, memberID, …)
+    }
+    type want struct {
+        result <ResultType>
+        err    error // a sentinel to assert with errors.Is, or nil for success
+    }
+
+    tests := []struct {
+        name    string
+        prepare func(m mockArgs, ctx context.Context)
+        args    args
+        want    want
+    }{
+        // success + one case per sentinel error + one case per `if err != nil`
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            r := require.New(t)
+            m := mockArgs{<dep>Storage: access_mocks.New<Dep>StorageMock(t)}
+
+            tt.args.ctx = context.Background() // assign BEFORE prepare so matchers see it
+            tt.prepare(m, tt.args.ctx)
+
+            // Unqualified — the test is in the same package, so it can build *handler
+            // and call the unexported method.
+            h := NewHandler(HandlerConfig{<Dep>Storage: m.<dep>Storage})
+
+            got, err := h.<action>(tt.args.ctx /*, params */)
+
+            if tt.want.err != nil {
+                r.ErrorIs(err, tt.want.err)
+                return
+            }
+            r.NoError(err)
+            r.Equal(tt.want.result, got)
+        })
+    }
+}
+```
+
+Cover the success path, each sentinel error the helper returns (assert with `errors.Is`), and every `if err != nil` from an access call. A best-effort side effect (e.g. a fire-and-forget Kafka publish that swallows its own error) still needs a case that drives its branch.
+
 ## Coverage rules
 
 These branches MUST have a test case each:
 
 - Every `if err != nil` block in the handler/consumer/service body.
 - Every `binding:"required"` field on the request/payload struct (one missing-field case per).
-- Every model-getter that returns `(T, error)` — e.g. `GetID()` parsing `MemberID` as UUID. Test with a deliberately bad string.
+- Every model-getter call the handler/service branches on — e.g. `GetID()` parsing a string field as UUID. Feed a deliberately bad string so the **handler's/service's** `if err != nil` branch runs. You are covering that branch, not the getter (the getter lives in `access/`, which is out of scope).
 - For Kafka consumers: invalid JSON (`{ invalid`) and validation-failure cases.
 - The success path.
 
-Verify with:
+Verify with (the filters drop the out-of-scope access layer and constructors):
 
 ```bash
 go test -race -coverprofile=coverage.out ./app/<domain>/...
-go tool cover -func=coverage.out | grep -v 100.0%
+go tool cover -func=coverage.out \
+  | grep '/app/<domain>/' \
+  | grep -v '/access/' \   # access layer is out of scope
+  | grep -v '	New' \       # leading TAB then New… exempts constructors
+  | grep -v '100.0%'       # must print NOTHING
 ```
 
-The grep should print nothing (every function at 100%).
+The final pipeline should print nothing — every in-scope function (handlers, consumers, services) at 100%. The tab before `New` matches the function-name column of `go tool cover -func` output, so only constructors (`NewHandler`, `New<Dep>Storage`, …) are filtered, not methods like `OnOrderCancelled`.
 
 ## Mock-builder API
 

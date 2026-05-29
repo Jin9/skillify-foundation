@@ -67,6 +67,14 @@ Use Extract Function and create `service_<action>.go` when **any** of:
 
 Do **not** extract a helper just to shorten one linear five-line block — that's noise, not Service Layer.
 
+### Splitting and testing extracted helpers
+
+When you split functions out of a handler/consumer, **group them into `service_<action>.go`** — one file per action/orchestration. The handler then keeps only: bind the request → call `h.<action>(ctx, …)` → branch on the returned error → `wrapper.Respond`. Everything between binding and response formatting moves to the service file.
+
+Each `service_<action>.go` ships a matching `service_<action>_test.go`. Because the helper is an **unexported** `*handler` method, that test file must declare the **internal** `package <domain>` (not `<domain>_test`) — that is the only way to reach the method. Boundary tests stay external; both packages coexist in the directory. Test the service helper directly (success, each sentinel error via `errors.Is`, each `if err != nil` from an access call); the handler test then only needs to cover the thin boundary it still owns. See `references/testing-pattern.md` → "Service-layer variant".
+
+`promo-service` is the canonical reference: `handler_apply.go` stays thin and delegates to `service_apply.go` (`applyPromo`, `publishExhausted` — unexported `*handler` methods), which is unit-tested from inside `package promo`.
+
 ---
 
 ## 3. Tell-Don't-Ask, scoped to handlers and consumers

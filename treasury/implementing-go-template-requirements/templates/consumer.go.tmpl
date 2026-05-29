@@ -2,8 +2,7 @@
 // Replace <DOMAIN>, <Action>, <action>, <Dep>, <Method>, and payload fields.
 // File path: app/<DOMAIN>/consumer_<action>.go
 //
-// Wire the event name in router/subscriber.go inside registerEventRoutes:
-//     routes["<EVENT_NAME>"] = <domain>Handler.On<Action>
+// Wire in router/subscriber.go: routes["<DOMAIN>_<AGGREGATE>_<ACTION>"] = <domain>Handler.On<Action>
 
 package <DOMAIN>
 
@@ -26,9 +25,7 @@ type <Action>Message struct {
 	<Field2> string `json:"<field2>" binding:"required,uuid"`
 }
 
-// On<Action> consumes <EVENT_NAME> events.
-// Signature is fixed: `func(ctx context.Context, msg kafka.Message[json.RawMessage]) error`.
-// Return nil on success; return a serror-wrapped error on failure.
+// On<Action> consumes <EVENT_NAME>; signature must match kafka.KafkaHandler.
 func (h *handler) On<Action>(ctx context.Context, msg kafka.Message[json.RawMessage]) error {
 	var payload <Action>Message
 	if err := kafka.BindMessage(msg.Payload, &payload); err != nil {
@@ -53,7 +50,6 @@ func (h *handler) On<Action>(ctx context.Context, msg kafka.Message[json.RawMess
 		)
 	}
 
-	// Apply the state transition from the event.
 	entity.<StatusField> = access.<Model>Status<NewState>
 
 	if _, err := h.<dep>Storage.<UpdateMethod>(ctx, entity); err != nil {

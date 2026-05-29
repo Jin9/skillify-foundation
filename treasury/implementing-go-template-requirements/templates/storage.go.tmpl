@@ -17,12 +17,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// --- Sentinel errors ---------------------------------------------------------
-
 // Err<Model>NotFound is returned when no <Model> matches the query.
 var Err<Model>NotFound = errors.New("<dep> not found")
-
-// --- Interface ---------------------------------------------------------------
 
 type <Dep>Storage interface {
 	Get<Model>ByID(ctx context.Context, id uuid.UUID) (<Model>, error)
@@ -30,8 +26,6 @@ type <Dep>Storage interface {
 	Create<Model>(ctx context.Context, entity <Model>) (<Model>, error)
 	Update<Model>(ctx context.Context, entity <Model>) (<Model>, error)
 }
-
-// --- Implementation ----------------------------------------------------------
 
 type <dep>Storage struct {
 	fs *gcpfirestore.Client
@@ -106,16 +100,12 @@ func (s *<dep>Storage) Update<Model>(ctx context.Context, entity <Model>) (<Mode
 	return entity, nil
 }
 
-// --- Value objects (enums) ---------------------------------------------------
-
 type <Model>StatusType string
 
 var (
 	<Model>StatusDefault <Model>StatusType = "<DEFAULT_STATE>"
 	<Model>Status<NewState> <Model>StatusType = "<NEW_STATE>"
 )
-
-// --- Domain model ------------------------------------------------------------
 
 type <Model> struct {
 	<ModelIDField> string             `firestore:"<model_id>" json:"<modelId>"`
@@ -127,9 +117,7 @@ type <Model> struct {
 	DeletedAt      *time.Time         `firestore:"deleted_at,omitempty" json:"deletedAt,omitempty"`
 }
 
-// GetID parses the <ModelIDField> string as a UUID.
-// Returns uuid.Nil and an error if the stored ID is malformed.
-// The test suite MUST cover this parse-failure branch.
+// GetID parses <ModelIDField> as a UUID; its parse-failure branch must be tested.
 func (e *<Model>) GetID() (uuid.UUID, error) {
 	return uuid.Parse(e.<ModelIDField>)
 }
