@@ -9,7 +9,7 @@ description: >
   integrity checks (incl. a moderator-favoritism check), a verbatim
   distillation of the final answer, and the live disagreements. Faithful
   summariser only — it never re-judges the debate. Graceful when
-  metrics.json is absent. Trigger phrases: "generate debate report",
+  metrics.json is absent. Triggers on: "generate debate report",
   "summarise this debate", "produce DEBATE_REPORT.md". Do NOT author the
   answer, critique, or re-merge.
 compatibility: claude-code, codex, copilot, gemini, antigravity

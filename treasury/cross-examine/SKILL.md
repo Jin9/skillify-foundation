@@ -7,7 +7,7 @@ description: >
   rubric-anchored critique of each — concessions it grants, evidence-backed
   rebuttals (cite [g-n] or mark logic-only), unsupported-claim flags, and a
   mandatory steelman of each opponent's strongest point. It does NOT revise
-  its own position here (that is revise-positions). Use as the cross-examine
+  its own position here (that is revise-positions). Use when the workflow runs the cross-examine
   stage of workflows/brainstorm.yaml. One panelist, one round, one critiques
   object targeting its two peers. Do NOT open a position (opening-debate-panel) or
   merge the debate (synthesize-consensus).
@@ -20,7 +20,7 @@ inputs:
   - { name: debate_brief,   type: object,  required: true, source: stages.frame-debate.debate_brief,   description: "from frame-debate" }
   - { name: grounding_pack, type: object,  required: true, source: stages.frame-debate.grounding_pack, description: "closed evidence world for rebuttals; cite [g-n] only" }
   - { name: panelist,       type: object,  required: true, source: fanout.panelist,                    description: "the critiquing panelist's identity row" }
-  - { name: peer_positions, type: array,   required: true, source: stages.revise-positions.revised_positions ?? stages.panel-open.positions, description: "the OTHER two panelists' latest positions this round (driver filters self out)" }
+  - { name: peer_positions, type: array,   required: true, source: "stages.revise-positions.revised_positions ?? stages.panel-open.positions", description: "the OTHER two panelists' latest positions this round (driver filters self out)" }
   - { name: round_no,       type: integer, required: true, source: loop.round_no,                       description: "1-based debate round" }
 outputs:
   - { name: critiques, type: array, description: "collected: one critique object per (author, round); each targets the author's two peers" }

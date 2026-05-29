@@ -43,7 +43,10 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], list[str], list[str]]:
             index += 1
             continue
         if line.startswith((" ", "\t")):
-            errors.append(f"unexpected indented frontmatter line: {line}")
+            # Indented child of a nested mapping / block sequence. Valid YAML such
+            # blocks are consumed by their introducing key below; tolerate any that
+            # reach here rather than failing. This is a structural lint, not a full
+            # YAML parse, so deep nested structure is intentionally not validated.
             index += 1
             continue
         if ":" not in line:
@@ -69,7 +72,32 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], list[str], list[str]]:
                 fields[key] = "\n".join(block)
             continue
 
-        fields[key] = value.strip("\"'")
+        if value == "":
+            # Key introduces a nested mapping or block sequence (e.g. `metadata:`,
+            # `inputs:`, `outputs:`). Consume its indented child lines; their inner
+            # structure is not validated here (kept dependency-free, no YAML lib).
+            fields[key] = ""
+            index += 1
+            while index < len(raw):
+                next_line = raw[index]
+                if next_line.strip() and not next_line.startswith((" ", "\t")):
+                    break
+                index += 1
+            continue
+
+        # Scalar value: strip an inline YAML comment (" #" outside quotes) so a
+        # comment like `allowed-tools: Read, Write  # reads <dir>` does not trip the
+        # no-angle-brackets check, which targets real field VALUES, not comments.
+        if value[:1] in ('"', "'"):
+            quote = value[0]
+            close = value.find(quote, 1)
+            value = value[1:close] if close != -1 else value.strip("\"'")
+        else:
+            hash_pos = value.find(" #")
+            if hash_pos != -1:
+                value = value[:hash_pos].rstrip()
+            value = value.strip("\"'")
+        fields[key] = value
         index += 1
 
     return fields, lines[close_index + 1 :], errors
@@ -86,8 +114,9 @@ def validate(skill_dir: Path) -> list[str]:
     text = skill_file.read_text(encoding="utf-8")
     fields, body, parse_errors = parse_frontmatter(text)
     errors.extend(parse_errors)
-    if parse_errors:
-        return errors
+    # Do NOT early-return on frontmatter parse errors: the structural checks below
+    # (banned docs, >500 lines, references depth) must run regardless, so a
+    # frontmatter quirk cannot mask a banned README.md or an oversized SKILL.md.
 
     name = fields.get("name", "")
     description = fields.get("description", "")

@@ -7,7 +7,7 @@ description: >
   where the rebuttal lands, defend with grounding-pack evidence where it does
   not, and record a per-objection changelog plus an honest stance_delta.
   Principled convergence is allowed and tracked; capitulation without reason
-  and unprincipled flip-flopping are forbidden. Use as the revise-positions
+  and unprincipled flip-flopping are forbidden. Use when the workflow runs the revise-positions
   stage of workflows/brainstorm.yaml. One panelist, one round, one revised
   position object. Do NOT critique others (cross-examine) or merge the
   debate (synthesize-consensus).
@@ -20,7 +20,7 @@ inputs:
   - { name: debate_brief,       type: object,  required: true, source: stages.frame-debate.debate_brief,   description: "from frame-debate" }
   - { name: grounding_pack,     type: object,  required: true, source: stages.frame-debate.grounding_pack, description: "closed evidence world; cite [g-n] only" }
   - { name: panelist,           type: object,  required: true, source: fanout.panelist,                    description: "the revising panelist's identity row" }
-  - { name: prior_position,     type: object,  required: true, source: self.position_for[panelist],        description: "this panelist's own latest position (round_no-1)" }
+  - { name: prior_position,     type: object,  required: true, source: "self.position_for[panelist]",        description: "this panelist's own latest position (round_no-1)" }
   - { name: critiques_received, type: array,   required: true, source: stages.cross-examine.critiques, description: "ONLY the critiques whose target_panelist_id == this panelist (driver-filtered)" }
   - { name: round_no,           type: integer, required: true, source: loop.round_no,                       description: "1-based debate round" }
 outputs:
