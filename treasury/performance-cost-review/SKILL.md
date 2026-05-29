@@ -34,12 +34,13 @@ Verdict:      WITHIN BUDGET | AT RISK — levers before spend | OVER — needs d
 ```
 
 ## Decision rules
-1. **Derive the budget from NFRs and volume, not vibes.** Compute the targets from business logic + expected volume, and set them **per Critical User Journey, not per service** — a service-wide average hides the one journey that is failing. Budget only the few dimensions that matter; do not target everything.
-2. **Baseline before you budget — data-driven once data exists, estimate before it.** Use measured metrics once the project has enough signal (load test or active users); use an NFR-derived estimate for early or urgent cases. **State which mode you are in**; a budget with no baseline is labeled **PROVISIONAL** with a re-baseline trigger, never presented as firm.
-3. **Budget cost in cost-per-unit, not the total bill.** Pick the unit that scales with the business — per request, per *verified* successful task, or per tenant. The monthly total cannot separate efficiency from growth. Count **instance cost and dev-maintenance cost**, not just the invoice. For a per-outcome unit, divide by *verified* successes — failures inflate the numerator only, so attempts-as-denominator makes a cheap-but-failing path look efficient.
-4. **Exhaust cheap levers before buying capacity.** Apply in order: caching / batching -> query + index tuning (budget write-amplification: each secondary index ≈ 3–4× insert cost) -> metric/log cardinality + retention (cardinality and retention fixes alone routinely cut 30–50% of an observability bill) -> rightsizing / autoscaling -> only then bigger or more instances. Cite each lever's expected saving so the ordering is justified, not asserted.
-5. **Guardrails are a hierarchy, not a single threshold.** Stack soft alert (trend / anomaly %) -> hard cap (runaway loop, unauthenticated spend) -> circuit breaker (shed load / degrade). Attribute cost and performance by tenant / feature / environment so the driver is findable. Page for **High+ severity only** — guardrails escalate through alert and cap before anyone is paged.
-6. **Headroom is the deliverable, not just the current number.** Report **% to the ceiling per dimension** and the **time-to-wall** at current growth — that lead time is what lets leadership plan a scaling or spend decision. Re-baseline on a cadence and on **budget-consequence triggers** (volume Nx · cost-per-unit drift past a threshold · a perf trend crossing the budget midline · a new cost driver), not on a single raw reading.
+Apply all six; full rationale for each is in `references/budget-method.md`.
+1. **Derive the budget from NFRs and volume, not vibes** — targets per Critical User Journey, not per service; budget only the dimensions that matter.
+2. **Baseline before you budget** — data-driven once data exists, NFR estimate before it; state the mode; an un-baselined budget is **PROVISIONAL**.
+3. **Budget cost in cost-per-unit, not the total bill** — per request / *verified* successful task / tenant; count instance + dev-maintenance cost.
+4. **Exhaust cheap levers before buying capacity** — cache/batch -> query/index -> cardinality/retention -> rightsize/autoscale -> only then more instances; cite each saving.
+5. **Guardrails are a hierarchy** — soft alert -> hard cap -> circuit breaker; attribute by tenant/feature/env; page High+ only.
+6. **Headroom is the deliverable** — report % to ceiling and time-to-wall; re-baseline on cadence and budget-consequence triggers, not one raw reading.
 
 ## Checklist
 - [ ] NFRs derived from business logic + expected volume; targets set **per CUJ**, not per service
@@ -53,19 +54,8 @@ Verdict:      WITHIN BUDGET | AT RISK — levers before spend | OVER — needs d
 - [ ] Re-review cadence + budget-consequence triggers set
 - [ ] Verdict recorded
 
-## Anti-patterns (never do)
-- Set a budget with no baseline and no NFR derivation — that is a wish, not a budget.
-- Budget the total monthly bill instead of cost-per-unit — it cannot tell efficiency from growth.
-- Average a target across the whole service instead of per user journey — it hides the journey that is failing.
-- Scale capacity or jump to a bigger instance before exhausting caching, query/index, cardinality, and rightsizing levers.
-- Add an index or a high-cardinality metric dimension without budgeting its write / cost amplification.
-- Divide a per-outcome cost by attempts instead of *verified* successes — a cheap-but-failing path then looks efficient.
-- Report a single current number with no headroom or time-to-wall — leadership cannot plan a scaling decision from it.
-- Page on every threshold breach or cosmetic trend — guardrails are tiered (alert -> cap -> breaker); pages are High+ only.
-
-## Example
-**Input:** "Wallet top-up is live at ~100 RPS / 80k users-day — set its performance and cost budget."
-**Output (excerpt):** *Workload:* 100 RPS peak, 80k top-ups/day. *Baseline:* p95 420 ms, $0.0021 / successful top-up (load test + 2 weeks prod — **data-driven**). *Perf budget (CUJ = top-up success):* p95 ≤ 500 ms, throughput ≥ 150 RPS, DB connections ≤ 60% of pool. *Cost budget:* ≤ $0.003 / successful top-up, ≤ $2.4k/mo at current volume; instance + on-call maintenance counted. *Headroom:* 16% latency, 33% throughput; connections hit the wall at ~2.2× volume (~7 weeks at current growth). *Cheap levers:* provider-response cache (−30% calls) and a partial index on the hot lookup (budget +3× write) before adding read replicas. *Guardrails:* alert at 80% of any ceiling -> hard-cap unauthenticated retries -> breaker at provider p99 > 2 s. *Re-review:* at 2× volume or if cost / top-up rises 20%. → **Verdict: WITHIN BUDGET** — levers queued before spend.
+## Anti-patterns and example
+The "never do" list (set a budget with no baseline, budget the total bill, page on every breach, divide cost by attempts not verified successes, etc.) is in `references/anti-patterns.md`. A complete worked wallet-top-up budget is in `examples/wallet-top-up.md`.
 
 ## Human approval gate
 **Stop.** A human owns the budget numbers and any spend or scaling decision — committing money or capacity is a business call. A one-way-door spend (reserved instances, a tier upgrade, a bigger cluster) follows decide-then-explain: set a clear recommendation with rationale, but it still needs sign-off. The lead recommends the targets, the headroom, and the lever order; the eng owner and finance approve the budget and the scaling trigger. The skill produces the budget; it does not provision, scale, or commit spend.
