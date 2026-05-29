@@ -44,12 +44,9 @@ search, plan, extract, or self-review.
 
 ## Inputs
 
-| Input | Shape | Source |
-|---|---|---|
-| `topic` | string | workflow input, verbatim |
-| `research_plan` | object with at least `{ sub_questions[], depth }` plus optional `{ angle, scope_notes, audience_notes }` from `plan-research` | upstream stage `plan-research` |
-| `findings` | array of objects with at least `{ id, claim, evidence, source_id, confidence }` from `extract-findings` | upstream stage `extract-findings` |
-| `audience` | string — one of `general` / `executive` / `expert` / `academic` (free-form strings tolerated; map to closest profile) | workflow input |
+The `inputs:` frontmatter block is the source of truth for shape and source
+of each input (`topic`, `research_plan`, `findings`, `audience`). Notes below
+cover the non-obvious wiring.
 
 **Implicit input via `research_plan`:** the workflow does NOT pass `depth`
 directly to this stage — depth lives on `research_plan.depth` (one of
@@ -67,69 +64,14 @@ Both outputs are required.
 
 ### `draft_report` — markdown string
 
-Sectioned markdown body. Section set depends on `research_plan.depth`:
-
-**`quick` (≈300–600 words, 3 sections):**
-
-1. `# <topic>` — title is the input `topic` verbatim.
-2. `## TL;DR` — 2–4 sentences answering the topic question, with inline `[n]` cites.
-3. `## Findings` — bullet list, each bullet 1–2 sentences with at least one `[n]` cite.
-4. `## Sources` — numbered list.
-
-**`standard` (≈800–1500 words, 5–6 sections):**
-
-1. `# <topic>`
-2. `## Executive Summary` — 3–5 sentences. Answers the topic question first; busy readers stop here.
-3. `## Background` — 1 short paragraph framing why the topic matters and what was asked.
-4. `## Key Findings` — bullet list, each bullet 1–2 sentences with `[n]` cites.
-5. `## <one section per research-plan sub-question>` — 2–5 themed body sections; titles taken from `research_plan.sub_questions`. 2–4 paragraphs each with inline `[n]` cites and optional bullet sub-points.
-6. `## Limitations & Open Questions` — what wasn't answered, where confidence is low, where sources disagree.
-7. `## Sources` — numbered list.
-
-**`deep` (≈2000–4000 words, 7+ sections):**
-
-Same as `standard` plus:
-- A `## Methodology` section (1 paragraph) between Background and Key Findings, naming the research plan's angle and any scope limits.
-- 3–5 themed body sections instead of 2–3, with deeper exposition (contrasts, mechanisms, comparative claims, parameter values where present in findings).
-- Optionally a `## Synthesis` section after themed bodies for cross-cutting claims that combine multiple findings — clearly labeled as synthesis, not as a primary finding.
-
-#### Diagrams (new in v0.2.0)
-
-> **Cross-skill dependency:** `augment-diagrams` (the out-of-band backfill
-> skill) treats the rules below as canonical and references this section
-> directly. When editing these rules, also re-read
-> `skills/augment-diagrams/SKILL.md` → Outputs → Diagrams to confirm the
-> backfill grounding-rule delta still applies cleanly.
-
-A body section may carry an inline ASCII diagram when structure does more work
-than another paragraph. Rules:
-
-- **When:** depth ∈ `standard` or `deep`. On `quick`, do not emit diagrams.
-- **Count:** 0–3 across the whole report. Zero is a valid answer. Never pad —
-  same "cut don't stretch" rule as prose.
-- **Where:** inside a body section (the themed sub-question sections, or a
-  deep-depth `## Synthesis`), placed AFTER the first prose paragraph that
-  introduces the concept the diagram visualizes. Never in `## Executive
-  Summary`, `## Background`, `## Methodology`, `## Key Findings`,
-  `## Limitations & Open Questions`, or `## Sources`.
-- **Format:** a fenced code block with no language tag. ≤ 15 lines.
-  ≤ 70 columns per line. ASCII plus Unicode box-drawing characters only
-  (`─ │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ → ← ↔`). No tabs. No nested fences.
-- **Allowed diagram types** (pick the one the section needs):
-  - **Tree** — taxonomies, type hierarchies.
-  - **Flow** — `A → B → C` pipelines or state transitions.
-  - **Stack/layer** — boxed layers stacked top-to-bottom.
-  - **Fan-in / fan-out** — multiple inputs into a fuser or one source into many sinks.
-  - **Comparison matrix** — 2–3 column ASCII contrast (only when a markdown
-    table can't carry the same visual contrast).
-- **Grounding:** every entity, arrow, or layer in a diagram MUST trace to
-  findings already selected for the section the diagram sits in. A diagram
-  is a structural rendering of claims the prose already makes — not a new
-  claim. Citations therefore live in the surrounding prose, NOT inside the
-  fenced block. No `[n]` markers inside a fenced block.
-- **Scan test:** before emitting a diagram, ask "would a reader who scans
-  ONLY the diagram still get the section's load-bearing structure?" If no,
-  skip it — that diagram is decoration, not communication.
+Sectioned markdown body. The section set depends on `research_plan.depth`
+(`quick` 3 sections / `standard` 5–6 / `deep` 7+) and a body section may carry
+an inline ASCII diagram (0–3 per report, `standard`/`deep` only). The canonical
+per-depth section set and the full diagram catalog (When / Count / Where /
+Format / allowed types / Grounding / Scan test) live in
+[`references/output-contract.md`](references/output-contract.md). That file is
+the single source of truth; `augment-diagrams` also grounds its backfill rules
+against its Diagrams section.
 
 ### `cited_sources` — array
 
@@ -156,7 +98,8 @@ entry in `cited_sources`, and vice versa. The `## Sources` section in
 ## Procedure
 
 1. **Resolve depth.** Read `research_plan.depth`. If absent, default to
-   `standard`. Pick the section set from the Outputs table above.
+   `standard`. Pick the section set from
+   [`references/output-contract.md`](references/output-contract.md).
 
 2. **Resolve audience.** Map `audience` to the closest profile per
    [`references/audience-profiles.md`](references/audience-profiles.md). If
@@ -205,7 +148,8 @@ entry in `cited_sources`, and vice versa. The `## Sources` section in
 
    **Diagram decision (standard + deep only).** After the first prose
    paragraph of a body section, decide whether one of the diagram types
-   in Outputs → Diagrams clarifies the section. Apply the scan test —
+   in [`references/output-contract.md`](references/output-contract.md)
+   → Diagrams clarifies the section. Apply the scan test —
    "would a reader who reads only the diagram still get the load-bearing
    structure?" If yes, emit it after that first paragraph. If no, skip.
    Cap the report at 3 diagrams total; on `quick` depth, always skip.
@@ -247,49 +191,13 @@ absolute novice).
 
 ## Validation gate
 
-Before emitting, confirm all of the following. Any failure → fix and re-run
-the relevant step; do not emit a known-broken draft.
-
-1. **Title is the input `topic` verbatim** in an `# H1`.
-2. **Section set matches depth** (per Outputs table).
-3. **Every `[n]` marker** in `draft_report` has a matching entry in
-   `cited_sources` with that `id`.
-4. **Every `cited_sources` entry** has at least one `[n]` reference in
-   `draft_report`.
-5. **`## Sources` section** in `draft_report` agrees with `cited_sources`
-   (same ids, same order, same titles/urls).
-6. **Every `cited_sources[i].findings_supported`** is non-empty and every
-   referenced finding id exists in the input `findings`.
-7. **Every selected finding** is cited at least once OR explicitly
-   accounted for in `## Limitations & Open Questions`.
-8. **Every `research_plan.sub_questions` entry** is addressed by at least
-   one body section OR an explicit "no evidence found" note.
-9. **Audience tone check** — no `general` report contains undefined jargon
-   in body prose; no `executive` report defers the recommendation past
-   the executive summary; no `expert` report omits mechanism / parameter
-   detail when the findings supply it.
-10. **Length is within ±50%** of the depth target (300–600 / 800–1500 /
-    2000–4000 words). Over-budget → cut. Severely under → only OK if
-    findings genuinely don't support more, and Limitations must say so.
-11. **No invented sources** — every `cited_sources[i].url` and `title`
-    appears verbatim in the input source records (dereferenced via
-    `findings`).
-12. **Diagram count and depth gate.** Zero fenced code blocks on `quick`
-    depth. ≤ 3 fenced blocks total on `standard` / `deep`.
-13. **Diagram fences are valid markdown.** Every triple-backtick opens
-    and closes; no nested fences; no language tag on diagram blocks.
-14. **No `[n]` markers inside any fenced block.** Citations live in the
-    surrounding prose, not in the diagram.
-15. **Diagram placement.** No fenced blocks in `## Executive Summary`,
-    `## Background`, `## Methodology`, `## Key Findings`, `## Limitations
-    & Open Questions`, or `## Sources`. Diagrams live only in themed body
-    sections or `## Synthesis`.
-16. **Diagram grounding.** Every entity / arrow / layer in each diagram
-    traces to a finding selected for the same section.
-17. **Every declarative sentence in `draft_report`** traces to at least one
-    finding in the input `findings`. Cross-finding synthesis appears only in
-    a labeled `## Synthesis` subsection (deep depth only), with each
-    synthesis sentence citing its underlying findings.
+See [`references/validation-gate.md`](references/validation-gate.md) for the
+17-check pre-emit gate (title verbatim, depth/section match, the bijective
+`[n]` ↔ `cited_sources[].id` checks, Sources agreement, finding/sub-question
+coverage, audience tone, length band, no invented sources, the diagram
+count/fence/placement/grounding checks, and every-sentence-traces-to-a-finding).
+Any failure → fix and re-run the relevant step; do not emit a known-broken
+draft.
 
 ## Anti-patterns
 

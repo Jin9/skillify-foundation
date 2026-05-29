@@ -29,48 +29,36 @@ outputs:
 
 ## Purpose
 
-Convert a bag of gathered sources into a structured, citation-grounded
-findings table that is already aligned to the research_plan's
-sub-questions. The next stage (synthesize-report) consumes this output as
-an outline-ready evidence map; it should not have to re-read the source
-bodies to write the report.
+Convert gathered sources into a structured, citation-grounded findings
+table aligned to the research_plan's sub-questions — an outline-ready
+evidence map `synthesize-report` consumes without re-reading source bodies.
 
-This skill is the **faithfulness gate** of the workflow. It enforces:
-every claim is anchored to an `evidence` excerpt and a `source_id`. Claims
-without that anchor are dropped, not softened. Faithfulness (the citation
-supports the claim as stated) is the goal here; **correctness** (the
-claim is true in the world) is owned by `review-report` downstream.
+This skill is the **faithfulness gate** of the workflow: every claim is
+anchored to an `evidence` excerpt and a `source_id`, and unanchored claims
+are dropped, not softened. Faithfulness (the citation supports the claim as
+stated) is the goal here; **correctness** (the claim is true in the world)
+is owned by `review-report` downstream.
 
 ## When to use this skill
 
 - Stage 3 of the `researcher` workflow runs this skill automatically.
-- Standalone invocation when a caller hands over a `research_plan` +
-  `sources` pair and asks for an evidence table.
+- Standalone when a caller hands over a `research_plan` + `sources` pair
+  and asks for an evidence table.
 - Trigger phrases: "extract findings", "pull structured claims",
   "evidence table", "claim-source map", "findings against the plan".
 
-Do NOT use this skill to:
-- Plan research (use `plan-research`).
-- Search for new sources (use `search-sources`). This skill cannot fetch
-  anything — it works only with the sources the workflow already gathered.
-- Compose the prose report (use `synthesize-report`).
-- Verify whether claims are factually accurate against the world (use
-  `review-report`).
-- Edit `workflows/researcher.yaml` or any other workflow file.
+Do NOT use to plan research (`plan-research`), fetch new sources
+(`search-sources` — this skill works only on already-gathered sources and
+cannot fetch), write prose (`synthesize-report`), judge real-world accuracy
+(`review-report`), or edit `workflows/researcher.yaml` or any workflow file.
 
 ## Inputs
 
 The workflow contract (`workflows/researcher.yaml`, stage `extract-findings`)
-passes exactly two inputs:
-
-| Field | Required | Source | Shape |
-|---|---|---|---|
-| `research_plan` | yes | `stages.plan-research.research_plan` | object with `sub_questions[]`; each entry has at least `id` (stable, e.g. `sq-1`) and `question` (text). May also carry `rationale`, `priority`. |
-| `sources` | yes | `stages.search-sources.sources` | list of objects; each entry has at least `id` (stable, e.g. `s-1`), `title`, `url`, and a body field (`text`, `content`, or `excerpt`) the model can read. May also carry `author`, `published_at`, `accessed_at`. |
-
-Both inputs are passed as-is from upstream stages. The skill must not
-fabricate fields that the upstream stages did not provide; if a source
-arrived without a body, treat it as unreadable (see the validation gate).
+passes exactly two inputs — `research_plan` (from `plan-research`) and
+`sources` (from `search-sources`). Per-field source bindings and required
+shapes live in
+[`references/output-fields.md`](references/output-fields.md#input-field-shapes).
 
 ## Outputs
 
@@ -105,62 +93,19 @@ Single output `findings`, a JSON-shaped object with the following shape:
 }
 ```
 
-### Resolving the workflow's open question
-
-`workflows/researcher.yaml` asks: *findings shape — list of
-`{claim, evidence, source_id, confidence}` or freeform?* This skill picks
-**structured list, extended**. Rationale:
-
-- `synthesize-report` and `review-report` both need to address individual
-  claims (cite them, flag them, drop them). Freeform notes force them to
-  re-parse text. Structured rows are addressable.
-- Adding `sub_question_id` makes the output **outline-conditioned**
-  (STORM's term): the synthesis stage gets a free outline from
-  `coverage[]` and never has to reorganize raw notes.
-- Adding `supporting_source_ids` and `disputed_by` lets corroboration
-  and contradiction survive into synthesis instead of being collapsed.
-- `confidence` is qualitative (`high|medium|low`), not numeric — see
-  [`references/confidence-rubric.md`](references/confidence-rubric.md) for
-  the rubric. Verbalized numeric confidence from LLMs is poorly calibrated.
-
-### Per-finding fields
-
-| Field | Required | Type | Rule |
-|---|---|---|---|
-| `id` | yes | string | Stable, monotonic (`f-1`, `f-2`, ...). Used by downstream stages to reference the finding. |
-| `sub_question_id` | yes | string | Must match an `id` in `research_plan.sub_questions[]`, OR the literal `"unmapped"`. |
-| `claim` | yes | string | One declarative sentence. ≤ 240 chars. No hedging beyond what the source uses. |
-| `evidence` | yes | string | Verbatim excerpt or close paraphrase from the source body, ≤ 600 chars. Quoted material in double quotes. |
-| `source_id` | yes | string | Must match an `id` in input `sources[]`. The primary source for this claim. |
-| `supporting_source_ids` | no | string[] | Other source ids that independently support the claim. Use for corroboration. |
-| `disputed_by` | no | string[] | Source ids that contradict the claim. When non-empty, also emit the opposing claim as a separate finding. |
-| `confidence` | yes | enum | `high` \| `medium` \| `low`. Per the rubric below. |
-| `note` | no | string \| null | Caveats, missing nuance, unmapped-bucket explanation, or other context. |
-
-### Per-coverage fields
-
-| Field | Required | Type | Rule |
-|---|---|---|---|
-| `sub_question_id` | yes | string | Mirrors a `research_plan.sub_questions[].id`. |
-| `finding_ids` | yes | string[] | Finding ids that address this sub-question. Empty when no source covered it. |
-| `status` | yes | enum | `covered` (≥1 finding), `partial` (some aspects unaddressed; explain in `gap_note`), `uncovered` (no findings). |
-| `gap_note` | no | string \| null | One sentence on what's missing. Required when `status != covered`. |
-
-`coverage[]` MUST contain one row per sub-question in the plan, in plan
-order. This is the outline `synthesize-report` will consume.
-
-`unsupported_sources[]` lists sources that produced zero findings —
-often a smell (off-topic source, broken body, model overlooked it).
-Surface for downstream review; do not silently drop them.
+Per-field type/rule definitions for every `findings[]` and `coverage[]`
+field, the structured-vs-freeform rationale, and the rules that
+`coverage[]` carries one row per sub-question in plan order and that
+`unsupported_sources[]` is surfaced (never silently dropped) are the
+authoritative contract in
+[`references/output-fields.md`](references/output-fields.md).
 
 ## Confidence rubric
 
-Qualitative ordinal scale: `high | medium | low`. The bucket is chosen by
-the strength of the evidence relative to the claim. Full bucket
-definitions, the calibration rationale (why ordinal, not numeric), and the
-downstream-consumer notes live in
+Qualitative ordinal scale `high | medium | low`, chosen by evidence strength
+relative to the claim; never numeric. Bucket definitions, the why-ordinal
+rationale, and downstream-consumer notes are in
 [`references/confidence-rubric.md`](references/confidence-rubric.md).
-Never emit a numeric confidence score.
 
 ## Procedure
 
@@ -256,27 +201,24 @@ object is the value bound to the workflow's `findings` output.
 
 ## Worked example
 
-See `examples/four-day-week.md` for a complete worked input → output
-illustration. It shows: evidence-first extraction, corroboration via
-`supporting_source_ids`, contradictions surfaced as separate findings with
-`disputed_by` pointers, the qualitative confidence rubric in use, and a
-`partial`-coverage `gap_note` for an under-covered sub-question.
+See `examples/four-day-week.md` for a complete input → output illustration:
+evidence-first extraction, corroboration via `supporting_source_ids`,
+contradictions as separate findings with `disputed_by` pointers, the
+qualitative confidence rubric in use, and a `partial`-coverage `gap_note`.
 
 ## Anti-patterns
 
-Sweep [`references/anti-patterns.md`](references/anti-patterns.md) before
-emitting `findings` — 10 failure modes covering invented source ids, post-
-rationalized citations, stripped hedging, collapsed contradictions,
-over-extraction, numeric confidence, "unmapped" dumping, silent source
-skips, faithfulness↔correctness confusion, and sub-question reordering. If
-any applies to a finding, fix the finding before emitting.
+Sweep the 10-row failure-mode table in
+[`references/anti-patterns.md`](references/anti-patterns.md) before emitting
+`findings`; if any row applies, fix the finding first (also Procedure step
+11 / Validation gate item 10).
 
 ## Constraints
 
-- DO NOT fetch new sources. This skill is a closed-context extractor;
-  it cannot run search and must not pretend it did.
-- DO NOT modify the `research_plan` or `sources` inputs. They are
-  immutable upstream contracts.
+- DO NOT fetch new sources. This is a closed-context extractor; it cannot
+  run search and must not pretend it did.
+- DO NOT modify the `research_plan` or `sources` inputs — immutable
+  upstream contracts.
 - DO NOT emit findings whose `source_id` is not in input `sources[]`.
 - DO NOT emit findings whose `sub_question_id` is not in input
   `research_plan.sub_questions[]` and is not the literal `"unmapped"`.
@@ -316,31 +258,26 @@ Before emitting the output object, confirm:
     ([`references/anti-patterns.md`](references/anti-patterns.md)) — every
     applicable item is absent or explicitly mitigated.
 
-If any gate fails, fix the offending row before emitting; do not
-emit a partial output and rely on `review-report` to catch it — gate
-failures here corrupt the input to two downstream stages.
+If any gate fails, fix the offending row before emitting; do not emit a
+partial output and rely on `review-report` to catch it — gate failures here
+corrupt two downstream stages.
 
 ## References
 
-- [`references/confidence-rubric.md`](references/confidence-rubric.md) — the
-  qualitative bucket definitions, why-ordinal-not-numeric rationale, and
-  downstream-consumer notes.
-- [`references/anti-patterns.md`](references/anti-patterns.md) — the
-  10-row failure-mode sweep used by Procedure step 11 and Validation gate
-  item 10.
+- [`references/output-fields.md`](references/output-fields.md) — input field
+  shapes, per-field `findings[]`/`coverage[]` rules, structured-vs-freeform
+  rationale, Troubleshooting table.
+- [`references/confidence-rubric.md`](references/confidence-rubric.md) —
+  bucket definitions, why-ordinal-not-numeric rationale, consumer notes.
+- [`references/anti-patterns.md`](references/anti-patterns.md) — the 10-row
+  failure-mode sweep (Procedure step 11 / Validation gate item 10).
 
 Prior-art that shaped the rubric and procedure (Elicit, STORM, FACTUM, FACTS
-Grounding, PICO, CER, deep-research surveys) is not loaded into the model
-context.
+Grounding, PICO, CER, deep-research surveys) is not loaded into context.
 
 ## Troubleshooting
 
-| Signal | Action |
-|---|---|
-| `sources` list contains an entry without a body field | Add to `unsupported_sources[]` with reason `"no body — could not extract"`. Do not fabricate body content. |
-| Same finding extractable from many sources | Emit one finding; list the rest in `supporting_source_ids`. Upgrade `confidence` to `high` if ≥2 independent sources. |
-| Two sources contradict each other on the same point | Emit two findings, each with the opposing source in `disputed_by`. Do not collapse. |
-| Sub-question has no covering source | `coverage[].status: uncovered`; `finding_ids: []`; `gap_note` names what's missing. Flag clearly — workflow may want to loop back to `search-sources`. |
-| Source clearly off-topic | Add to `unsupported_sources[]` with reason `"off-topic — no claims relevant to plan"`. |
-| Hitting the 7-findings-per-sub-question cap repeatedly | The sub-question is probably too broad. Emit only the top 7 by centrality; add a `note` on the lowest-ranked one flagging the over-population for `review-report` to consider. |
-| Findings that don't fit any sub-question but feel important | Sparingly: emit with `sub_question_id: "unmapped"` and a `note` explaining why retained. If you have ≥3 unmapped findings, that's a research-plan-coverage signal — flag in the highest-priority `coverage` row's `gap_note`. |
+Signal → action table for the 7 common edge cases (no-body source,
+multi-source corroboration, contradictions, uncovered sub-question,
+off-topic source, cap-biting, unmapped findings):
+[`references/output-fields.md`](references/output-fields.md#troubleshooting).

@@ -158,3 +158,19 @@ Anti-patterns to avoid:
 - Introducing speculative abstractions ("we might need this later"). Apply a refactoring only when a §4 smell is present *now*.
 - Bundling "while I'm here" feature work into the refactor commit.
 - Hand-editing generated mocks instead of running `mockery`.
+
+## Troubleshooting (signal → action)
+
+| Signal | Action |
+|---|---|
+| Requirement seems to need a new database or external service | STOP. The requirement crosses scaffold boundary. Surface the conflict, name `router/deps.go` and `config/`, ask the user to approve a scaffold delta. |
+| `git diff` shows `main.go` or `config/` edits | Revert. The scaffold lock failed. Re-read SKILL.md §2 and Step 9. |
+| Coverage stuck below 100% | Add a case per `if err != nil`. Include model-getter parse failures and `kafka.BindMessage` validation failures. |
+| Kafka consumer accepts invalid payload | Replace `json.Unmarshal` with `kafka.BindMessage` — it deserialises **and** runs binding tags. |
+| `mockery` regenerates an unexpected mock file | Check `.mockery.yaml` (do not edit it — ask the user if the config is wrong). |
+| Test stalls on `mock.MatchedBy` | Confirm `args.ctx` is assigned **before** calling `prepare(m, args)` inside the loop. |
+| User names a smell from `fowler-patterns.md` §4 (God Handler, Long Parameter List, Too Many Returns, Feature Envy, …) and asks to refactor | Run **Recipe F** above. Stay inside ALLOWED zone, one refactoring at a time, tests green between each step. Refactor commit is separate from any feature commit. |
+| User asks to "just refactor while we're here" with no smell named | Ask which smell from `fowler-patterns.md` §4 applies. If the user cannot name one, decline — "clean it up" is not a requirement. |
+| New or modified function has 4+ params after `ctx` | Long Parameter List smell. Apply **Introduce Parameter Object** (`<Action>Params` struct) per `fowler-patterns.md` §5 before merging. |
+| New or modified function returns 3+ values | Too Many Returns smell. Apply **Introduce Result Object** (`<Action>Result` struct) per `fowler-patterns.md` §5. `(T, bool)` lookups and naked `error` are the only allowed exceptions to `(T, error)`. |
+| Handler over ~100 lines, or mixes auth + validation + business + formatting | God Handler smell. Extract a `service_<action>.go` per `fowler-patterns.md` §2; apply the small-safe-steps workflow. |

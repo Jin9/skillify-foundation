@@ -1,6 +1,6 @@
 ---
 name: crafting-frontend-code
-description: Reviews, designs, and safely implements frontend code with a conservative, repo-first posture for AI coding agents. Use when designing, reviewing, optimizing, fixing, analyzing, or planning React/TypeScript frontend features, TSX/JSX components, Next.js or Vite apps, component boundaries, rendering models, state ownership, data fetching, forms, design systems, accessibility, performance, tests, or frontend migrations. Do NOT use for backend business logic, Terraform, or CLI tools without UI.
+description: Reviews, designs, and safely implements frontend code with a conservative, repo-first posture for AI coding agents. Use when designing, reviewing, optimizing, fixing, analyzing, or planning React/TypeScript frontend features, TSX/JSX components, Next.js or Vite apps, component boundaries, rendering models, state ownership, data fetching, forms, design systems, accessibility, performance, tests, or frontend migrations. Do NOT use for backend business logic (use crafting-backend-code or architecting-fintech-systems), Terraform, or CLI tools without UI.
 ---
 
 # Crafting Frontend Code
@@ -61,74 +61,18 @@ Evaluation axes: complexity ↔ maintainability, bundle ↔ DX, perceived-perf �
 
 ## Modes
 
-Each mode is a workflow. For design, optimize, analyze, review, and plan responses, include the checklist when it improves reviewability. For direct implementation or small fixes, use the checklist internally and summarize only the important result. Concrete output shapes per mode: `references/examples.md`.
+Each mode is a workflow. Its checklist lives in `references/mode-checklists.md` — load and fill the matching checklist when it improves reviewability; for direct implementation or small fixes, apply it internally and summarize only the important result. Concrete output shapes per mode: `references/examples.md`.
 
-### `design` — full UI architecture pass
-
-```
-- [ ] L1 User Intent + success state stated
-- [ ] L2 component tree + state ownership + rendering model named
-- [ ] L3 fetching, caching, error/loading, a11y contract chosen
-- [ ] L4 components / hooks / types / tests sketched
-- [ ] Trade-offs stated on all 4 axes
-```
-
-### `optimize` — performance / bundle / DX trade-off
-
-```
-- [ ] Current baseline measured (Lighthouse / Web Vitals / bundle stats)
-- [ ] Bottleneck identified, not guessed (TTFB / LCP / INP / CLS / TBT / bundle / re-render)
-- [ ] Options enumerated with pros/cons (code-split, memo, defer, server-render, virtualize)
-- [ ] Recommendation + measurement plan
-```
-
-### `fix` — minimal, direct solution
-
-```
-- [ ] State "L1-L3 skipped: isolated fix" when useful
-- [ ] Root cause vs symptom called out (re-render? stale closure? key? hydration mismatch? effect dependency?)
-- [ ] Behavior-preserving unless flagged; visual regression risk noted
-- [ ] Existing tests or scripts checked before adding new tools
-```
-
-### `analyze` — deep breakdown
-
-```
-- [ ] Strengths
-- [ ] Gaps (a11y / perf / type-safety / state)
-- [ ] Contradictions (e.g., client state mirroring server state)
-- [ ] Recommendations, prioritized
-```
-
-### `review` — code / component / architecture review
-
-```
-- [ ] Risks flagged by severity (P1/P2/P3)
-- [ ] A11y, performance, type-safety, security (XSS / CSRF / CSP) checked
-- [ ] Concrete fix suggested for each finding
-- [ ] Findings are evidence-backed with file/line references when local code is available
-```
-
-### `plan` — produce a plan, do not execute
-
-```
-- [ ] Priorities set
-- [ ] Open decisions listed with owners (design, product, infra)
-- [ ] Dependencies + sequencing stated (API ready? feature flag? token bump?)
-```
+- **`design`** — full UI architecture pass: L1 User Intent + success state → L2 component tree / state ownership / rendering model → L3 fetching/caching/error-loading/a11y contract → L4 components/hooks/types/tests sketched, trade-offs on all 4 axes.
+- **`optimize`** — performance / bundle / DX trade-off: measured baseline (Lighthouse / Web Vitals / bundle stats) → identified (not guessed) bottleneck (TTFB / LCP / INP / CLS / TBT / bundle / re-render) → options with pros/cons (code-split, memo, defer, server-render, virtualize) → recommendation + measurement plan.
+- **`fix`** — minimal, direct solution: root cause vs symptom (re-render? stale closure? key? hydration mismatch? effect dependency?), behavior-preserving unless flagged with visual-regression risk noted, existing tests/scripts checked before adding new tools.
+- **`analyze`** — deep breakdown: strengths, gaps (a11y / perf / type-safety / state), contradictions (e.g., client state mirroring server state), recommendations prioritized.
+- **`review`** — code / component / architecture review: severity-tagged (P1/P2/P3) findings across a11y/perf/type-safety/security (XSS / CSRF / CSP), with concrete evidence-backed fixes citing file/line when local code is available.
+- **`plan`** — produce a plan, do not execute: priorities, open decisions with owners (design, product, infra), dependencies + sequencing (API ready? feature flag? token bump?).
 
 ## Output format
 
-Per-mode output contract:
-
-| Mode | Output shape | Notes |
-|------|--------------|-------|
-| `design` | Markdown report with the design checklist filled, component tree (Mermaid or indented list), state-ownership table, sketched components/hooks/types in code blocks. | No production code unless the user asked for L4. |
-| `optimize` | Markdown report with baseline (Web Vitals / bundle stats), bottleneck evidence, options table, recommendation, measurement plan. | Include profiling / measurement commands when relevant. |
-| `fix` | Minimal TSX/TS patch (focused diff or `Edit`-tool changes) + validation commands run. | Regression test or visual-regression note added in the same change when feasible. |
-| `analyze` | Markdown report only. No edits. | Findings prioritized; cite file:line where local code is available. |
-| `review` | Markdown findings table (severity / location / fix). No edits unless the user asked for follow-up `fix`. | Cover a11y, perf, type-safety, security. |
-| `plan` | Markdown plan: priorities, open decisions with owners, sequencing, validation, rollback. | No edits, no code. |
+Per-mode output contract (shape table for design / optimize / fix / analyze / review / plan): `references/examples.md`.
 
 When a mode emits code, blocks must be type-safe under the repo's TypeScript settings and ship with the validation command(s) the agent ran. Use TSV for ownership tables and Mermaid for component trees when they aid review.
 
@@ -160,7 +104,7 @@ Before sending the response, re-check:
 3. Trade-offs stated on at least 2 of the 4 axes when the task involves a design choice.
 4. Any code block is type-safe under the repo's TypeScript settings; avoid `any` and unchecked casts outside parsers/boundaries.
 5. Any UI recommendation includes an a11y note OR is explicitly marked out-of-scope.
-6. The output matches the per-mode shape table above.
+6. The output matches the per-mode shape table in `references/examples.md`.
 7. The response separates what was verified from what remains a risk.
 
 If any check fails, revise before sending.
@@ -179,4 +123,5 @@ If any check fails, revise before sending.
 | Tooling & build (Next.js vs Vite, bundlers, monorepo) | `references/tooling-build.md` |
 | Frontend security (XSS, CSRF, CSP, token storage) | `references/security.md` |
 | Observability (errors, RUM, feature flags) | `references/observability.md` |
+| Per-mode checklists (design / optimize / fix / analyze / review / plan) | `references/mode-checklists.md` |
 | Concrete output shapes per mode | `references/examples.md` |

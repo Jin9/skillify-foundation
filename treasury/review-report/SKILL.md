@@ -60,19 +60,14 @@ re-review. Unresolvable gaps are recorded, not fixed.
 
 ## Input contract
 
-The skill MUST receive these inputs verbatim from the workflow engine. No
-input may be inferred or fabricated. If any required input is missing,
-malformed, or empty, emit `final_report = draft_report`, `cited_sources =
-input cited_sources`, and a `review_notes` entry of category
-`input_incomplete` describing the blocker.
+The skill MUST receive five inputs verbatim from the workflow engine — `topic`,
+`draft_report`, `cited_sources`, `findings`, `audience`. No input may be
+inferred or fabricated. If any required input is missing, malformed, or empty,
+emit `final_report = draft_report`, `cited_sources = input cited_sources`, and a
+`review_notes` entry of category `input_incomplete` describing the blocker.
 
-| Field | Type | Source | Notes |
-|-------|------|--------|-------|
-| `topic` | string | workflow input | The subject the report is about. The reviewer checks the report stays on this topic. |
-| `draft_report` | string (markdown) | `stages.synthesize-report.draft_report` | The unreviewed report. Citation markers refer to entries in `cited_sources`. |
-| `cited_sources` | array of `{id, title, url, …}` | `stages.synthesize-report.cited_sources` | The sources the draft actually cited. Each has a stable `id`. |
-| `findings` | array of `{claim, evidence, source_id, confidence, …}` | `stages.extract-findings.findings` | The full evidence pool from extract-findings. `source_id` references entries in the upstream `sources` set. The reviewer's closed-world citation universe. |
-| `audience` | string | workflow input | Who the report is written for (e.g. "general", "engineering manager", "researchers"). The reviewer checks fit, not invents new audience. |
+Field-by-field catalog (types, sources, notes):
+[`references/input-contract.md`](references/input-contract.md).
 
 **Closed-world rule:** any source the reviewer keeps, swaps in, or adds MUST
 trace to either `cited_sources` (already present) or a `findings[*].source_id`
@@ -87,132 +82,77 @@ mid-stream revision.
 
 ### Step 1 — Build the claim → citation map
 
-Walk the `draft_report`. For every citation marker, record:
-- the sentence (or smallest claim unit) it grounds,
-- the cited `source_id`,
-- the section heading it sits under.
+Walk the `draft_report`. For every citation marker, record the sentence (or
+smallest claim unit) it grounds, the cited `source_id`, and the section heading
+it sits under. Also list **uncited claims** that read as factual assertions
+(numbers, named results, quoted positions, recommendations) — candidates for
+grounding in Step 3. Soft framings ("in general," "broadly speaking,"
+introductions, transitions) are not assertions and need no grounding.
 
-Also list **uncited claims** that read as factual assertions (numbers, named
-results, quoted positions, recommendations). They are candidates for "needs
-grounding" later. Soft framings ("in general," "broadly speaking,"
-introductions, transitions) are not factual assertions and do not need
-grounding.
-
-**Fenced code blocks are excluded from this scan.** ASCII diagrams emitted
-by `synthesize-report` (v0.2.0+) are structural renderings of claims the
-surrounding prose already makes, not new assertions. Treat each fenced
-block as opaque here — do not extract claims from inside it, and do not
-flag the absence of `[n]` markers within it. Diagram-vs-prose consistency
-is audited separately in Step 4.
+**Fenced code blocks are excluded from this scan.** ASCII diagrams emitted by
+`synthesize-report` (v0.2.0+) are structural renderings of claims the prose
+already makes, not new assertions. Treat each block as opaque — do not extract
+claims from it, do not flag missing `[n]` markers inside it. Diagram-vs-prose
+consistency is audited in Step 4.
 
 ### Step 2 — Verify each cited claim against findings
 
-For each cited claim from step 1:
+For each cited claim from step 1, look up the `findings` entry whose `source_id`
+matches the citation:
 
-1. Look up the `findings` entry whose `source_id` matches the citation.
-   - **Match found, evidence supports the claim** → mark `verified`.
-   - **Match found, evidence does NOT support the claim** → mark
-     `unsupported_by_cited_source`. Candidate for *swap* or *drop*.
-   - **No matching finding for that source_id** → mark
-     `citation_broken`. Candidate for *swap* or *drop*.
-2. For `unsupported_by_cited_source` and `citation_broken`, scan the rest of
-   `findings` for a better source for the same claim. If exactly one
-   higher-or-equal-confidence finding supports the claim → candidate *swap*.
-   If none → candidate *drop* (and reword/remove the claim).
+- **Match, evidence supports the claim** → `verified`.
+- **Match, evidence does NOT support** → `unsupported_by_cited_source`
+  (candidate *swap* or *drop*).
+- **No matching finding for that source_id** → `citation_broken` (candidate
+  *swap* or *drop*).
 
-Record every check explicitly — including the verified ones. A non-empty
-ledger of verified claims is the antidote to rubber-stamping.
+For `unsupported_by_cited_source` and `citation_broken`, scan the rest of
+`findings` for a better source: exactly one higher-or-equal-confidence finding
+supporting the claim → candidate *swap*; none → candidate *drop* (reword/remove
+the claim). Record every check, including verified ones — a non-empty verified
+ledger is the antidote to rubber-stamping.
 
 ### Step 3 — Find uncited claims that should be cited
 
-For each uncited factual assertion from step 1:
+For each uncited factual assertion from step 1, scan `findings` for a claim
+whose `evidence` supports it:
 
-- Scan `findings` for a claim whose `evidence` supports it.
-  - **Exactly one supporting finding** → candidate *add* (cite that source).
-  - **Multiple findings agree** → candidate *add* using the highest-confidence
-    finding's source.
-  - **No supporting finding** → candidate `unresolvable_gap`. The claim is
-    asserted but cannot be grounded with available evidence. Flag for step 5
-    decision (revise to a hedged statement, remove, or accept as a flagged
-    gap).
+- **Exactly one supporting finding** → candidate *add* (cite that source).
+- **Multiple findings agree** → candidate *add* using the highest-confidence
+  finding's source.
+- **No supporting finding** → `unresolvable_gap`: asserted but ungroundable
+  with available evidence. Flag for the Step 5 decision (hedge, remove, or
+  accept as a flagged gap).
 
 ### Step 4 — Topic, audience, and internal consistency
 
-Three lightweight scans. Each yields zero or more observations.
+Four lightweight scans, each yielding zero or more observations:
 
-- **Topic fit:** does the report stay on `topic`? Sections that drift wildly
-  off-topic are observations of category `off_topic`.
-- **Audience fit:** scan terminology and assumed background against
-  `audience`. Categorize each mismatch as:
-  - *minor* (one sentence of jargon for a "general" audience, one place) →
-    flag-only, do not rewrite.
-  - *pervasive* (the whole report assumes deep domain knowledge for a
-    "general" audience) → emit a top-level `review_notes` entry of category
-    `audience_mismatch_pervasive`. Do NOT attempt a full audience rewrite in
-    this pass — flag and let the operator decide.
-- **Internal consistency:** check numeric agreement (the same statistic appears
-  consistently), date agreement, entity-name agreement, and claim→conclusion
-  alignment (conclusions follow from claims made earlier). Contradictions
-  become observations of category `internal_contradiction`; prefer the side
-  backed by the higher-confidence finding when resolvable, flag-only when not.
-- **Diagram consistency:** for each fenced code block in `draft_report`,
-  verify the structure depicted matches the surrounding prose — same
-  entities, same arrows / hierarchy, same direction of flow. Also confirm
-  the block sits in a permitted section (themed body or `## Synthesis`)
-  and that no `[n]` marker appears inside it. Mismatches become observations
-  of category `diagram_inconsistent`. Do NOT attempt to fix a diagram's
-  contents — see Step 5.
+- **Topic fit:** sections that drift wildly off `topic` → `off_topic`.
+- **Audience fit:** check terminology and assumed background against `audience`.
+  *Minor* (one place of jargon for a "general" audience) → flag-only, no
+  rewrite. *Pervasive* (whole report assumes deep domain knowledge) →
+  top-level `review_notes` entry of category `audience_mismatch_pervasive`; do
+  NOT attempt a full audience rewrite — flag and let the operator decide.
+- **Internal consistency:** check numeric, date, and entity-name agreement plus
+  claim→conclusion alignment. Contradictions → `internal_contradiction`; prefer
+  the higher-confidence side when resolvable, flag-only when not.
+- **Diagram consistency:** for each fenced block, verify its structure matches
+  the surrounding prose (same entities, arrows/hierarchy, flow direction), sits
+  in a permitted section (themed body or `## Synthesis`), and contains no `[n]`
+  marker. Mismatches → `diagram_inconsistent`. Do NOT fix a diagram's contents
+  — see Step 5.
 
 ### Step 5 — Decide: revise vs. flag-only vs. record unresolvable
 
-Apply these decision rules. They are intentionally restrictive — the goal is
-minimum-edit, not improvement-for-its-own-sake.
+With every observation from steps 1–4 collected, map each one to its action via
+the decision table, then enforce the hard constraints over every applied
+revision. Do not start until collection is complete — deciding mid-collection
+risks destructive, mid-stream rewriting.
 
-| Observation | Action |
-|-------------|--------|
-| `verified` | None (record in notes ledger). |
-| `unsupported_by_cited_source` + swap candidate available | **Swap** the citation. Prose unchanged. |
-| `unsupported_by_cited_source` + no swap | **Drop** the citation AND reword the sentence to remove the unsupported specificity (e.g., remove the precise number, soften the assertion). If the sentence cannot survive without the unsupported claim, **delete** the sentence. |
-| `citation_broken` | Same rules as `unsupported_by_cited_source`. |
-| Uncited claim + add candidate | **Add** the citation. Prose unchanged. |
-| Uncited claim + no candidate (`unresolvable_gap`) | Default: **flag-only**, record the gap. Optional: soften the assertion if the prose admits a hedged form without losing meaning. Do NOT delete unless the claim is clearly wrong. |
-| `off_topic` section, minor | Flag-only. |
-| `off_topic` section, major (whole subsection drifts) | Flag-only — note in review_notes. Do not delete entire subsections in a self-review pass. |
-| `audience_mismatch_pervasive` | Flag-only, top-level note. |
-| `audience_mismatch_minor` | Flag-only. |
-| `internal_contradiction`, resolvable | Replace the weaker-evidence side; record both. |
-| `internal_contradiction`, unresolvable | Flag-only. |
-| `diagram_inconsistent`, minor (one label off, arrow direction wrong) | Flag-only. The reviewer MUST NOT rewrite a diagram's contents — that risks introducing claims not in findings. |
-| `diagram_inconsistent`, severe (whole structure contradicts the prose, or the diagram sits in a forbidden section, or contains an `[n]` marker) | **delete_diagram** — remove the fenced block. Surrounding prose is unchanged. Record the deletion in `Applied changes`. |
-
-**Hard constraints on revision** (canonical list — Anti-patterns and Constraints sections below point here):
-
-- **No new claim.** No revision may introduce a claim that is not already in
-  either the draft or `findings`.
-- **No new source.** No revision may emit a `source_id` that is not in
-  `cited_sources ∪ {f.source_id for f in findings}`. No fabricated sources.
-- **No paraphrase of passing prose.** Style edits for their own sake are
-  forbidden — the documented destructive-rewrite failure mode.
-- **No fenced-block edits.** The only permitted operation on a diagram is
-  `delete_diagram` (whole-block removal). Rewriting a diagram's labels,
-  arrows, or layout would smuggle in claims the synthesize stage didn't
-  ground.
-- **Same top-level structure.** The final report must end with the same
-  top-level sections as the draft unless a section was entirely flagged for
-  removal. No section deletion in self-review — flag instead.
-- **Single-pass.** Exactly one review iteration. No loops, no recursive
-  calls, no re-search. Surface remaining issues in `review_notes` and stop.
-- **No hedging-to-placate.** Do not add "it should be noted that…" framing
-  purely to satisfy the rubric; grounding quality is what is scored.
-- **No scope-widening.** Do not fix formatting choices, section ordering, or
-  prose voice that fall outside the observation set from steps 2–4.
-- **No empty `review_notes`.** The verified-claims ledger is required even
-  on a clean draft.
-- **No silent citation drops.** Every drop appears in `Applied changes`.
-- **Minimum-edit.** Every revision traces to a specific observation from
-  steps 2–4; prose that passes every check is left untouched.
-- **Audience re-targeting is out of scope.** Flag pervasive mismatch and
-  stop; do not rewrite for a different audience in this pass.
+Canonical Step 5 decision table (observation → action) and Hard constraints on
+revision: [`references/revision-rules.md`](references/revision-rules.md). Those
+rules are authoritative; do not improvise.
 
 ### Step 6 — Emit output
 
@@ -295,12 +235,13 @@ recoveries there are canonical; do not improvise.
 
 ## Anti-patterns
 
-See **Step 5 → Hard constraints on revision** above for the canonical rule
-list. This skill's anti-patterns are the inverse of those constraints (no
-loop, no re-search, no fabrication, no paraphrase of passing prose, no
-hedging-to-placate, no scope-widening, no empty `review_notes`, no section
-deletion, no silent citation drops). If a behaviour is not in Hard
-constraints, this skill does not enforce against it.
+See [`references/revision-rules.md`](references/revision-rules.md) → Hard
+constraints on revision for the canonical rule list. This skill's
+anti-patterns are the inverse of those constraints (no loop, no re-search, no
+fabrication, no paraphrase of passing prose, no hedging-to-placate, no
+scope-widening, no empty `review_notes`, no section deletion, no silent
+citation drops). If a behaviour is not in Hard constraints, this skill does
+not enforce against it.
 
 ## Worked example
 
@@ -311,9 +252,9 @@ resolve_contradiction) on a single small draft and shows the full
 
 ## Constraints
 
-See **Step 5 → Hard constraints on revision** above for the canonical
-constraint list (single-pass, closed-world citations, minimum-edit,
-audience-retargeting out of scope, etc.).
+See [`references/revision-rules.md`](references/revision-rules.md) → Hard
+constraints on revision for the canonical constraint list (single-pass,
+closed-world citations, minimum-edit, audience-retargeting out of scope, etc.).
 
 ## Validation gate
 

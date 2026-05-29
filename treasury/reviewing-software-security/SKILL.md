@@ -82,21 +82,7 @@ Anchor every finding to specific identifiers: `CWE-###`, `API#:2023`, `ASVS V#.#
 
 ## Review checklist
 
-Eleven taxonomy areas. Each finding is tagged with one **primary** area + optional secondary tags. Look up the area touched by the artifact in `references/taxonomy.md` for the full check list, stack-specific patterns, and safer-pattern rewrites — that file is mandatory reading before drafting findings in any area below.
-
-| # | Area | Headline focus | Standards |
-|---|---|---|---|
-| A | Application security (Go/Gin) | input binding + size limits, money math via `shopspring/decimal`, middleware order, goroutine context safety | ASVS V1–V14, CWE Top 25 |
-| B | API security (Gin + Kong/APISIX) | BOLA / BOPLA / BFLA, JWT alg pinning, rate-limit + size-limit on every public route, route-shadow prevention | OWASP API Top 10 (2023) |
-| C | Architecture (DDD / CQRS / event-driven) | aggregate invariants, commands carry identity, bounded-context contracts not shared joins, idempotent replay | — |
-| D | AuthN / AuthZ | ownership predicate per handler, mTLS for s2s, tenant scoping at SQL `WHERE`, policy-as-code RBAC | ASVS V4 |
-| E | Secrets & configuration | no hardcoded creds, Vault / Secrets Manager via IRSA / ESO, per-environment secrets with ≤ 90-day rotation | NIST SSDF PS.2 |
-| F | Logging & observability | PII masked, auth headers / JWTs redacted, append-only audit on credit-decision / KYC / disbursement, no internal-hostname echoes | — |
-| G | Database (MySQL / RDS) | parameterized queries, app user lacks `DROP`/`GRANT`/`FILE`, KMS-encrypted PII columns, TLS-enforced connections | CWE-89, CIS MySQL |
-| H | Kubernetes & container | digest-pinned base, `runAsNonRoot` + `readOnlyRootFilesystem`, default-deny NetworkPolicy, scoped RBAC verbs, IRSA over keys | CIS Kubernetes, NSA Hardening |
-| I | CI/CD & supply chain | SBOM + cosign, secret scanning, branch protection, pinned Action SHAs, scoped `permissions:`, OIDC to cloud | SLSA, NIST SSDF PW.4 |
-| J | Event-driven (Kafka) | per-principal topic ACLs, schema-registry compatibility, idempotent producers, dedup-key consumers, header re-validation | — |
-| K | Financial / lending data | regulatory inventory (PDPA/GDPR/PCI-DSS/BOT/OJK/MAS), KYC docs via short-lived pre-signed URLs, signed credit-decision events, dual-control on overrides, masked PRD-to-lower-env copies | PCI-DSS v4, BOT/OJK/MAS |
+Eleven taxonomy areas (A–K). Each finding is tagged with one **primary** area + optional secondary tags. The full area index (headline focus + standards per area), the per-area check lists, stack-specific patterns, and safer-pattern rewrites all live in `references/taxonomy.md` — that file is mandatory reading before drafting findings in any area. Index: A Application security (Go/Gin), B API security (Gin + Kong/APISIX), C Architecture (DDD/CQRS), D AuthN/AuthZ, E Secrets & configuration, F Logging & observability, G Database (MySQL/RDS), H Kubernetes & container, I CI/CD & supply chain, J Event-driven (Kafka), K Financial / lending data.
 
 ## Severity and confidence
 

@@ -39,13 +39,8 @@ Verdict:  DESIGN READY for human sign-off  |  GAPS: <…>
 ```
 
 ## Decision rules
-1. **Gate by reversibility and blast radius, never uniformly.** Auto-approve reversible/read-only work; gate irreversible, control-plane, or production-touching actions on **synchronous named-human approval regardless of agent confidence**. Use plan-then-execute or per-stage checkpoints for high-stakes flows; reserve exception-only autonomy for reversible, low-stakes work.
-2. **Enforce policy outside the model.** Output guardrails constrain what an agent *says*; an external policy engine with **allow / confirm / deny** tiers at the tool-calling layer constrains what it may *do* — so a hijacked or drifting model cannot override the controls. The agent does not decide what is allowed.
-3. **Apply least agency.** Scope each agent's tools, permissions, and credentials to the one task: default read-only, short-lived credentials (not long-lived secrets), allowlisted tool/MCP servers, and read-external isolated from write-sensitive roles. Treat untrusted content (PR titles, issue bodies, tool descriptions) as data, never instructions.
-4. **Default to a single agent; justify every handoff boundary.** Add an agent only for genuine parallelism, a context-window limit, or security-domain separation — each unnecessary handoff costs tokens and adds a failure vector. Get decomposition granularity and topology right before adding agents; unstructured "bag of agents" amplifies errors.
-5. **Set hard pre-execution limits** (retry cap, spend budget, iteration ceiling, loop detector) that **terminate** the run — not dashboards that alert after the spend.
-6. **Model the workflow as a state machine with explicit failure paths.** Classify transient versus fundamental failures; checkpoint at each step to resume (not restart); use idempotency keys for side-effecting actions; make human escalation the final recovery tier.
-7. **Keep the human the accountable owner of record.** The pipeline produces artifacts and recommends; it never decides, commits, or deploys. Log **both halves of the loop** (model request + tool effect) under one trace id, tamper-evident, with the model version and a distinct agent identity; prefer signed provenance over anthropomorphic co-authorship; treat reasoning traces as context, not evidence.
+Apply the seven supervision rules: gate by reversibility/blast radius; enforce policy outside the model; least agency; single-agent default + justified handoffs; hard pre-execution caps that terminate; state machine with failure paths; human as accountable owner of record.
+Detailed rules: references/supervision-design-rules.md
 
 ## Checklist
 - [ ] Each stage maps to an agent/tool and a named human owner
@@ -61,15 +56,8 @@ Verdict:  DESIGN READY for human sign-off  |  GAPS: <…>
 - [ ] Accountability map: distinct agent identity → human owner of record
 
 ## Anti-patterns (never do)
-- Let an agent take an irreversible, control-plane, or production action without a human gate — regardless of its confidence.
-- Rely on prompt/output guardrails alone; ship without an external policy engine enforcing allow / confirm / deny.
-- Over-provision agents (broad permissions, long-lived credentials, unrestricted tools/MCP) — least agency or nothing.
-- Treat untrusted content (PR titles, issue bodies, tool descriptions) as trusted instructions.
-- Add agents or handoffs without justification, or forward full history instead of a typed handoff contract.
-- Govern cost/loops with alert-only dashboards and no pre-execution caps that terminate the run.
-- Ship without logging the tool-effect half of the loop, or with a silently-editable (non-tamper-evident) audit log.
-- Let the agent decide architecture alone, approve its own PRs, fix production directly, or modify its own permission config.
-- Attribute AI output as an accountable co-author, or leave AI-generated output without a named human owner of record.
+Reject any design that: ungated irreversible/control-plane actions; prompt-only guardrails; over-provisioned agents; untrusted content as instructions; unjustified handoffs / full-history forwarding; alert-only cost governance; missing tool-effect logging or non-tamper-evident audit; agent self-approval or self-config; AI as accountable co-author or output without a named human owner.
+Full list: references/anti-patterns.md
 
 ## Example
 **Input:** an agentic CI/CD squad — orchestrator coordinating code-writer, test-writer, and reviewer agents into CI/CD.

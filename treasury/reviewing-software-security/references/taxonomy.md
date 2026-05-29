@@ -2,6 +2,24 @@
 
 Read the section that matches the artifact in front of you. Each area lists concrete patterns to look for, the typical CWE/API/ASVS identifier, and the stack-specific safer pattern.
 
+## Area index — headline focus + standards
+
+Each finding is tagged with one **primary** area (A–K) + optional secondary tags. Jump to the matching section below for the full check list and safer-pattern rewrites.
+
+| # | Area | Headline focus | Standards |
+|---|---|---|---|
+| A | Application security (Go/Gin) | input binding + size limits, money math via `shopspring/decimal`, middleware order, goroutine context safety | ASVS V1–V14, CWE Top 25 |
+| B | API security (Gin + Kong/APISIX) | BOLA / BOPLA / BFLA, JWT alg pinning, rate-limit + size-limit on every public route, route-shadow prevention | OWASP API Top 10 (2023) |
+| C | Architecture (DDD / CQRS / event-driven) | aggregate invariants, commands carry identity, bounded-context contracts not shared joins, idempotent replay | — |
+| D | AuthN / AuthZ | ownership predicate per handler, mTLS for s2s, tenant scoping at SQL `WHERE`, policy-as-code RBAC | ASVS V4 |
+| E | Secrets & configuration | no hardcoded creds, Vault / Secrets Manager via IRSA / ESO, per-environment secrets with ≤ 90-day rotation | NIST SSDF PS.2 |
+| F | Logging & observability | PII masked, auth headers / JWTs redacted, append-only audit on credit-decision / KYC / disbursement, no internal-hostname echoes | — |
+| G | Database (MySQL / RDS) | parameterized queries, app user lacks `DROP`/`GRANT`/`FILE`, KMS-encrypted PII columns, TLS-enforced connections | CWE-89, CIS MySQL |
+| H | Kubernetes & container | digest-pinned base, `runAsNonRoot` + `readOnlyRootFilesystem`, default-deny NetworkPolicy, scoped RBAC verbs, IRSA over keys | CIS Kubernetes, NSA Hardening |
+| I | CI/CD & supply chain | SBOM + cosign, secret scanning, branch protection, pinned Action SHAs, scoped `permissions:`, OIDC to cloud | SLSA, NIST SSDF PW.4 |
+| J | Event-driven (Kafka) | per-principal topic ACLs, schema-registry compatibility, idempotent producers, dedup-key consumers, header re-validation | — |
+| K | Financial / lending data | regulatory inventory (PDPA/GDPR/PCI-DSS/BOT/OJK/MAS), KYC docs via short-lived pre-signed URLs, signed credit-decision events, dual-control on overrides, masked PRD-to-lower-env copies | PCI-DSS v4, BOT/OJK/MAS |
+
 ---
 
 ## A. Application security (Go / Gin)
