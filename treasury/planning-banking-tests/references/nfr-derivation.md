@@ -134,4 +134,4 @@ The skill writes the applied policy into `processing_metadata.nfr_policy_applied
 - `compliance-test-patterns.md` — security NFR cross-links into `compliance_tests[]`.
 - `test-data-design.md` — synthetic data for NFR fixtures (load generation, security probes, a11y screen-reader corpora).
 - `anti-patterns.md` — AP-Q9 (invented thresholds) and AP-Q10 (missing OQ linkage).
-- Holdout source: `/Users/IF640063/Desktop/example/qa-bootstrap-kit/e-commerce-v5/output-e5f8b9c2/output.json` (`processing_metadata.hidden_requirements_sweep`, `pii_inventory`, `epics[].success_criteria[]`).
+- Holdout source: `qa-holdout/e-commerce-v5/output-e5f8b9c2/output.json` (`processing_metadata.hidden_requirements_sweep`, `pii_inventory`, `epics[].success_criteria[]`).

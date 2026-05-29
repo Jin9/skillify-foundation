@@ -97,4 +97,4 @@ The version is part of the canonical `output.json` and is included in the audit-
 - `nfr-derivation.md` — NFR tests reference the time-anchor and boundary fixtures.
 - `anti-patterns.md` — AP-Q7 (real PII in fixtures) and AP-Q8 (clock-dependent fixtures).
 - `v1.1-role-boundaries.md` — Role 4 (Test Data) jq examples for sourcing glossary pairs.
-- Holdout source: `/Users/IF640063/Desktop/example/qa-bootstrap-kit/e-commerce-v5/output-e5f8b9c2/05-pii-inventory.md` and `04-glossary.md`.
+- Holdout source: `qa-holdout/e-commerce-v5/output-e5f8b9c2/05-pii-inventory.md` and `04-glossary.md`.
