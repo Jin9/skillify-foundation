@@ -30,14 +30,6 @@ Analyze complex logic, requirements, or existing code to generate clean, languag
 - Designing systems where the logic needs to be agreed upon by stakeholders before coding.
 - Trigger terms: "pseudocode", "logic breakdown", "algorithm plan", "language-agnostic".
 
-## Modes
-
-### `draft` - Initial pseudocode generation
-Draft high-level logic steps and detailed pseudocode from requirements.
-
-### `verify` - Logic verification against constraints
-Review generated pseudocode against edge cases and constraints to ensure robustness.
-
 ## Core workflow
 
 1. **Problem Framing**: Briefly state inputs (data structures), outputs (expected result), and constraints/edge cases (empty lists, timeouts, null values).

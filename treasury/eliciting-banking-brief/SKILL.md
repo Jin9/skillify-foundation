@@ -15,8 +15,9 @@ description: >
 
   Do NOT use for TL-stage design (use design-review), code generation
   from a finished spec (use implement-from-spec), domain-glossary lookups
-  with no work request, inputs containing actual PII values, or inputs
-  carrying the training ground-truth annotation block.
+  with no work request, inputs containing actual PII values, inputs
+  carrying the training ground-truth annotation block, or for the decomposed
+  pipeline (use extract-brief-structure).
 compatibility: [claude-code, codex, opencode]
 metadata:
   version: 1.4.1
@@ -89,21 +90,21 @@ Three top-level JSON shapes by `output_type`:
 
 ## Failure Modes
 
-| Failure mode | Detection | Skill output | Escalation |
-|---|---|---|---|
-| FM-01 — Input quality below threshold | Linguistic composite < 5.0 after parsing + ambiguity | `output_type: needs_clarification`, gap analysis, recommended_questions | Return to requester. Do not route to TL. |
-| FM-02 — Critical info missing (P1 blocks) | P1 finding in {compliance, tipping_off, retention, audit_schema, pii_inventory, regulatory_citation, dual_approval} with `resolution_provided: false` | `output_type: blocked_partial_brief`, `blocking_findings`, `<MISSING:P1:reason>`, `unblock_actions` | Surface to BA/TL. TL resolves P1s or accepts risk in writing. |
-| FM-05 — Legal absent on regulatory content | `legal_status ∈ {absent, mentioned_only}` AND scope touches regulatory. **Fires 3/3 pilots — highest-leverage rule.** | Brief + `governance_gap.type: legal_absent_on_regulatory`, P1, `blocks_tl_handoff: true` | T1: refuse handoff, escalate Sponsor/Owner. T2: brief with handoff-block flag, Sponsor risk-acceptance in writing. |
-| FM-06 — Tipping-off risk in customer comms | Customer-facing string contains forbidden terms (sanctions / AML / flagged / suspicious / regulated / SAR / PEP / adverse media / EDD). Internal-only fields exempt. | `tipping_off_scan.violations[]`, safe-phrase mitigations from `references/non-tipping-vocabulary.md`, `legal_signoff_required: true` | Replace violations with safe phrases. If none exists, require Legal sign-off. Block TL handoff until mitigation or sign-off recorded. |
-| FM-07 — Tier classification ambiguous | All overrides run AND no tier confidence ≥ 0.8, OR two rules at distinct tiers with equal weight | `tier_inference.recommended_tier` = higher choice (fail-safe), OQ `confirm_tier_assignment` (P2) | Higher-tier default. Human BA/TL confirms. Document in `processing_metadata.tier_decisions[]`. |
-| FM-09 — Scope unclear (story vs epic vs multi-epic) | Cannot decide. Phrases `(but might need to be|too big\?|may need to split)` OR 3-4 workstreams at boundary | `scope_kind: ambiguous`, `scope_signals`, `recommended_scope_kind`, OQ `confirm_scope_kind` | Clarifying question. May emit draft with `pending_scope_confirmation: true`. |
-| FM-11 — Schema validation failure | banking_grade row `status: null`, story without ACs (no `insufficient_information`), P1 without `required_resolution`, stakeholder ref not in registry | `output_type: schema_validation_failure`, `validation_errors`, `partial_output_available` | Never emit malformed brief. Return errors to the caller. Retry with gap-fill prompt; on retry fail, human implementer. |
-| FM-12 — Ground-truth annotation strip failed | Preprocessing detected block AND strip errored / boundary overlap / multiple blocks / substring survived | `output_type: preprocessing_failure`, `failure_code: ground_truth_strip_failed`, `do_not_proceed: true` | Refuse to produce any brief. Return failure code. Never proceed to AC generation — would constitute fabrication. |
-| FM-13 — PII detected in output path | Post-generation scan finds unredacted PII regex hit; scrubbed `<PII:REDACTED:CLASS=X>` allowed | `output_type: pii_echo_blocked`, `detected_pii`, `auto_redaction_attempted`, `manual_review_required` | Auto-redact; if clean, emit redacted brief. If redaction fails (token cannot be confidently classed), escalate to human BA. |
-| FM-14 — Count consistency | OQ-table header N differs from row count; `stakeholders[]` enumeration missing an `absent` row referenced by a `governance_gap`; `epics[].story_ids[]` cardinality differs from `stories[]` per epic | Schema-validation error with cell-level diff; refuse emit | Re-run Step 5 (stakeholder enumeration) and Step 12 (assembly counts). |
-| FM-15 — Sweep coverage insufficient | `processing_metadata.hidden_requirements_sweep.coverage_score` is `partial` or `skipped` on an `output_type: brief` emission; OR `frames_applied ∪ frames_skipped ≠ {1..10}` on any non-failure output; OR `frames_skipped` has entries with no matching key in `frames_skipped_reasons` | Refuse `output_type: brief`; downgrade to `blocked_partial_brief` with a P2 OQ recording the sweep gap; allow `skipped` only for failure-shape outputs | Re-run Step 9.5 with the missing frames; populate `frames_skipped_reasons` if a frame is intentionally skipped. **Precedence:** FM-02 (P1 governance unresolved) takes priority over FM-15 — when both apply, the brief is `blocked_partial_brief` for the FM-02 reason AND carries a P2 OQ for the FM-15 sweep gap; FM-15 alone (with no P1 governance unresolved) also produces `blocked_partial_brief` with a P2 OQ. |
-| FM-16 — Idempotency-replay AC missing on state-change story | Any story where `banking_grade_concerns.idempotency.status == "applies"` lacks at least one `acceptance_criteria[]` entry with `scenario_type` matching `banking_grade_idempotency` or `idempotency_replay`. AP-4.3 mandates the auto-emit; v1.2.2 enforces. | Hard schema-validation failure (per the v1.2.2 if/then in `schemas/output.json#/definitions/Story`); renderer's `validate_idempotency_replay()` runtime check emits explicit error per missing story. Refuse to write tree until each offending story carries the replay AC. | For each named story, add a `banking_grade_idempotency` scenario per `references/gherkin-templates.md §6.1`. If the operation is genuinely NOT replay-applicable, downgrade `bgc.idempotency.status` to `not_applicable` with workflow-class justification per AP-4.1. |
-| FM-17 — Frame 4 sub-topic coverage incomplete | Frame 4 is active (input mentions PII / payment / named jurisdiction / consumer-facing / regulated activity) but one or more activation-keyed required sub-topics per `references/hidden-requirements-frames.md §Frame 4 — Required sub-topics when activated` has zero matching OQ or assumption (matched by keyword set). | Renderer's `validate_frame4_subtopics()` runtime check enumerates the active triggers and reports which required sub-topics are uncovered. Downgrades `coverage_score` from `complete` to `partial`; emits P2 OQ per missing sub-topic OR requires explicit entry in `frames_skipped_reasons` keyed by sub-topic name. | Re-run Frame 4 emission ensuring each active-trigger sub-topic produces ≥1 OQ. Or, when the input genuinely doesn't have that exposure, document the skip with evidence in `frames_skipped_reasons` (sub-topic key namespace). |
+The enforcement gates fire at **Step 12** above. Full per-FM detection logic, output shape, and escalation procedure live in `references/edge-case-catalog.md` (FM-01…FM-17 + the EC×FM matrix). Quick trigger map:
+
+- **FM-01** quality composite < 5.0 → `needs_clarification`.
+- **FM-02** unresolved P1 in {compliance, tipping_off, retention, audit_schema, pii_inventory, regulatory_citation, dual_approval} → `blocked_partial_brief`.
+- **FM-05** Legal absent/mentioned-only on regulatory scope → P1 governance block (`blocks_tl_handoff`); fires 3/3 pilots.
+- **FM-06** forbidden tipping-off term in a customer-facing string → P1 + safe-phrase + `legal_signoff_required`.
+- **FM-07** tier ambiguous → higher-tier fail-safe + P2 OQ `confirm_tier_assignment`.
+- **FM-09** story/epic/multi-epic undecidable → `scope_kind: ambiguous` + P2 OQ.
+- **FM-11** schema validation failure → `schema_validation_failure`; never emit malformed.
+- **FM-12** ground-truth strip failed → `preprocessing_failure`, `do_not_proceed: true`.
+- **FM-13** PII echo in output path → `pii_echo_blocked`, auto-redact.
+- **FM-14** count consistency (OQ header N ≠ rows; absent-stakeholder row missing; epic↔story cardinality) → schema error.
+- **FM-15** sweep coverage `partial`/`skipped` on a `brief` → downgrade to `blocked_partial_brief` + P2 OQ (FM-02 takes precedence).
+- **FM-16** state-change story missing idempotency-replay AC → hard schema failure.
+- **FM-17** Frame 4 active but a required sub-topic uncovered → `coverage_score: partial` + P2 OQ.
 
 ## Anti-Patterns
 
@@ -129,7 +130,7 @@ Progressive disclosure — load only what each step needs:
 - `references/ambiguity-patterns.md` — 8 ambiguity types (lexical / syntactic / pragmatic / pronominal / quantifier / modal / commitment-conditionality / phase-boundary drift) + P1/P2/P3 severity + conflict-resolution. Loaded at Step 9 (always).
 - `references/anti-patterns.md` — Full 26-entry catalog + top-5 handoff blockers. Loaded at Step 9 + Step 12 (always).
 - `references/job-story-decision-tree.md` — Job Story vs Classic User Story choice. Loaded at Step 7 when format ambiguous.
-- `references/edge-case-catalog.md` — 18 edge cases + 13 failure modes + EC×FM matrix. Loaded at Steps 1, 4, 5, 12 conditionally.
+- `references/edge-case-catalog.md` — 18 edge cases + 17 failure modes (FM-01…FM-17, full detection/output/escalation) + EC×FM matrix. Loaded at Steps 1, 4, 5, 12 conditionally.
 - `references/non-tipping-vocabulary.md` — Approved phrases + forbidden terms. Loaded at Step 9 only when tipping-off forbidden term detected.
 - `references/markdown-rendering-spec.md` — exact directory tree structure, frontmatter spec per file type, slug-generation rules, cross-link conventions for governance gaps and open questions. Loaded at Step 12 only.
 - `references/hidden-requirements-frames.md` — 10 frames for elicitation-gap detection (scale, timing, money, regulatory, operational, failure, integration, localization, lifecycle, CX); per-frame activation triggers, severity floors, caps, and output pattern. Loaded at Step 9.5 only.

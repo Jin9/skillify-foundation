@@ -5,10 +5,11 @@ description: >-
   Gin middleware, Kafka producer/consumer, JWT, structured slog logging,
   response envelopes, database/Redis/Firestore/GCS/S3 connectors, AES/RSA
   crypto, structured errors, mockable clock, config parser. Use when the user
-  asks to "import common", "use the common library", "wrapper.Respond",
-  "BindJSON", "kafka.NewProducer", "kafka.NewEventRouter", "logger.New",
-  "JWT middleware", "AccessLog middleware", "serror.Wrap", "add a package to
-  common", "extend wrapper", or how a common library package API works.
+  asks to "import common", "use the common library", "how do I use the shared
+  Go library", "wire common into my service", "wrapper.Respond", "BindJSON",
+  "kafka.NewProducer", "kafka.NewEventRouter", "logger.New", "JWT middleware",
+  "AccessLog middleware", "serror.Wrap", "add a package to common",
+  "extend wrapper", or how a common library package API works.
   Do NOT use for scaffolding a new microservice or adding a domain aggregate
   (use platform-go-service skill instead). Do NOT use for repo-policy,
   branching, or CI configuration (those live in AGENTS.md / CLAUDE.md).

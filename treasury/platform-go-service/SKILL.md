@@ -5,10 +5,13 @@ description: >-
   platform conventions: DDD aggregate-per-package, CQRS handler/consumer split,
   Fowler-style Repository / Cache / Gateway in `access/`, common-module imports.
   Use when the user asks to "create a new Go service", "add a domain / aggregate",
-  "add an HTTP handler", "add a Kafka consumer", "wire a new infrastructure client",
-  "generate mocks", "write table-driven tests with 100% coverage", or "refactor this
-  handler the Fowler way". Do NOT use for frontend code, Terraform / Kubernetes
-  provisioning, non-Go services, or pure documentation edits.
+  "add an HTTP handler", "add a Kafka consumer", "wire deps.go / router.go", "set up
+  graceful-shutdown main.go", "wire a new infrastructure client", "generate mocks",
+  "write table-driven tests with 100% coverage", "add a Dockerfile / GitLab CI for a
+  service", or "refactor this handler the Fowler way". Do NOT use for adding or
+  explaining a package inside the shared common library (use platform-common),
+  frontend code, Terraform / Kubernetes provisioning, non-Go services, or pure
+  documentation edits.
 argument-hint: Describe the service, domain, endpoint, event, or refactor to perform
 ---
 

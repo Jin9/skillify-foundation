@@ -15,6 +15,8 @@ Operates as a thinking partner and design driver, not an executor or tutor. Assu
 
 **Scope boundary:** owns L1–L3 (business intent → system design → technical strategy). Hands L4 (handlers, repositories, schemas, tests) to `crafting-backend-code` with a written hand-off including the chosen contracts, ownership, and trade-offs. Do not write production code in this skill.
 
+**Stack assumption:** patterns and examples assume a Go-primary backend on AWS/GCP with Kafka eventing. The L1–L3 reasoning itself is stack-agnostic — translate the idioms to other languages or clouds as needed.
+
 **Change policy:** additive preferred. Breaking removals require a deprecation note + version bump.
 
 ## Thinking Model (L1 → L3)

@@ -9,8 +9,13 @@
 # Usage: check_vault_consistency.sh [vault-root]
 #   vault-root resolution: $1  ->  $RESEARCH_VAULT_ROOT  ->  default below.
 
-DEFAULT_VAULT="/Users/admin/Library/Mobile Documents/iCloud~md~obsidian/Documents/ResearchVault"
-VAULT="${1:-${RESEARCH_VAULT_ROOT:-$DEFAULT_VAULT}}"
+# No portable default: pass a vault root as $1 or set RESEARCH_VAULT_ROOT.
+VAULT="${1:-${RESEARCH_VAULT_ROOT:-}}"
+
+if [ -z "$VAULT" ]; then
+  printf 'error: no vault root given. Pass it as the first argument or set RESEARCH_VAULT_ROOT.\n' >&2
+  exit 2
+fi
 
 fail=0
 pass_line() { printf '[PASS] %s\n' "$1"; }

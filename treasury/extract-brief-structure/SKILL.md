@@ -4,8 +4,11 @@ description: >
   Convert redacted raw BA input from Jira, Slack, meeting notes, emails, or
   mixed prose into a strict Epic and Story JSON skeleton. Use when a user asks
   to "parse this raw Jira ticket into a brief", "extract the epics and stories
-  from this Slack thread", or "structure these notes". Do NOT use for
-  compliance scans, ambiguity sweeps, or Gherkin acceptance criteria.
+  from this Slack thread", or "structure these notes". This is stage 1 of the
+  decomposed banking-brief pipeline; for a single-pass monolithic brief
+  (extraction + compliance + ambiguity + Gherkin in one), use
+  eliciting-banking-brief instead. Do NOT use for compliance scans, ambiguity
+  sweeps, or Gherkin acceptance criteria.
 ---
 
 # Skill: Extract Brief Structure

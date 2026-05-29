@@ -1,19 +1,19 @@
 # Treasury — Production Skill Library
 
-91 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+90 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
 | [Banking, BA Delivery & Requirements](#banking-ba-delivery-requirements) | 14 |
 | [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 19 |
-| [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 12 |
+| [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 11 |
 | [Testing, QA & Validation](#testing-qa-validation) | 4 |
 | [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 10 |
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 14 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 5 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 6 |
 | [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 7 |
-| **Total** | **91** |
+| **Total** | **90** |
 
 ---
 
@@ -64,20 +64,19 @@ Design, modeling, planning, and engineering decision support.
 | [`technical-debt-management`](./technical-debt-management/) | Classify technical debt, prioritize it by business risk and cost-of-delay, make the dangerous debt visible, and negotiate a fix budget with PM/business. Use when... | business-analyse | — |
 | [`technical-feasibility`](./technical-feasibility/) | Decides whether and how a requirement is buildable on the current stack, surfacing the options, dependencies, and risks before anyone commits to a design or a date.... | business-analyse | — |
 
-## Implementation, Platform Templates & Code Review (12)
+## Implementation, Platform Templates & Code Review (11)
 
 Implementation, platform template, refactoring, and code-review skills.
 
 | Skill | Purpose | Source family | Extra assets |
 |-------|---------|---------------|--------------|
-| [`crafting-backend-code`](./crafting-backend-code/) | Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing,... | existing treasury | references · platforms |
+| [`crafting-backend-code`](./crafting-backend-code/) | Reviews, designs, and safely implements backend code and microservice templates with a pattern-first, evidence-led posture. Use when designing, reviewing,... | existing treasury | references |
 | [`crafting-frontend-code`](./crafting-frontend-code/) | Reviews, designs, and safely implements frontend code with a conservative, repo-first posture for AI coding agents. Use when designing, reviewing, optimizing,... | existing treasury | references |
 | [`implement-backend-feature`](./implement-backend-feature/) | Generate production-grade Go backend code for one microservice feature from an approved design document. Use when implementing a Go HTTP handler from a design spec.... | squad-delivery | references · schemas · tests · RATIONALE.md |
 | [`implement-frontend-feature`](./implement-frontend-feature/) | Generate production-grade React/TypeScript code for one frontend feature from an approved UI design, with banking-grade discipline: WCAG 2.1 AA a11y, no any outside... | squad-delivery | references · schemas · tests · RATIONALE.md |
 | [`implementing-go-template-requirements`](./implementing-go-template-requirements/) | Apply a single requirement (spec line, ticket, bug report, user story) to a Go service that follows the go-template scaffold by editing ONLY business logic under... | agentic | references · templates · examples |
 | [`platform-common`](./platform-common/) | Shared Go infrastructure library for A-Team Krungthai DGL microservices — Gin middleware, Kafka producer/consumer, JWT, structured slog logging, response envelopes,... | agentic | references |
 | [`platform-go-service`](./platform-go-service/) | Scaffold or extend a Go microservice in this repository (go-template) using A-Team platform conventions: DDD aggregate-per-package, CQRS handler/consumer split,... | agentic | references |
-| [`platform-go-service-common`](./platform-go-service-common/) | Scaffold and extend A-Team Krungthai DGL Go microservices that consume the shared common library. Covers DDD aggregates with Ports-and-Adapters, CQRS HTTP+Kafka... | squad-delivery | references |
 | [`refactoring-go-services`](./refactoring-go-services/) | Incrementally refactor messy Go microservices toward clean DDD/CQRS architecture while preserving behavior. Use when the user asks "clean up this Go service"... | agentic | — |
 | [`review-backend-code`](./review-backend-code/) | Adversarially verify Go backend code emitted by a Generate stage against the approved design and the 11 banking-grade decision rules + v2 augmentations, then issue... | agentic | references · schemas · tests · RATIONALE.md |
 | [`review-frontend-code`](./review-frontend-code/) | Adversarially verify React/TypeScript code emitted by a Generate stage against the approved UI design and the 12 banking-grade frontend non-negotiables + 9 v2... | squad-delivery | references · schemas · tests · RATIONALE.md |
@@ -232,7 +231,6 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`planning-banking-tests`](./planning-banking-tests/) | Testing, QA & Validation | squad-delivery |
 | [`platform-common`](./platform-common/) | Implementation, Platform Templates & Code Review | agentic |
 | [`platform-go-service`](./platform-go-service/) | Implementation, Platform Templates & Code Review | agentic |
-| [`platform-go-service-common`](./platform-go-service-common/) | Implementation, Platform Templates & Code Review | squad-delivery |
 | [`pr-design-review`](./pr-design-review/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`production-readiness`](./production-readiness/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`progressive-bug-hunter`](./progressive-bug-hunter/) | Code Analysis, Productivity & Publishing | existing treasury |
