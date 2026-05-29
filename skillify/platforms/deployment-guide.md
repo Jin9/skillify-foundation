@@ -21,15 +21,24 @@ Run from this directory:
 bash install.sh
 ```
 
-The script copies the full skill folder to user/global locations for the
-supported hosts:
+By default the script copies the full skill folder to these user/global
+locations:
 
 1. Claude Code: `~/.claude/skills/skillify/`
-2. Shared Agent Skills: `~/.agents/skills/skillify/`
-3. Copilot native path: `~/.copilot/skills/skillify/`
-4. Antigravity global path: `~/.gemini/antigravity/skills/skillify/`
+2. Shared Agent Skills (read by Codex): `~/.agents/skills/skillify/`
+3. Antigravity global path: `~/.gemini/antigravity-cli/skills/skillify/` (falls back to `~/.gemini/antigravity/skills/skillify/`)
 
-By default the script skips `$CODEX_HOME/skills/skillify/` because current
+Each target is cleanly refreshed (the `skillify/` folder is replaced), while
+any other skills already installed alongside it are left untouched.
+
+GitHub Copilot's native path is **not** installed by default. To also install
+to `~/.copilot/skills/skillify/`, run:
+
+```bash
+INSTALL_COPILOT=1 bash install.sh
+```
+
+By default the script also skips `$CODEX_HOME/skills/skillify/` because current
 Codex sessions also read `~/.agents/skills/skillify/`; installing both creates
 duplicate `skillify` entries. For legacy Codex clients that only read
 `$CODEX_HOME/skills`, run:

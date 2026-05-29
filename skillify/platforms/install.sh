@@ -16,6 +16,9 @@ log_warn() { echo -e "${YELLOW}warn${NC} $1"; }
 
 copy_skill() {
     local dest="$1"
+    # Clean refresh of just this skill folder so stale tier-3 files do not
+    # linger; only the per-skill dest is removed, never sibling skills.
+    rm -rf "$dest"
     mkdir -p "$dest"
     cp "${SKILL_DIR}/SKILL.md" "${dest}/SKILL.md"
 
@@ -43,6 +46,7 @@ CODEX_SKILLS="${CODEX_HOME:-$HOME/.codex}/skills/${SKILL_NAME}"
 CLAUDE_SKILLS="$HOME/.claude/skills/${SKILL_NAME}"
 COPILOT_SKILLS="$HOME/.copilot/skills/${SKILL_NAME}"
 INSTALL_CODEX_COMPAT="${INSTALL_CODEX_COMPAT:-0}"
+INSTALL_COPILOT="${INSTALL_COPILOT:-0}"
 
 # Antigravity moved its skills dir from ~/.gemini/antigravity to the
 # ~/.gemini/antigravity-cli home; prefer the active one. Override with
@@ -72,7 +76,13 @@ else
     echo "  Set INSTALL_CODEX_COMPAT=1 to also install ${CODEX_SKILLS}"
     echo ""
 fi
-install_target "GitHub Copilot native path" "${COPILOT_SKILLS}"
+if [ "${INSTALL_COPILOT}" = "1" ]; then
+    install_target "GitHub Copilot native path" "${COPILOT_SKILLS}"
+else
+    log_warn "Skipping GitHub Copilot native path (not requested by default)"
+    echo "  Set INSTALL_COPILOT=1 to also install ${COPILOT_SKILLS}"
+    echo ""
+fi
 install_target "Antigravity global path" "${ANTIGRAVITY_SKILLS}"
 
 echo "Optional always-on wrappers:"
@@ -99,6 +109,10 @@ if [ "${INSTALL_CODEX_COMPAT}" = "1" ]; then
 else
     echo "  Codex compatibility -> skipped; use INSTALL_CODEX_COMPAT=1 for legacy clients"
 fi
-echo "  GitHub Copilot     -> ${COPILOT_SKILLS}"
+if [ "${INSTALL_COPILOT}" = "1" ]; then
+    echo "  GitHub Copilot     -> ${COPILOT_SKILLS}"
+else
+    echo "  GitHub Copilot     -> skipped; use INSTALL_COPILOT=1 to install"
+fi
 echo "  Antigravity        -> ${ANTIGRAVITY_SKILLS}"
 echo ""
