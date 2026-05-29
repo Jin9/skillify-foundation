@@ -40,7 +40,9 @@ produced it — but you are **read-only**: you propose, you never write the vaul
 ## Step 1 — Resolve the vault and load its rules
 
 1. Resolve the vault root in this order: explicit argument → `$RESEARCH_VAULT_ROOT`
-   → default `/Users/admin/Library/Mobile Documents/iCloud~md~obsidian/Documents/ResearchVault`.
+   → a local default the operator configures (there is no portable default; this
+   skill targets one specific vault). If none resolves to a real directory, tell
+   the user to pass a vault root or set `$RESEARCH_VAULT_ROOT`, and stop.
 2. Read the vault's `CLAUDE.md` and `index.md`. These are authoritative for
    layout, the cross-file invariant, slug conventions, report anatomy, and the
    citation gates. If `CLAUDE.md` is absent, tell the user this skill targets a

@@ -55,65 +55,14 @@ Apply L1 → L4 (Business Invariant → Service Boundary → Technical Strategy 
 
 ## Modes
 
-Each mode is a workflow. Include the checklist when it improves reviewability. For small fixes, use the checklist internally and summarize only the important result.
+Each mode is a workflow. Its checklist lives in `references/mode-checklists.md` — load and fill the matching checklist when it improves reviewability; for small fixes, apply it internally and summarize only the important result.
 
-### `design` — backend architecture pass
-
-```
-- [ ] L1 business invariant + success state stated
-- [ ] L2 service/template boundary + data owner + contract named
-- [ ] L3 persistence, transaction, auth, idempotency, failure handling, observability, tests chosen
-- [ ] L4 files/packages, schemas, handlers, services, adapters, and tests sketched
-- [ ] Trade-offs stated on all 4 axes
-```
-
-### `optimize` — performance / scalability / cost trade-off
-
-```
-- [ ] Current baseline measured or explicitly unavailable
-- [ ] Bottleneck identified, not guessed (CPU, allocation, DB query, lock contention, network, queue lag, serialization, cold start)
-- [ ] Options enumerated with pros/cons
-- [ ] Correctness and rollback risks stated
-- [ ] Recommendation + measurement plan
-```
-
-### `fix` — minimal, direct solution
-
-```
-- [ ] Root cause vs symptom called out
-- [ ] Behavior-preserving unless flagged
-- [ ] Data correctness, auth, and failure-path impact checked
-- [ ] Existing tests checked before adding new tools
-- [ ] Regression test added or skipped with reason
-```
-
-### `analyze` — deep breakdown
-
-```
-- [ ] Current architecture and ownership summarized
-- [ ] Strengths
-- [ ] Gaps (correctness, security, performance, observability, tests, operability)
-- [ ] Contradictions (shared data ownership, hidden cross-service transactions, non-idempotent consumers)
-- [ ] Recommendations prioritized by risk and effort
-```
-
-### `review` — code / API / architecture review
-
-```
-- [ ] Risks flagged by severity (P1/P2/P3)
-- [ ] Correctness, security, data integrity, performance, observability, and tests checked
-- [ ] Concrete fix suggested for each finding
-- [ ] Findings evidence-backed with file/line references when local code is available
-```
-
-### `plan` — produce a plan, do not execute
-
-```
-- [ ] Priorities set
-- [ ] Open decisions listed with owners (product, backend, data, infra, security)
-- [ ] Dependencies + sequencing stated (schema, API contract, feature flag, migration, rollout)
-- [ ] Validation and rollback plan included
-```
+- **`design`** — backend architecture pass: L1 invariant → L2 boundary/owner/contract → L3 persistence/txn/auth/idempotency/failure/observability/tests → L4 sketch, trade-offs on all 4 axes.
+- **`optimize`** — performance / scalability / cost: baseline → measured (not guessed) bottleneck → options with pros/cons → correctness & rollback risks → recommendation + measurement plan.
+- **`fix`** — minimal, direct solution: root cause vs symptom, behavior-preserving unless flagged, correctness/auth/failure-path checked, regression test added or skipped with reason.
+- **`analyze`** — deep breakdown: architecture & ownership, strengths, gaps, contradictions, recommendations prioritized by risk × effort.
+- **`review`** — code / API / architecture review: severity-tagged (P1/P2/P3) findings across correctness/security/integrity/perf/observability/tests, with concrete evidence-backed fixes.
+- **`plan`** — produce a plan, do not execute: priorities, open decisions with owners, dependencies + sequencing, validation & rollback plan.
 
 ## Output format
 
@@ -167,3 +116,4 @@ Before sending the response, re-check:
 | Backend decision rules (ownership, contracts, idempotency, security, generated artifacts) | `references/decision-rules.md` |
 | Microservice template conventions (Go, CQRS, events, PostgreSQL, HTTP APIs, security) | `references/template-defaults.md` |
 | Protected artifacts, scope discipline, safe change patterns | `references/editing-guardrails.md` |
+| Per-mode checklists (design / optimize / fix / analyze / review / plan) | `references/mode-checklists.md` |

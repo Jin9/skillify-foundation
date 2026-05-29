@@ -1,10 +1,10 @@
 ---
 name: analyzing-banking-requirements
 description: >
-  Business Analyst persona for enterprise banking and lending workflows. Extracts
-  raw business requests, runs strict KYC / AML / PCI-DSS compliance mapping,
-  drafts PRDs and API contracts, and maps partner-bank API behavior before any
-  engineering starts. Use when the user says "draft a PRD", "write product
+  Business Analyst persona for enterprise banking and lending workflows.
+  Produces a compliance-validated PRD with API contracts from a raw business
+  request — extracting the ask, running strict KYC / AML / PCI-DSS compliance
+  mapping, and capturing partner-bank API behavior before any engineering starts. Use when the user says "draft a PRD", "write product
   requirements", "clarify the business request", "compliance gap analysis",
   "compliance mapping", "KYC/AML/PCI check", "map partner bank API",
   "requirements gathering", "business logic analysis", "BA hand-off",

@@ -1,12 +1,12 @@
 # Edge Case + Failure Mode Catalog
 
-> 18 edge cases + 13 failure modes + EC×FM trigger matrix. Loaded by `SKILL.md` Steps 1, 4, 5, 12 conditionally.
+> 18 edge cases + 17 failure modes + EC×FM trigger matrix. Loaded by `SKILL.md` Steps 1, 4, 5, 12 conditionally.
 
 ## Purpose & Loading Conditions
 
 Load only when: (a) source confidence < 0.5 at Step 1; (b) PII detected at Step 4; (c) stakeholder absence / leave at Step 5; (d) ground-truth block detected (loads EC-17/FM-12 section); (e) Step 12 in `audit` mode. Happy-path runs skip this file. **Adapt, don't fabricate** — every edge case has a useful partial output.
 
-Sources: C3 Part 1 (EC-01..EC-18); C3 Part 2 (FM-01..FM-13); C3 Part 3 (matrix).
+Sources: C3 Part 1 (EC-01..EC-18); C3 Part 2 (FM-01..FM-13); C3 Part 3 (matrix); FM-14..FM-17 added v1.2+ (count/sweep/idempotency/Frame-4 enforcement).
 
 ## Edge Case Groups
 
@@ -63,6 +63,10 @@ Sources: C3 Part 1 (EC-01..EC-18); C3 Part 2 (FM-01..FM-13); C3 Part 3 (matrix).
 | **FM-11** Schema validation failure | `banking_grade` row `status: null`; story without ACs and without `insufficient_information`; P1 without `required_resolution`; stakeholder ref not in registry | P1 blocking | `output_type: schema_validation_failure`, `validation_errors`, `partial_output_available` | Never emit malformed brief; retry with gap-fill; if fail, human implementer |
 | **FM-12** Ground-truth annotation strip failed | Block detected AND strip errored / boundary overlap / multi-block / substring survives | P1 blocking — fail safe | `output_type: preprocessing_failure`, `failure_code: ground_truth_strip_failed`, `do_not_proceed: true` | Refuse to produce any brief; escalate to human implementer; never proceed to AC generation |
 | **FM-13** PII detected in output path (echo risk) | Post-generation scan finds unredacted PII regex hit | P1 blocking | `output_type: pii_echo_blocked`, `detected_pii`, `auto_redaction_attempted`, `manual_review_required` | Auto-redact; if clean emit redacted brief; if redaction fails, escalate human BA |
+| **FM-14** Count consistency | OQ-table header N ≠ row count; `stakeholders[]` missing an `absent` row referenced by a `governance_gap`; `epics[].story_ids[]` cardinality ≠ `stories[]` per epic | P1 blocking | Schema-validation error with cell-level diff; refuse emit | Re-run Step 5 (stakeholder enumeration) + Step 12 (assembly counts) |
+| **FM-15** Sweep coverage insufficient | `hidden_requirements_sweep.coverage_score` is `partial`/`skipped` on a `brief`; OR `frames_applied ∪ frames_skipped ≠ {1..10}`; OR a `frames_skipped` entry has no matching `frames_skipped_reasons` key | P2 | Refuse `output_type: brief`; downgrade to `blocked_partial_brief` + P2 OQ recording the gap; `skipped` valid only for failure shapes | Re-run Step 9.5 with the missing frames; populate `frames_skipped_reasons`. **Precedence:** FM-02 (P1 governance) takes priority when both apply |
+| **FM-16** Idempotency-replay AC missing on state-change story | Story with `banking_grade_concerns.idempotency.status == "applies"` lacks an `acceptance_criteria[]` entry of `scenario_type` `banking_grade_idempotency`/`idempotency_replay` (schema if/then + renderer `validate_idempotency_replay()`) | P1 blocking | Hard schema-validation failure; refuse to write tree until each offending story carries the replay AC | Add a `banking_grade_idempotency` scenario per `gherkin-templates.md §6.1`; or downgrade `idempotency.status` to `not_applicable` with workflow-class justification (AP-4.1) |
+| **FM-17** Frame 4 sub-topic coverage incomplete | Frame 4 active (PII / payment / named jurisdiction / consumer-facing / regulated activity) but a required sub-topic per `hidden-requirements-frames.md` has zero matching OQ/assumption (renderer `validate_frame4_subtopics()`) | P2 | Downgrades `coverage_score` `complete`→`partial`; emits P2 OQ per missing sub-topic OR requires a `frames_skipped_reasons` entry keyed by sub-topic | Re-run Frame 4 so each active-trigger sub-topic produces ≥1 OQ; or document the skip with evidence in `frames_skipped_reasons` |
 
 ## EC × FM Decision Matrix
 
@@ -98,4 +102,4 @@ Sources: C3 Part 1 (EC-01..EC-18); C3 Part 2 (FM-01..FM-13); C3 Part 3 (matrix).
 
 - `anti-patterns.md` (AP-1.3 ↔ EC-17; AP-2.3 ↔ EC-14; AP-3.2 ↔ EC-15; AP-3.3 ↔ EC-10; AP-5.1 ↔ FM-05; AP-5.3 ↔ EC-15)
 - `ambiguity-patterns.md` §5 + §6 (EC-02, EC-14)
-- `SKILL.md` Failure Modes table (9-row subset of the 13 here)
+- `SKILL.md` keeps a compact FM trigger map (Step 12 enforces the gates); full per-FM detection/output/escalation for FM-01..FM-17 lives here

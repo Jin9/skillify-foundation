@@ -12,3 +12,6 @@
 
 # Ignore timestamped treasury backups
 /treasury.backup-*
+
+# Ignore relocated / archived skill material (not part of published skills)
+/archive/
