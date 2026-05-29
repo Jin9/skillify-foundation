@@ -18,7 +18,7 @@ is its own skill and also stands alone; deleting this map would not break any si
 - **Not this skill:** designing a brand-new pipeline or moving its gates → `agentic-workflow-design`; producing one stage's artifact alone → that stage's skill (`scoping-ba-intake`, `drafting-ba-stories`, `checking-ba-governance`, `assessing-ba-feasibility`, `assembling-tl-handoff`).
 
 ## Model & cost
-Run this map on a **small–mid** model (e.g. Haiku 4.5 / Gemini 3 Flash), low reasoning effort — it only sequences and bookkeeps. Per-node tiers are in **Model & cost routing** below.
+Run this map on a **small–mid** model (e.g. Haiku 4.5 / Gemini 3 Flash), low reasoning effort — it only sequences and bookkeeps. Per-node model & cost routing: `references/pipeline-contracts.md`.
 
 ## Pipeline at a glance
 Each node is `input → agent → output contract → gate → owner`. One agent per stage; the flow is linear with one human loop-back.
@@ -53,51 +53,12 @@ so no node ever loads every story at once:
 05-handoff-bundle.md       # links the artifacts above by path; inlines only open_items + invariant assertions
 ```
 
-## Context-budget rule (load only what you need)
-Each node declares the files it reads and reads no more. The Story Set INDEX is always cheap; individual stories are
-pulled only when a node needs that story's depth — so a 200k window (and a mid-tier model) is never blown by the whole
-set.
-
-| Node | Reads | Never loads |
-|------|-------|-------------|
-| `drafting-ba-stories` | the Scope Sheet | — (it writes the `02-story-set/` tree) |
-| `checking-ba-governance` | `02-story-set/INDEX.md` + the specific `ST-NN-*.md` it flags | every story file at once |
-| `assessing-ba-feasibility` | `INDEX.md` + the stories it weighs + clear Governance Check + raw requirement | every story file at once |
-| `assembling-tl-handoff` | contract headers + `INDEX.md` | every story file; full contract bodies |
-
-## Shared envelope (every handoff carries it)
-| Field | Type | Meaning |
-|-------|------|---------|
-| `task_id` | string | the requirement id — single trace id across S1–S5 |
-| `stage` | `S1..S5` | which stage produced this contract |
-| `intent` | string | what the stage was asked to produce |
-| `state` | string | the stage verdict / output type (see each contract) |
-| `confidence` | `high`/`medium`/`low` | agent self-rating; `low` forces async human review |
-| `provenance` | object | `{ raw_ref, upstream_contract_ref }` — audit back-pointers |
-| `produced_by` | string | distinct agent identity (e.g. `story-agent`) |
-| `owner` | string | named human owner of record for this stage |
-| `schemaVersion` | string | contract version, for drift detection |
-| `created_at` | RFC-3339 | timestamp |
-
-## Gate matrix
-Gates sit where an action is hard to reverse or has high blast radius — not uniformly.
-
-| Gate | After | Action gated | Reversibility | Blast | Type | Approver |
-|------|-------|--------------|---------------|-------|------|----------|
-| G1 | S1 | confirm scope | reversible draft | anchors all downstream | sync named | BA / PM |
-| G2 | S2 | accept Story Set | reversible | low | async review | BA |
-| G3 | S3 | resolve a governance blocker | hard to reverse | high (legal/privacy) | sync named | BA + SME (Legal/DPO/Compliance) |
-| G4 | S4 | feasibility verdict | sets scope & cost | medium–high | sync named | Tech Lead |
-| G5 | S5 | accept handoff bundle | engineering builds on it | high | sync named | Tech Lead (owner of record) |
-
-An agent never passes an irreversible or control-plane gate on its own confidence; confidence only tunes whether a *reversible* step gets async review.
-
-## Command-safety policy (enforced at the tool layer, not by the prompt)
-| Tier | Actions |
-|------|---------|
-| ALLOW | read the raw requirement; classify/parse it; draft any stage contract; render a diagram; write inside `output/` |
-| CONFIRM | publish the Handoff Bundle; mark a blocker resolved; set `state: ready-for-tl`; write to a shared backlog; override an upstream contract's scope |
-| DENY | echo real PII; auto-resolve a governance blocker; write outside `output/`; call a non-allowlisted tool; modify another node's contract or its own permissions |
+## Context budget, shared envelope, gates & safety (shared contracts)
+Each node declares the files it reads and reads no more, and every handoff carries one typed envelope; the gate matrix
+and command-safety tiers govern what an agent may do unattended. These cross-stage tables are shared by all five child
+skills — the authoritative copy lives in the references below, so a node and the map never drift.
+- Shared envelope + per-node context-budget reads + model/cost routing: `references/pipeline-contracts.md`
+- Gate matrix + command-safety policy (ALLOW/CONFIRM/DENY): `references/gates-and-safety.md`
 
 ## Never-do guardrails
 1. Never echo real PII. Redact to `<PII:REDACTED:CLASS=...>`; personal data stays out of every artifact and log.
@@ -106,20 +67,6 @@ An agent never passes an irreversible or control-plane gate on its own confidenc
 4. Never hand off while a blocker is open. `ready-for-tl` is impossible with an unresolved blocker.
 5. Never let an agent relax a gate or approve its own output.
 6. Never conflate Compliance (describes the rule) with Legal (interprets the wording) — different owners.
-
-## Model & cost routing
-Nodes are decoupled, so assign a model per node instead of running the heavy model everywhere. Tiers are capability levels (vendor-neutral) with dated examples; for a full per-role policy see `model-selection`.
-
-| Node | Tier (example, 2026) | Effort | Why |
-|------|----------------------|--------|-----|
-| `running-ba-pipeline` | small–mid (Haiku 4.5 / Gemini 3 Flash) | low | orchestration only |
-| `scoping-ba-intake` | mid (Sonnet 4.6 / Gemini 3 Pro) | medium | structuring, no deep trade-offs |
-| `drafting-ba-stories` | mid → frontier | medium–high | mid is fine; frontier sharpens acceptance criteria |
-| `checking-ba-governance` | mid | medium | checklist sweep; escalate to frontier only if compliance wording is ambiguous |
-| `assessing-ba-feasibility` | frontier (Opus 4.7 / top Gemini) | high | the one node that genuinely wants the heavy model |
-| `assembling-tl-handoff` | small (Haiku 4.5 / Gemini 3 Flash) | low | deterministic assembly + boolean checks |
-
-Model tier never changes who approves: a bigger model never earns the skipping of a human gate.
 
 ## How to run it
 1. Assign one `task_id` (the requirement id) — it threads every stage.

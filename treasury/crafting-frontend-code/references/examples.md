@@ -3,11 +3,23 @@
 Concrete output shapes for the most common modes. Adapt depth to the task; small fixes should be shorter than these examples.
 
 ## Contents
+- Per-mode output contract (the shape table)
 - `design` example — small feature
 - `review` example — PR-scope finding set
 - `fix` example — isolated component bug
 - `optimize` example — bundle regression
 - `analyze` example — feature audit
+
+## Per-mode output contract
+
+| Mode | Output shape | Notes |
+|------|--------------|-------|
+| `design` | Markdown report with the design checklist filled, component tree (Mermaid or indented list), state-ownership table, sketched components/hooks/types in code blocks. | No production code unless the user asked for L4. |
+| `optimize` | Markdown report with baseline (Web Vitals / bundle stats), bottleneck evidence, options table, recommendation, measurement plan. | Include profiling / measurement commands when relevant. |
+| `fix` | Minimal TSX/TS patch (focused diff or `Edit`-tool changes) + validation commands run. | Regression test or visual-regression note added in the same change when feasible. |
+| `analyze` | Markdown report only. No edits. | Findings prioritized; cite file:line where local code is available. |
+| `review` | Markdown findings table (severity / location / fix). No edits unless the user asked for follow-up `fix`. | Cover a11y, perf, type-safety, security. |
+| `plan` | Markdown plan: priorities, open decisions with owners, sequencing, validation, rollback. | No edits, no code. |
 
 ## `design` example
 

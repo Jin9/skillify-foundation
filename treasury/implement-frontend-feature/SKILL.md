@@ -96,30 +96,14 @@ Run all 9 steps in order. Do not skip steps for "small" features.
    repo equivalent), `URL` (search params / router), `form` (RHF / repo
    equivalent), `local` (`useState`), or `derived` (compute on render).
    Never mirror `server` into `client`.
-6. **Generate — code.** Emit files. Every emitted file MUST satisfy
-   `references/implementation-rules.md`, `react-typescript-conventions.md`,
-   `a11y-checklist.md`, `security-checklist.md`, and
-   `state-management-rules.md`. Specifically:
-   - Type safety: no `any` outside parser / boundary code; use `unknown` and
-     narrow with type predicates / `satisfies` / `as` only at parsers.
-   - State: no `useEffect` to sync server state into client state.
-   - A11y: semantic HTML before ARIA; every input labeled; tab order matches
-     visual order; focus moved correctly on route change / modal open / close;
-     contrast 4.5:1 normal / 3:1 large.
-   - Security: no `dangerouslySetInnerHTML` without an explicit `DOMPurify`
-     call and a `// SAFE:` comment naming the threat model; no auth token
-     write to `localStorage` / `sessionStorage`; URL props validated against
-     scheme allowlist; `target="_blank"` always with `rel="noopener noreferrer"`.
-   - PII: every field in `pii_field_classification` rendered through its
-     declared treatment helper; never logged to console or analytics.
-   - Tokens: every color / spacing / radius / shadow / type / motion read
-     from the repo's design tokens — no hex literals, no arbitrary `[437px]`
-     values. Missing token → `uncertainty_flag` of kind `token_gap`.
-   - API types: imported from `codegen/` (or repo equivalent) — never
-     hand-rolled `Response` types beyond a parser-local adapter.
-   - Analytics: every user-significant action (submit, navigate, toggle that
-     changes persisted state) emits an event whose `event_type` appears in
-     `audit_events_emitted` output field.
+6. **Generate — code.** Emit files. Every emitted file MUST satisfy ALL of:
+   type-safety, state, a11y, security, PII, design-token, API-type, and
+   analytics rules — every rule is blocking, none is "preferred."
+   Detailed rules (authoritative): `references/implementation-rules.md`
+   (F1–F12 + v2 augmentations A1–A9), `references/react-typescript-conventions.md`
+   (pillars, TS strict), `references/a11y-checklist.md` (YES/NO a11y scan),
+   `references/security-checklist.md` (YES/NO security scan), and
+   `references/state-management-rules.md` (ownership decision tree).
 7. **Generate — tests.** Companion tests per `react-typescript-conventions.md`
    § Tests: Vitest + RTL for components/hooks, MSW for network mocks. Tests
    query by role / label, not by class / test-id. Coverage `>= test_coverage_target`
@@ -162,18 +146,17 @@ Output MUST validate against `schemas/output.json`. Structured fields:
 
 ## Anti-Patterns
 
-- DO NOT use `any` type outside parser / boundary code — use `unknown` and narrow.
-- DO NOT mirror server state into client state (`useEffect` syncing TanStack Query data into Zustand is the canonical mistake).
-- DO NOT write an auth token to `localStorage` or `sessionStorage` — both are XSS-readable. Use HttpOnly cookie or in-memory.
-- DO NOT use `dangerouslySetInnerHTML` without a `DOMPurify` call AND a `// SAFE:` comment naming the threat model.
-- DO NOT skip a11y attributes (`aria-*`, `role`, semantic tags); do NOT remove focus outline without replacement; do NOT use placeholder as label.
-- DO NOT introduce new npm dependencies that are not in the design — emit `dependency_addition` uncertainty flag instead.
-- DO NOT generate a component without a companion test in the same payload.
-- DO NOT log PII to console, error reporters, or analytics — render through the field's declared treatment helper only.
-- DO NOT bypass the repo's design token system — no hex literals, no `[437px]` arbitrary values, no inline `style={{color: ...}}` for reachable tokens.
-- DO NOT hand-roll API client types — import from `codegen/` (or repo equivalent); the only exception is a parser-local adapter.
-- DO NOT put business logic in a `Primitive` pillar component; do NOT fetch in a leaf.
-- DO NOT skip self-review steps for "obviously small" features — banking-grade applies on every Generate.
+The blocking anti-patterns (no `any` outside parsers, no server→client state
+mirroring, no token in `localStorage`/`sessionStorage`, no unsanitized
+`dangerouslySetInnerHTML`, no skipped a11y / focus / labels, no silent
+dependency additions, no component without a companion test, no PII logged,
+no off-token styling, no hand-rolled API types, no business logic in a
+`Primitive` / fetch in a leaf, no skipped self-review) are enumerated
+authoritatively as YES/NO checks in the reference set — do NOT restate them
+here. Detailed rules: `references/implementation-rules.md` (F1–F12),
+`references/a11y-checklist.md` (§ Forbidden patterns / auto-NO),
+`references/security-checklist.md` (§ A–I), and
+`references/state-management-rules.md`.
 
 ## References
 

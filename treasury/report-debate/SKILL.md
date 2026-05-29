@@ -71,24 +71,11 @@ nor a stage output. This is the same new ref-kind researcher's `reporting-resear
 introduced with `run_dir`. The path is authoritative for locating the
 optional `metrics.json` and for writing `00-debate_report.md`.
 
-### `metrics.json` schema (optional sidecar at `<debate_dir>/metrics.json`)
+### `metrics.json` (optional sidecar at `<debate_dir>/metrics.json`)
 
-```json
-{
-  "debate_id": "ddd-in-enterprise-systems-20260516-101859",
-  "started_at": "2026-05-16T10:18:59Z",
-  "rounds": "standard",
-  "turns": [
-    { "stage": "panel-open", "panelist_id": "P-codex", "round": 0, "cli": "codex exec",
-      "model": "gpt-5.5", "status": "ok", "exit": 0, "duration_s": 41, "bytes": 5120 }
-  ],
-  "metrics_incomplete": false
-}
-```
-
-All fields optional. Absent/partial `metrics.json` → the affected cells
-render `—` AND the mandatory "metrics incomplete" banner appears (identical
-contract to researcher's `reporting-research-run`; never fail on missing metrics).
+All fields optional. Absent/partial → affected cells render `—` AND the
+mandatory "metrics incomplete" banner appears; never fail on missing metrics.
+Full schema + `metrics_incomplete` derivation rules: `references/compose-spec.md`.
 
 ## Procedure
 
@@ -99,10 +86,8 @@ One LLM call. Run sequentially; do not parallelise sub-tasks.
    `04-revise__r*__P-*.json`, `05-final_answer.md`, `05-convergence.json`.
    A missing artifact renders its row cell as `(artifact missing)`, never a
    failure.
-2. **Load `metrics.json`.** Set `metrics_incomplete = true` if the file is
-   absent OR any expected turn (per the panel roster × stages × rounds) has
-   no row or any of `status` / `duration_s` / `bytes` unset. Record
-   `missing_count`.
+2. **Load `metrics.json`.** Derive `metrics_incomplete` + `missing_count`.
+   Rules: `references/compose-spec.md`.
 3. **Compute content metrics** from inputs / artifacts:
    - Panel roster + tool versions + models from `00-panel.json` (or
      `debate_brief.panel`).
@@ -118,50 +103,15 @@ One LLM call. Run sequentially; do not parallelise sub-tasks.
      with the side `P-claude` held. This is a *surfaced statistic*, not a
      re-judgement — paste `convergence.no_favoritism_check` verbatim
      alongside it.
-4. **Compose `00-debate_report.md`** in this exact order:
-   1. `# Debate report — <debate_brief.proposition>`
-   2. **metrics-incomplete banner** — only if `metrics_incomplete`; between
-      H1 and the header line; exact wording:
-      ```
-      > ⚠️ **metrics incomplete** — <missing_count> turn row(s) missing or partial.
-      > Re-run per `workflows/brainstorm.yaml` → Driver protocol §3 (per-CLI capture).
-      > The report below renders content-only; `—` cells indicate missing telemetry.
-      ```
-   3. **Header line**: `_rounds: <rounds> · audience: <audience> · grounding: <full|degraded> · debate_id: <id> · started_at: <if metrics.json> · panel: codex <ver> / gemini <ver> / claude <ver> · panel_order_seed: <from 00-panel.json if present>_`
-   4. **degraded-grounding banner** — verbatim `debate_brief.grounding_note`,
-      only if `grounding == degraded`.
-   5. `## Panel` — table: `Panelist · CLI · Tool version · Model · Turns · Final stance_delta`.
-   6. `## Per-turn stats` — table, one row per `metrics.json.turns` entry
-      keyed `<stage>::<panelist_id>::r<round>` + a **Total** row (sums
-      `duration_s` / `bytes`; the report-debate turn itself is not
-      counted). Missing cells render `—`.
-   7. `## Convergence map` — for each panelist: opening stance → stance per
-      round → final, with `stance_delta` arrows (`unchanged` / `narrowed →`
-      / `broadened ↗` / `reversed ⟲`). End with a one-line verdict copied
-      verbatim from `convergence.convergence_summary`.
-   8. `## Agreements` — bulleted from `convergence.agreements`, with
-      `held_by`, `[g-n]`, and `via` (independent / principled_convergence).
-   9. `## Live disagreements` — from `convergence.live_disagreements`: each
-      side's `held_by` + `strongest_case`, then the `moderator_lean` and
-      `lean_rationale` **verbatim** (never re-judged).
-   10. `## Transcript index` — fenced block, ordered, every artifact with
-       round + panelist attribution. This is also the `transcript_index`
-       output.
-   11. `## Pipeline integrity` — bullets:
-       - Grounding-citation integrity: `[g-n]` in `05-final_answer.md` ↔
-         `grounding_pack` = OK / mismatched (flag only a real mismatch).
-       - Moderator-favoritism: "leaned to P-claude's side on `<k>/<n>`
-         contested questions" + the verbatim `no_favoritism_check`. State
-         it as an observation for human audit; do NOT re-decide.
-       - Absent panelists: count + which (and which rounds ran degraded).
-       - Rounds executed vs the `rounds` dial expectation
-         (`quick`→0 / `standard`→1 / `deep`→2 exchanges).
-       - Convergence honesty: any agreement flagged
-         capitulation-driven in `convergence` is echoed here.
-   12. `## Distillation` — verbatim paste of the final answer's
-       `## Bottom line` section (≤300 words, truncate cleanly at a sentence
-       boundary; no rephrasing — same rule as `reporting-research-run`'s Distillation).
-   13. `## Notes` — `Report generated by report-debate@<version> on <ISO 8601>.`
+4. **Compose `00-debate_report.md`** in the exact 13-section order — H1,
+   metrics-incomplete banner, header line, degraded-grounding banner,
+   `## Panel`, `## Per-turn stats`, `## Convergence map`, `## Agreements`,
+   `## Live disagreements`, `## Transcript index`, `## Pipeline integrity`,
+   `## Distillation`, `## Notes`. Full per-section content rules, both
+   banners' verbatim wording, and the favoritism-tally phrasing:
+   `references/compose-spec.md`. The `## Transcript index` block is also the
+   `transcript_index` output; Distillation is a ≤300-word verbatim paste of
+   the final answer's `## Bottom line`, truncated at a sentence boundary.
 5. **Save** to `<debate_dir>/00-debate_report.md` (the `00-` prefix sorts it
    first).
 6. **Return** the markdown as `debate_report` and the ordered artifact list
@@ -209,15 +159,11 @@ favoritism check, the transcript index, and the verbatim distillation.
 
 ## Anti-patterns
 
-| Anti-pattern | Why bad | Instead |
-|---|---|---|
-| Re-judging the debate / "correcting" the lean | Out of scope; stage-5 work | Paste `moderator_lean`/`lean_rationale` verbatim |
-| Treating the favoritism tally as a verdict override | It is an audit signal, not a re-decision | Surface the number + paste `no_favoritism_check` |
-| Failing when metrics.json missing | Defeats graceful degradation | `—` cells + banner; never raise |
-| Silent `—` cells without the banner | Hides the telemetry gap | Always emit the metrics-incomplete banner |
-| Omitting the transcript index | The report is the entry point to the dir | Always list every artifact (dir scan) |
-| Embedding full positions | Doubles disk, defeats the summary | Cap Distillation at ~300 words |
-| Paraphrasing the moderator's words | Editorial drift | Verbatim paste only |
+Seven failure modes to avoid: re-judging the lean, treating the favoritism
+tally as a verdict override, failing on missing `metrics.json`, silent `—`
+cells without the banner, omitting the transcript index, embedding full
+positions, and paraphrasing the moderator. Full matrix (why-bad + the
+do-instead for each): `references/compose-spec.md`.
 
 ## Notes for downstream
 

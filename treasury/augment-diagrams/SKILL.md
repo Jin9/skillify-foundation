@@ -76,18 +76,10 @@ shipped. This skill backfills diagrams against the audited prose instead.
 
 ## Inputs
 
-| Input | Shape | Source |
-|---|---|---|
-| `final_report` | markdown string | the file `05-final_report.md` from a run directory |
-| `findings` | array of `{ id, claim, evidence, source_id, confidence, disputed_by? }` | the file `03-findings.json` |
-| `cited_sources` | array of `{ id, title, url, findings_supported[] }` | the file `05-cited_sources.json` |
-| `research_plan` | object with at least `{ depth, sub_questions[] }` | the file `01-research_plan.json` |
-| `topic` | string | run header; used only for logging |
-| `audience` | string (optional) | run header; logged but does not change diagram rules |
-
-The skill reads `research_plan.depth` to gate output and uses
-`cited_sources[i].findings_supported[]` joined to `findings[]` to resolve
-each section's grounding set (see Procedure Step 3).
+The six inputs and their run-directory sources are declared in the
+frontmatter `inputs:` block. The skill reads `research_plan.depth` to gate
+output and uses `cited_sources[i].findings_supported[]` joined to
+`findings[]` to resolve each section's grounding set (see Procedure Step 3).
 
 ## Outputs
 
@@ -104,9 +96,9 @@ output unchanged and in the same order.
 
 **Canonical rules:** the When, Count, Where, Format, Allowed diagram types,
 and Scan test rules live in
-[`../synthesize-report/SKILL.md`](../synthesize-report/SKILL.md) under
-**Outputs → `draft_report` → Diagrams**. Apply them verbatim. If those
-rules change, this skill follows — no need to edit here.
+[`../synthesize-report/references/output-contract.md`](../synthesize-report/references/output-contract.md)
+under **Diagrams**. Apply them verbatim. If those rules change, this skill
+follows — no need to edit here.
 
 **Backfill-mode delta — Grounding:** every entity, arrow, or layer MUST
 trace to a finding **already cited in this section's existing prose**.
@@ -201,28 +193,11 @@ driver; this skill returns them as a string.
 
 ## Constraints
 
-- DO NOT rewrite, reorder, re-cite, retitle, or trim any existing
-  sentence or token. The diff between `final_report` and
-  `augmented_report` is **insertion only** — every line of the input
-  appears in the output, in order.
-- DO NOT add `[n]` citation markers inside any fenced block. Citations
-  live in the surrounding prose. The fenced block is structural; the
-  reviewer cannot audit a diagram for citation grounding.
-- DO NOT insert diagrams in boilerplate sections (`## Executive
-  Summary`, `## Background`, `## Methodology`, `## Key Findings`,
-  `## Limitations & Open Questions`, `## Sources`).
-- DO NOT pad to hit 3 diagrams. Zero is valid. One that passes the scan
-  test beats three that don't.
-- DO NOT introduce entities, arrows, or layers that the section's prose
-  + grounding set don't justify. A diagram is a rendering of what is
-  already there — not a new claim.
-- DO NOT modify the `## Sources` numbered list (order, count, content,
-  title, url). The bijection `[n] ↔ cited_sources[].id` is fixed at
-  input time.
-- DO NOT use tabs, nested fences, or a language tag on any inserted
-  fence. The fence opens with three backticks and a newline.
-- DO NOT emit a diagram on `research_plan.depth == "quick"`. Same gate
-  as `synthesize-report` Step 6.
+The hard "DO NOT" rules (insertion-only diff, no `[n]` in fences, no
+boilerplate-section diagrams, no padding to 3, no novel entities, no
+`## Sources` edits, no tabs/nested-fence/language-tag, no quick-depth
+diagrams) are the same set the anti-pattern sweep enforces. Canonical list:
+[`references/anti-patterns.md`](references/anti-patterns.md).
 
 ## Validation gate
 

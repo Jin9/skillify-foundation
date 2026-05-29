@@ -50,37 +50,6 @@ final synthesis. It **frames**; it never argues, critiques, or merges.
 **Atomicity:** one stage, one LLM call. No clarifying-question loop (atomic
 stages cannot pause), no recursion.
 
-## When to use this skill
-
-- Stage 1 dispatch from `workflows/brainstorm.yaml`.
-- User prompts: "set up a debate on the research about X", "turn these
-  findings into a debate brief", "frame the contested questions from this
-  report", "what should the panel argue about here?".
-
-Do NOT use this skill to:
-- Argue or state a position — that is `opening-debate-panel` (`panel-open` stage 2).
-- Critique a position — that is `cross-examine` (stage 3).
-- Revise a position — that is `revise-positions` (stage 4).
-- Merge the debate into an answer — that is `synthesize-consensus` (stage 5).
-- Run a non-debate workflow.
-
-## Inputs
-
-| Name | Type | Required | Notes |
-|------|------|----------|-------|
-| `research_run_dir` | string | no* | Absolute path to a squad-researcher `tmp/runs/<slug>-<ts>/`. Primary grounding source. |
-| `topic` | string | no* | Required **iff** `research_run_dir` is absent/invalid. Degraded mode. |
-| `source_text` | string | no | Optional grounding text in degraded mode. |
-| `rounds` | string | no | `quick` \| `standard` \| `deep`; default `standard`. Gates contested-question count and rubric. |
-| `audience` | string | no | Default `general`. Echoed to `debate_brief.audience`; frames the *final answer*, not the brief. |
-| `panel` | array | yes | The fixed 3-CLI roster from `brainstorm.yaml` `panel:`. Echoed verbatim into `debate_brief.panel`. |
-
-\* Exactly one grounding path must resolve. **Coupling rule:** if
-`research_run_dir` resolves and contains `05-final_report.md` +
-`03-findings.json` + `01-research_plan.json` → `grounding: full`. Else if
-`topic` is non-empty → `grounding: degraded`. Else → emit the `brief_skipped`
-failure shape.
-
 ## Output contract
 
 Emit two JSON objects. In workflow context, no prose around them.
