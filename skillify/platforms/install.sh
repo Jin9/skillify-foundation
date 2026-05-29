@@ -19,7 +19,9 @@ copy_skill() {
     mkdir -p "$dest"
     cp "${SKILL_DIR}/SKILL.md" "${dest}/SKILL.md"
 
-    for dir in references templates scripts platforms examples assets; do
+    # platforms/ is skillify-internal install scaffolding, not skill content;
+    # it is intentionally excluded so installed skills stay free of installer files.
+    for dir in references templates scripts examples assets; do
         if [ -d "${SKILL_DIR}/${dir}" ]; then
             mkdir -p "${dest}/${dir}"
             cp -R "${SKILL_DIR}/${dir}/." "${dest}/${dir}/"
@@ -40,8 +42,21 @@ SHARED_SKILLS="${AGENTS_SKILLS_HOME:-$HOME/.agents/skills}/${SKILL_NAME}"
 CODEX_SKILLS="${CODEX_HOME:-$HOME/.codex}/skills/${SKILL_NAME}"
 CLAUDE_SKILLS="$HOME/.claude/skills/${SKILL_NAME}"
 COPILOT_SKILLS="$HOME/.copilot/skills/${SKILL_NAME}"
-ANTIGRAVITY_SKILLS="$HOME/.gemini/antigravity/skills/${SKILL_NAME}"
 INSTALL_CODEX_COMPAT="${INSTALL_CODEX_COMPAT:-0}"
+
+# Antigravity moved its skills dir from ~/.gemini/antigravity to the
+# ~/.gemini/antigravity-cli home; prefer the active one. Override with
+# ANTIGRAVITY_SKILLS_HOME to point at a specific skills directory.
+resolve_antigravity_home() {
+    if [ -n "${ANTIGRAVITY_SKILLS_HOME:-}" ]; then
+        echo "${ANTIGRAVITY_SKILLS_HOME}"
+    elif [ -d "$HOME/.gemini/antigravity-cli" ]; then
+        echo "$HOME/.gemini/antigravity-cli/skills"
+    else
+        echo "$HOME/.gemini/antigravity/skills"
+    fi
+}
+ANTIGRAVITY_SKILLS="$(resolve_antigravity_home)/${SKILL_NAME}"
 
 echo ""
 echo "=== Installing ${SKILL_NAME} skill ==="
