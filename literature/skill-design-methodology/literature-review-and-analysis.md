@@ -343,7 +343,19 @@ The current `agent-skill-design-principles.md` is solid (82 lines, 9 sections) b
 
 ---
 
-## 11. Appendix: Source Files by Category
+## 11. 2026 Ecosystem & Standards Updates (Web Search)
+
+Recent web searches (mid-2026) reveal major industry shifts that extend the findings of the original corpus:
+
+1. **AgentSkills.io as the Universal Standard**: The open `SKILL.md` format (agentskills.io) has transitioned from a community proposal to the de facto industry standard, supported by 16+ major AI tools (including Claude Code, GitHub Copilot, Gemini CLI, and Cursor). The "write once, run everywhere" capability is now a reality.
+2. **Distribution Hubs**: Skills are now distributed via package managers (e.g., `npx skills add` via skills.sh), making the supply-chain dimension (pinning, provenance) a critical component for production environments.
+3. **Claude Agent SDK vs. Skills**: Anthropic has formalized the distinction between the runtime engine (Claude Agent SDK) and the knowledge modules (Claude Skills). The SDK handles MCP orchestration, context management, and hooks, while Skills focus solely on domain expertise.
+4. **GitHub Copilot Skills Integration**: In 2026, Copilot fully integrated Agent Skills (stored in `.github/skills/` or `~/.copilot/skills/`) natively into the IDE chat and CLI, linking them closely to usage-based billing optimization. Skills are recognized as critical for cost-efficiency by preventing token waste.
+5. **Architectural Shifts**: Model Context Protocol (MCP) and Human-in-the-Loop (HITL) are no longer experimental; they are mandatory components of enterprise skill design, anchoring skills to external systems securely.
+
+---
+
+## 12. Appendix: Source Files by Category
 
 ### anthropic-claude/
 - `anthropic_agent_skills_overview.md`
@@ -358,6 +370,7 @@ The current `agent-skill-design-principles.md` is solid (82 lines, 9 sections) b
 - `groff_implementing_claude_md.md`
 - `medium_cheat_codes_claude_code.md`
 - `snyk_top_claude_skills.md`
+- `claude_agent_sdk_2026.md`
 
 ### codex-copilot/
 - `codex_skills.md`, `codex_agents.md`, `codex_best_practices.md`, `codex_customization.md`
@@ -386,6 +399,7 @@ The current `agent-skill-design-principles.md` is solid (82 lines, 9 sections) b
 - `windsurf_cascade_skills_rules_agents.md`
 - `spring_ai_agent_skills.md`, `strapi_agent_skills.md`
 - `antfu_skills.md`, `sohamkamani_ai_agents.md`, `datacamp_top_agent_skills.md`
+- `skills_sh_package_manager.md`
 
 ### research-papers/
 - `react_reasoning_acting.md`, `reflexion_verbal_reinforcement.md`

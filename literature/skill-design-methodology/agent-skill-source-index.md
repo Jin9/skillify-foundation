@@ -67,7 +67,7 @@ Community validation:
 - mgechev/skills-best-practices
 - Spring AI Agentic Patterns
 
-agentskills.io is worth reading, but I would treat it as secondary guidance, not the source of truth. For production skill.md, anchor your template on OpenAI + Anthropic official docs, then use AgentSkills.io to improve structure and maintainability.
+*2026 Update*: The AgentSkills.io specification has matured into the universal open standard supported by 16+ platforms (Claude, GitHub Copilot, Gemini CLI, etc.) with distribution hubs like `skills.sh`. It should now be treated as a primary source of truth for portability ("write once, run everywhere"), alongside platform-specific documentation for host-specific features (like Claude's Agent SDK or GitHub Copilot's CLI tools).
 
 --
 
@@ -97,6 +97,7 @@ GitHub Changelog — Manage agent skills with GitHub CLI	https://github.blog/cha
 Open Agent Skills — Specification	https://openagentskills.dev/docs/specification	Neutral format reference for required fields, optional directories, progressive disclosure, and validation.
 GitHub Docs — Adding agent skills for GitHub Copilot	https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/create-skills	Copilot skill creation, sharing, `gh skill`, provenance, pinning, and security review.
 VS Code Docs — Custom agents	https://code.visualstudio.com/docs/copilot/customization/custom-agents	Decision boundary between custom agents, prompt files, and skills.
+Claude Agent SDK 2026 Docs	https://code.claude.com/docs/llms.txt	SDK updates and stateful agentic loops for 2026 workloads.
 
 B. Open standard / reference sites
 
@@ -113,6 +114,7 @@ Cursor Rules	https://docs.cursor.com/context/rules-for-ai	Persistent scoped proj
 Cline Rules	https://docs.cline.bot/features/cline-rules/overview	Rule file locations, cross-tool rule detection, toggles, and path-conditional activation.
 OpenCode Rules	https://dev.opencode.ai/docs/rules/	AGENTS.md precedence, global/project instructions, Claude fallback, and opencode.json references.
 Windsurf Cascade customization	https://docs.windsurf.com/windsurf/cascade/memories	Clear taxonomy across memories, rules, AGENTS.md, workflows, and skills.
+skills.sh (Vercel)	https://skills.sh	2026 universal package manager for AI agent skills.
 
 C. Community / practical implementation sources
 
@@ -180,4 +182,4 @@ Tier 3: Official examples	Use to copy structure and patterns.
 Tier 4: Community guides	Use for tricks, naming, trigger behavior, and real-world mistakes.
 Tier 5: Blog/listicle/catalog sources	Use for inspiration only; verify before adopting.
 
-For your case, I’d anchor the template on OpenAI + Anthropic + AgentSkills.io, then use community sources only to improve naming, folder layout, and trigger behavior.
+For your case, I’d anchor the template on the open standard (AgentSkills.io) for maximum portability, using OpenAI + Anthropic official docs for platform-specific hooks. Community sources remain useful to improve naming, folder layout, and trigger behavior.
