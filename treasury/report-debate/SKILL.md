@@ -82,8 +82,10 @@ Full schema + `metrics_incomplete` derivation rules: `references/compose-spec.md
 One LLM call. Run sequentially; do not parallelise sub-tasks.
 
 1. **Resolve `debate_dir`.** Scan for expected artifacts: `00-panel.json`,
-   `01-debate_brief.json`, `02-open__P-*.json`, `03-xexam__r*__P-*.json`,
-   `04-revise__r*__P-*.json`, `05-final_answer.md`, `05-convergence.json`.
+   `01-debate_brief.json`, `01-grounding_pack.json`, `02-open__P-*.json`,
+   `03-xexam__r*__P-*.json`, `04-revise__r*__P-*.json`, `05-final_answer.md`,
+   `05-convergence.json`. (`01-grounding_pack.json` is the file gate 3 re-derives
+   grounding-citation integrity from; both `01-` files are frame-debate outputs.)
    A missing artifact renders its row cell as `(artifact missing)`, never a
    failure.
 2. **Load `metrics.json`.** Derive `metrics_incomplete` + `missing_count`.
