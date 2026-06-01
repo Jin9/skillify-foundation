@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-90 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+91 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -12,8 +12,8 @@
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 14 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 5 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 6 |
-| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 7 |
-| **Total** | **90** |
+| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 8 |
+| **Total** | **91** |
 
 ---
 
@@ -156,13 +156,14 @@ Telemetry, cost governance, incident handling, readiness, and postmortems.
 | [`performance-cost-review`](./performance-cost-review/) | Define and review a feature or service's performance budget and cost budget — latency/throughput/resource targets per critical user journey, cost-per-unit, baseline... | business-analyse | examples · references |
 | [`reviewing-agent-spend`](./reviewing-agent-spend/) | Run the Monday cost-review ritual for an agent-scaffold squad. Wraps just llm-spend, segments by user and model, flags greater-than-2-sigma outliers and any single... | existing treasury | references · templates |
 
-## Code Analysis, Productivity & Publishing (7)
+## Code Analysis, Productivity & Publishing (8)
 
 Code analysis, productivity, translation, publishing, and human-readable report generation.
 
 | Skill | Purpose | Source family | Extra assets |
 |-------|---------|---------------|--------------|
 | [`business-logic-extractor`](./business-logic-extractor/) | Extract the implemented business logic and rules FROM a codebase — cross-referenced with requirements and agent/execution traces — into a faithful, traceable... | existing treasury | references · scripts · templates |
+| [`daily-planner`](./daily-planner/) | Turn a raw task list into a prioritized, trackable daily plan and keep it current across days. Ranks by impact x urgency (P1–P4) with S/M/L effort and maintains a status-tracked... | skillify | templates |
 | [`generating-pseudocode`](./generating-pseudocode/) | Analyzes requirements or existing code to generate clean, language-agnostic pseudocode that bridges high-level intent and implementation, readable by a Python, Go,... | existing treasury | references |
 | [`organizing-local-files`](./organizing-local-files/) | Plans and applies safe, offline organization of local files and folders. Use when the user says "organize this folder", "clean up my files", "classify my... | existing treasury | references · templates |
 | [`progressive-bug-hunter`](./progressive-bug-hunter/) | Localize and diagnose a bug by progressively retrieving the MINIMAL sufficient code context: start with cheap agentic grep / structured search, escalate to... | existing treasury | references · scripts · templates |
@@ -192,6 +193,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`crafting-backend-code`](./crafting-backend-code/) | Implementation, Platform Templates & Code Review | existing treasury |
 | [`crafting-frontend-code`](./crafting-frontend-code/) | Implementation, Platform Templates & Code Review | existing treasury |
 | [`cross-examine`](./cross-examine/) | Research, Debate & Knowledge Synthesis | squad-brainstorm |
+| [`daily-planner`](./daily-planner/) | Code Analysis, Productivity & Publishing | skillify |
 | [`data-modeling`](./data-modeling/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`defining-engineering-standards`](./defining-engineering-standards/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`delivery-planning`](./delivery-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
