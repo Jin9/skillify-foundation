@@ -4,9 +4,13 @@ Distilled from research reports *Cross-model schema normalization & semantic
 portability* and *Cross-model skill portability*. Portability is a layered
 control problem: drift enters independently at the transport, generation,
 alignment, coercion, evolution, and artifact layers. Syntactic portability is
-largely solved (SKILL.md / constrained decoding); residual risk is **semantic**
-and concentrates at the cross-vendor boundary (~37% of multi-agent failures are
-inter-agent misalignment incl. format mismatch and handoff context loss).
+largely solved — 35+ tools share the SKILL.md format and constrained decoding
+closes the schema-shape gap; residual risk is **semantic and behavioral** and
+concentrates at the cross-vendor boundary. Adherence there is sharply
+model-dependent: gpt-4o with Structured Outputs scores ~100% on complex
+JSON-schema following while an older model in the same family scores under 40%,
+and a schema authored for one vendor's strict mode may be silently altered or
+rejected by another's.
 
 The gate checks the structurally-detectable subset below. It cannot prove
 semantic equivalence (no benchmark does) — it flags the conditions known to

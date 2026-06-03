@@ -2,10 +2,14 @@
 
 Distilled from research report *Strict Schema Evolution for Tool Registries*.
 A tool registry is the model's sole source of truth; when the underlying spec
-drifts the model keeps emitting calls shaped to the stale contract. Measured:
-~8% of responses unparseable, ~5% wrong field types; at 5%/step a 12-step run
-has ~46% chance of at least one failure. JSON Schema has **no built-in
-compatibility enforcement** — the enforcement must live in this gate.
+drifts the model does not error — it keeps calling the tool and *guesses* the
+new shape, emitting a malformed-but-plausible call that can corrupt data or fire
+the wrong side effect. Strict tool schemas are *closed* content models (OpenAI
+strict mode forces `additionalProperties:false`, all-required), the most
+restrictive evolution regime, where even adding an optional property can break
+reading old data. JSON Schema itself has **no built-in compatibility
+enforcement** and MCP has no first-class API versioning, so the enforcement
+must live in this gate.
 
 Evolution checks require a `--baseline` (the previously-shipped spec). With no
 baseline, emit one `info` finding `schema-evolution: skipped (no baseline)` and
