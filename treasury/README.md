@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-91 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+92 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -12,8 +12,8 @@
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 14 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 5 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 6 |
-| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 8 |
-| **Total** | **91** |
+| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 9 |
+| **Total** | **92** |
 
 ---
 
@@ -156,7 +156,7 @@ Telemetry, cost governance, incident handling, readiness, and postmortems.
 | [`performance-cost-review`](./performance-cost-review/) | Define and review a feature or service's performance budget and cost budget — latency/throughput/resource targets per critical user journey, cost-per-unit, baseline... | business-analyse | examples · references |
 | [`reviewing-agent-spend`](./reviewing-agent-spend/) | Run the Monday cost-review ritual for an agent-scaffold squad. Wraps just llm-spend, segments by user and model, flags greater-than-2-sigma outliers and any single... | existing treasury | references · templates |
 
-## Code Analysis, Productivity & Publishing (8)
+## Code Analysis, Productivity & Publishing (9)
 
 Code analysis, productivity, translation, publishing, and human-readable report generation.
 
@@ -170,6 +170,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`publishing-git-review-requests`](./publishing-git-review-requests/) | Publishes one local change to GitHub or GitLab for hosted review: prepare an intended commit, create or attach origin, push the branch, and open a PR or MR. Use... | existing treasury | references · templates |
 | [`rendering-readable-html`](./rendering-readable-html/) | Render structured content the agent already has - tabular data, a markdown or plain-text report, or findings produced this session - into one clean, self-contained,... | existing treasury | references · scripts · templates · examples |
 | [`thai-translator`](./thai-translator/) | Translates English documents into structurally identical bilingual (Thai/English) documents. Use when the user asks to 'translate to thai', 'mirror this document in... | business-analyse | — |
+| [`transcribing-media-to-minutes`](./transcribing-media-to-minutes/) | Reads a Thai/English bilingual meeting recording (audio or video, mostly Thai) and produces faithful, plain-language Minutes of Meeting plus a timestamped transcript sidecar. Routes by length/complexity to fast vs frontier model variants (Gemini examples; portable across hosts). Use when asked to "minute this recording" / "ทำรายงานการประชุม". | skillify | references · templates · examples |
 
 ## Alphabetical Index
 
@@ -264,6 +265,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`technical-feasibility`](./technical-feasibility/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`testing-strategy`](./testing-strategy/) | Testing, QA & Validation | business-analyse |
 | [`thai-translator`](./thai-translator/) | Code Analysis, Productivity & Publishing | business-analyse |
+| [`transcribing-media-to-minutes`](./transcribing-media-to-minutes/) | Code Analysis, Productivity & Publishing | skillify |
 | [`universal-spec-validator`](./universal-spec-validator/) | Security, Governance & Compliance | existing treasury |
 | [`validating-banking-implementation`](./validating-banking-implementation/) | Testing, QA & Validation | squad-delivery |
 
