@@ -26,3 +26,4 @@
 ## Stop rationale
 - working set explains failure? <yes/no — why>
 - token budget / diminishing returns? <note>
+- impact / blast-radius for severity: <signal noted → tentative P0–P4 (see references/severity-rubric.md)>

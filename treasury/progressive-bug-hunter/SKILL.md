@@ -10,8 +10,8 @@ description: >
   error happening — track the root cause", "debug this without loading the
   whole codebase", or "diagnose this regression across the codebase". Produces
   a markdown diagnosis report: ranked suspect file:line, the retrieval path
-  taken, a root-cause hypothesis with evidence, and a minimal context bundle
-  for a fixer. STOPS at diagnosis. Do NOT use to write or apply the fix or
+  taken, a root-cause hypothesis with evidence, a P0–P4 severity rating, and
+  a minimal context bundle for a fixer. STOPS at diagnosis. Do NOT use to write or apply the fix or
   open a PR (hand off to a coding skill), to build embeddings / a vector
   index, for general code review or refactoring, or for performance profiling.
 ---
@@ -43,7 +43,7 @@ A failure signal: a stack trace, failing-test name/output, error message, or a r
 2. **Tier 1 — agentic lexical search (default).** Issue targeted `grep`/`ripgrep` for the anchors (exact identifiers, error strings); list definitions with tree-sitter. Run independent searches in parallel where possible. Prefer this for narrow fixes — it is faster, index-free, and fails *loudly* (an empty result is a clean signal). Read only the spans the hits point to. If the cause is confirmed, go to step 5.
 3. **Tier 2 — structural escalation (only if Tier 1 underdetermines).** Follow the symbol / call / import / type graph from the anchor: callers, callees, definition sites, and — for a regression — the change blast-radius via reachability. Pull AST-aligned spans (whole function/class), not fixed line windows. See `references/symbol-graph-and-ast.md`.
 4. **Tier 3 — broad cross-file search (only for genuine cross-file unknowns).** When the locus is not yet known, widen with hybrid lexical+structural search and iterate: feed each finding back as the next query (do not one-shot). Budget tokens — stop widening once the working set covers the locus. This skill *uses* search tools; it does not build an embedding index.
-5. **Diagnose.** Form a root-cause hypothesis tied to specific evidence (the exact spans). Rank suspect locations as `file:line`. Note contradicting evidence and confidence.
+5. **Diagnose.** Form a root-cause hypothesis tied to specific evidence (the exact spans). Rank suspect locations as `file:line`. Note contradicting evidence and confidence. Assign **one** P0–P4 severity to the bug from observable evidence (crash / data-loss / security-reachability / blast-radius), kept distinct from diagnostic confidence — see the bands below and `references/severity-rubric.md`.
 6. **Emit the report** per `templates/diagnosis-report.md`. Stop. Do not modify code.
 
 Throughout, order retrieval to preserve the prompt-cache prefix: keep the
@@ -53,10 +53,21 @@ ordered, so each iteration of the hunt stays cheap. See
 `references/cache-prefix-ordering.md`. Strategy and escalation criteria:
 `references/retrieval-ladder.md`. Evidence/pitfalls: `references/evidence-and-pitfalls.md`.
 
+## Severity bands (P0–P4)
+
+Summarize the bug on this scale (P0 = worst); full definitions and how to assign each band live in `references/severity-rubric.md`:
+
+- **P0 — Critical** — outage / data loss or corruption / security breach on a reachable core path; blocks release.
+- **P1 — High** — core feature broken, no workaround, wide blast-radius.
+- **P2 — Medium** — impaired but a workaround exists; bounded blast-radius.
+- **P3 — Low** — minor / edge-case defect, narrow reach.
+- **P4 — Trivial** — cosmetic / negligible.
+
 ## Output contract
 
 A single markdown diagnosis report (default `bug-diagnosis.md`, or inline if the caller prefers), shaped by `templates/diagnosis-report.md`, containing:
 
+- **Severity** — one P0–P4 band for the bug with a one-line impact justification, orthogonal to the per-suspect confidence.
 - **Ranked suspects** — `path/file:line` entries, most-likely first, each with a one-line why.
 - **Retrieval path** — the escalation log: each tier, the query issued, hit count, the decision (escalate / stop), and the cache-prefix-preserving order used.
 - **Root-cause hypothesis** — the mechanism, tied to quoted evidence spans, with confidence and any contradicting evidence.
@@ -72,12 +83,14 @@ No code is modified; no fix or PR is produced; no index is persisted.
 - DO NOT one-shot a single broad query — iterate, feeding findings back (RepoCoder-style).
 - DO NOT reorder retrieval in a way that breaks the cache prefix (volatile results stay after the breakpoint).
 - DO NOT duplicate the retrieval theory here; it lives one level deep in `references/`.
+- DO NOT inflate severity beyond what the code/trace evidence supports; when production/business context is required to finalize the band, say so rather than guess.
 
 ## Validation
 
 - [ ] Frontmatter `name` equals folder, kebab-case, no XML, description under 1024 chars with triggers + negatives.
 - [ ] Workflow escalates cheap→structural→broad and explicitly stops before any code edit.
-- [ ] Output contract names the four report sections and the no-edit/no-index boundary.
+- [ ] Output contract names the report sections (severity + the four core sections) and the no-edit/no-index boundary.
+- [ ] Report assigns exactly one evidence-grounded P0–P4 severity, kept distinct from confidence.
 
 ## References
 
@@ -85,4 +98,5 @@ No code is modified; no fix or PR is produced; no index is persisted.
 - Symbol/call/dependency-graph traversal + AST-aware spans + impact analysis: `references/symbol-graph-and-ast.md`
 - Prompt-cache-preserving retrieval ordering: `references/cache-prefix-ordering.md`
 - Benchmark evidence, failure modes, anti-extrapolation: `references/evidence-and-pitfalls.md`
+- Severity bands + how to assign (P0–P4), severity-vs-confidence: `references/severity-rubric.md`
 - Skeletons: `templates/escalation-ladder.md`, `templates/diagnosis-report.md`

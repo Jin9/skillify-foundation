@@ -2,6 +2,12 @@
 
 > The deliverable. Diagnosis only — no code changes, no fix, no PR, no index.
 
+## Severity (P0–P4)
+**<P0|P1|P2|P3|P4> (<critical|high|medium|low|trivial>)** — <one-line impact: crash / data-loss / security-reachability / blast-radius>.
+
+> Technical severity from code/trace evidence; orthogonal to the confidence below.
+> <State here if production/business context is needed to finalize the band, else "none">.
+
 ## Ranked suspects
 1. `path/to/file.ext:LINE` — <why this is the most likely site, one line>
 2. `path/to/other.ext:LINE-LINE` — <why>
