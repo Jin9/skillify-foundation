@@ -1,7 +1,7 @@
 ---
 name: risk-estimation
 description: >
-  Size complexity and separate known work from unknown risk, producing a man-day estimate with an explicit confidence and uncertainty multiplier plus the assumptions behind it, to feed delivery planning rather than replace it. Use when the user asks "how complex is this", "estimate the risk/effort", "how confident is this timeline", or "what's the unknown here". Produces a known-work estimate at a mid-level baseline, an unknown-risk list with spike time-boxes, an applied complexity multiplier, a confidence rating, and do-not-estimate flags. Do NOT use for turning the sized work into a sequenced task plan and critical path, or for deciding whether the thing can be built at all and what the options are.
+  Size complexity and separate known work from unknown risk, producing a man-day estimate with an explicit confidence and uncertainty multiplier plus the assumptions behind it, to feed delivery planning rather than replace it. Use when the user asks "how complex is this", "estimate the risk/effort", "how confident is this timeline", or "what's the unknown here". Produces a known-work estimate at a mid-level baseline, an unknown-risk list with spike time-boxes, an applied complexity multiplier, a confidence rating, and do-not-estimate flags. Do NOT use for turning the sized work into a sequenced task plan and critical path (use delivery-planning), or for deciding whether the thing can be built at all and what the options are (use technical-feasibility).
 ---
 
 # risk-estimation

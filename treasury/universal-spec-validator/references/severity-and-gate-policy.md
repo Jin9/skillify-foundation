@@ -32,8 +32,8 @@ info     → info
 ## Config override (`.spec-validator.yaml`)
 ```yaml
 compatibility_mode: backward      # backward | forward | full
-transitive: false
-target_models: [openai, anthropic, gemini]   # informs P1/P2/P5
+transitive: false                 # parsed but not yet read by validate_spec.py
+target_models: [openai, anthropic, gemini]   # informs P1/P2/P5 (not yet read by validate_spec.py)
 gate_overrides:                    # per-rule severity→gate remap (risk tiering)
   P2: info                         # e.g. accept strict-mode drift, just notify
   C5: block                        # e.g. enforce pinning hard in this repo

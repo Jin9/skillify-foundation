@@ -205,7 +205,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--suite-root",
-        help="Path to decompose-ba-skills root. Defaults to this script's grandparent."
+        help="Pipeline suite root (directory containing the four stage skill folders). Defaults to this script's grandparent."
     )
     args = parser.parse_args()
 

@@ -13,7 +13,7 @@ The defining property of this skill. Every edit you intend to make must pass thi
 | `app/<domain>/handler_<action>_test.go` | Table-driven test for the matching handler. |
 | `app/<domain>/consumer_<action>.go` | Kafka event handler. One file per event. |
 | `app/<domain>/consumer_<action>_test.go` | Table-driven test for the matching consumer. |
-| `app/<domain>/service_<action>.go` | Private helper used by 2+ handlers/consumers in the same domain. |
+| `app/<domain>/service_<action>.go` | Private helper holding the multi-step orchestration/business logic split out of a handler or consumer. Extract whenever a handler runs multi-step orchestration — not only when 2+ handlers/consumers reuse it. |
 | `app/<domain>/access/storage_<dep>.go` | Persistence repository, co-located with its domain model and sentinel errors. |
 | `app/<domain>/access/cache_<dep>.go` | Cache repository. Same co-location rule. |
 | `app/<domain>/access/client_<dep>.go` | External API gateway. Same co-location rule. |

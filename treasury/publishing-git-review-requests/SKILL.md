@@ -37,9 +37,9 @@ GitLab, with explicit confirmation before every local or remote mutation.
      mutate local history or hosted Git state.
 
 2. **Inspect repository and provider state.**
-   - Run read-only checks first: `git status --short`,
-     `git branch --show-current`, `git branch -vv`, `git remote -v`, and
-     `git rev-parse --show-toplevel`.
+   - Run the read-only checks in `references/hosted-git-safety.md`
+     §Preflight checks first (repo status, current branch, tracking,
+     remotes, repo root); that section is the single normative list.
    - Infer provider from the existing remote URL, user wording, or available
      CLI: GitHub uses `gh`; GitLab uses `glab`.
    - If provider remains ambiguous, ask the user to choose GitHub or GitLab
@@ -57,9 +57,10 @@ GitLab, with explicit confirmation before every local or remote mutation.
 
 4. **Request confirmation before mutating.**
    - Show the commands that will change local or hosted state.
-   - Wait for explicit user approval before running any of: `git add`,
-     `git commit`, `git remote add`, `git remote set-url`, `gh repo create`,
-     `glab repo create`, `git push`, `gh pr create`, or `glab mr create`.
+   - Wait for explicit user approval before running any command listed in
+     `references/hosted-git-safety.md` §Confirmation boundary (staging,
+     committing, remote changes, repo creation, pushes, PR/MR creation);
+     that section is the single normative list.
    - If approval is only for one step, perform only that step and ask again
      before the next mutation.
 

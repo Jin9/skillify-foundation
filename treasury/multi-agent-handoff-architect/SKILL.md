@@ -12,11 +12,11 @@ description: >
   handoffs reliable", or "choose single-agent vs multi-agent and the
   handoff topology". Output: a
   handoff-design doc, a topology decision record, and a JSON Schema. Do
-  NOT use for repo-level AGENTS.md squad-role prose (use
-  agent-context-initializer), handoff tracing/token instrumentation (use
-  observability-telemetry-instrumenter), governing agent permissions (use
-  governance-policy-generator), or single-pipeline stage composition (use
-  composing-agent-pipelines).
+  NOT use for pipeline supervision/gate design (agentic-workflow-design),
+  AGENTS.md squad-role prose (agent-context-initializer), handoff
+  telemetry instrumentation (observability-telemetry-instrumenter), agent
+  permission governance (governance-policy-generator), or stage composition
+  (composing-agent-pipelines).
 ---
 
 # Multi Agent Handoff Architect

@@ -13,7 +13,7 @@
 | [Security, Governance & Compliance](#security-governance-compliance) | 5 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 6 |
 | [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 9 |
-| **Total** | **92** |
+| **Total** | **93** |
 
 ---
 

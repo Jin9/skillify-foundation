@@ -58,7 +58,7 @@ some patterns as "preferred default"; this file makes them blocking.
 
 - [ ] Every field in input's `pii_field_classification` is rendered through its declared treatment helper (`mask` / `redact` / `audit-on-view`).
 - [ ] PII fields NEVER logged to `console.*`, `window.onerror`, analytics events, or third-party error reporters.
-- [ ] Audit-on-view fields emit an analytics event of type `pii.viewed.<field>` when displayed.
+- [ ] Audit-on-view fields emit an analytics event of type `pii.<field>.viewed` when displayed.
 - [ ] Test fixtures use synthetic PII only (no real names, account numbers, government IDs).
 
 ## H. Cross-origin / framing

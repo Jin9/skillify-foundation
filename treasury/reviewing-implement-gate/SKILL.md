@@ -20,8 +20,9 @@ description: >
 
 The `implement` stage is the only gate in the default scaffold pipeline that
 mutates source code. PLAYBOOK §10 demands a five-question check before any
-human types `just approve implement`. This skill runs that check on Claude's
-side, surfaces blockers, and never types the approve/reject command itself.
+human types `just approve implement`. This skill runs that check on the
+agent's side, surfaces blockers, and never types the approve/reject command
+itself.
 
 ## When to use this skill
 
@@ -62,8 +63,8 @@ Any **no** or **unsure** is a blocker; surface it and recommend reject.
 
 ### Question 1 — Did I read `plan.md` end-to-end on a screen wider than my phone?
 
-This is asked *of the human*, not of Claude. Claude's role: cat the plan
-length, summarize section headers, and ask the user to confirm they have
+This is asked *of the human*, not of the agent. The agent's role: report the
+plan length, summarize section headers, and ask the user to confirm they have
 read it. If the plan is > 500 lines, suggest the user read it before
 proceeding.
 
@@ -107,32 +108,11 @@ bounded.
 
 ## Output format
 
-Always emit `templates/gate-review.md` filled. The block ends with the
-exact command the user must type — never run it from the skill.
-
-```markdown
-## implement gate review for <workflow_id>
-
-Plan:     .agent/stages/plan.md (<lines> lines, sections: <list>)
-Critique: .agent/stages/critique.md (P1=<n>, P2=<n>, P3=<n>)
-Cap:      $<spent> / $<cap>  (remaining $<rem>)
-Sandbox:  <on|off>            (required: <yes|no>)
-
-Five-question check:
-  1. Plan read end-to-end?       <user-confirms>
-  2. Critique blockers addressed? <yes|partial|no — list>
-  3. Cap tight enough?            <yes|loose|too-tight>
-  4. Sandbox set when needed?     <yes|n/a|missing>
-  5. Ready to babysit / accept?   <user-confirms>
-
-Recommendation: <approve|reject>
-Reason:         <one sentence>
-
-Command (you type this):
-  just approve implement
-  # or:
-  just reject implement "<reason>"
-```
+Always emit `templates/gate-review.md` filled — the template is the single
+source of the output shape: an **Inputs** block, the **P1/P2 cross-walk
+table** (every P1 accounted for), the **five-question table**, the
+recommendation, and the exact approve/reject commands. The block ends with
+the exact command the user must type — never run it from the skill.
 
 ## Constraints
 

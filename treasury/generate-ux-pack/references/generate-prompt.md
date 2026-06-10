@@ -1,6 +1,7 @@
 # Prompt — Generate `ux-design-{idem8}/` Pack from UX Sources
 
-> **Use this prompt** with Claude Code (or any capable LLM) to produce a full v1.1 UX-design intake pack from a UX team's drop.
+> **Use this prompt** with the agent (any capable LLM host) to produce a full v1.1 UX-design intake pack from a UX team's drop.
+> **Provenance copy** — this is the verbatim v1.1 prompt; `per-file-rules.md` is canonical where the two differ.
 > **Inputs needed**: bundled prototype HTML (read for structural reference only), Frontend Spec markdown (the authoritative content source), BA brief directory (epics + stories).
 > **Output**: the `ux-design-{idem8}/` directory tree per the v1.1 TL scaffold pack §8 contract.
 
@@ -255,7 +256,7 @@ Per epic folder:
 ## Quality rules
 
 1. **No invented PII.** Example values in microcopy must look fake:
-   - Email: customer+test@shoppilot.test (not real domain)
+   - Email: customer+test@example.invalid (reserved TLD, obviously fake)
    - Phone: 081-234-5678 (clearly example)
    - Names: "ลูกค้าตัวอย่าง" / "Test Customer" (clearly fake)
 

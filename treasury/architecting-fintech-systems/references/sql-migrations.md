@@ -1,5 +1,9 @@
 # SQL & Migrations
 
+House defaults — when the host repo's stated conventions (AGENTS.md or
+equivalent) conflict with a rule here, the host repo wins; note the
+divergence in the hand-off summary.
+
 ## Contents
 - Migration rules
 - Query conventions

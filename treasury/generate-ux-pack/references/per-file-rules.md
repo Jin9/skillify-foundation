@@ -1,6 +1,6 @@
 # Per-file Rules — v1.1 UX-design Intake Pack
 
-Extracted verbatim from `references/generate-prompt.md` (sections "Per-file rules", "Quality rules", "Output discipline"). Reused content — do not edit independently; sync with `generate-prompt.md` if the parent prompt is revised.
+This file is the **canonical** rules tier for the skill. `references/generate-prompt.md` is the verbatim v1.1 prompt kept for provenance; where the two differ, this file wins — revise here first, then refresh the prompt copy.
 
 ## Per-file rules
 
@@ -155,13 +155,13 @@ Each flow file:
 - Edge cases: what if step N fails, what if user backs out
 - Cross-reference to per-story screens/EPIC-{NAME}/stories/...md
 
-Required flows (derive from BA epics):
+Derive the required flow set from the BA brief's customer journeys — one flow file per journey. Default set for commerce-domain briefs:
 - customer-onboarding.md — registration → login → first session
 - customer-checkout.md — browse → add to cart → checkout → payment success
 - customer-order-tracking.md — order list → detail → review
 - payment-failure-recovery.md — payment fails/expires → retry/cancel
 
-Add others if BA brief has additional major customer journeys (e.g., account-management, address-management).
+Emit only the defaults the brief actually supports; for non-commerce briefs replace them with the brief's own journeys (e.g., kyc-onboarding, loan-application, repayment). Add others if the BA brief has additional major customer journeys (e.g., account-management, address-management).
 
 ### screens/EPIC-{NAME}/
 Mirror the BA brief's customer-facing epic structure. NOT every BA epic gets a UX folder — only customer-facing ones. Admin-facing or governance epics (EPIC-GOVERN typically) skip.
@@ -181,7 +181,7 @@ Per epic folder:
 ## Quality rules
 
 1. **No invented PII.** Example values in microcopy must look fake:
-   - Email: customer+test@shoppilot.test (not real domain)
+   - Email: customer+test@example.invalid (reserved TLD, obviously fake)
    - Phone: 081-234-5678 (clearly example)
    - Names: "ลูกค้าตัวอย่าง" / "Test Customer" (clearly fake)
 
@@ -197,7 +197,16 @@ Per epic folder:
 
 7. **Cross-reference integrity.** Every microcopy key referenced in screen-states/form-validation/accessibility must exist in microcopy.json. Every component referenced must exist in component-inventory.md. Every route must appear in route-map.md.
 
-8. **Banking-grade alignment.** Frontend Spec says "no localStorage for auth tokens" implicitly via stack recommendation. Surface this in accessibility-spec.md or a security-spec.md if not present.
+8. **Banking-grade alignment.** When the Frontend Spec's stack recommendation implies a security constraint (e.g. no localStorage for auth tokens), surface it in accessibility-spec.md or a security-spec.md if not present.
+
+## Maturity triage
+
+House thresholds for `maturity_level`, derived from the v1.1 §4 audit-triage table (if the consuming pipeline supplies its own triage table, use that and note the substitution in `output.json`):
+
+- **Level 3** — 9/9 artifacts present; 0 WCAG AA failures; every BA story covered and every route mapped; remaining TBDs are only `TBD-extract-from-prototype` items owned by the UX team.
+- **Level 2** — 9/9 artifacts present; any WCAG failures and coverage gaps each carry an explicit finding or TBD (nothing silent).
+- **Level 1** — 7–8 artifacts present, or coverage gaps / WCAG failures exist without findings.
+- **Level 0** — fewer than 7 artifacts, invented data detected, or cross-reference integrity broken.
 
 ## Output discipline
 

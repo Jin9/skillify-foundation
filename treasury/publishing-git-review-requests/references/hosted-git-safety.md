@@ -56,7 +56,9 @@ branch.
 
 Refuse or pause for explicit confirmation before:
 
-- `git push --force` or `git push --force-with-lease`
+- `git push --force` or `git push --force-with-lease` (when the user insists
+  on a force push, prefer `--force-with-lease` — it still rewrites the remote
+  ref but refuses to clobber work pushed by someone else)
 - `git reset --hard`
 - `git clean`
 - deleting local or remote branches

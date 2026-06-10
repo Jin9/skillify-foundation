@@ -1,7 +1,7 @@
 ---
 name: pr-design-review
 description: >
-  Review a PR's design and maintainability — business-logic completeness, test coverage, over-engineering, and template conformance — returning tagged, teachable comments plus a merge-or-iterate verdict. Use when the user asks to "review the design of this PR", "give me must-change / consider / nit feedback", "is this PR ready to merge", or "review the design of this change". Reviews in priority order, tags every comment, and stops at a human approval gate without auto-merging. Do NOT use for diff-correctness, compile, or logic-bug review — that is the built-in /code-review.
+  Review a PR's design and maintainability — business-logic completeness, test coverage, over-engineering, and template conformance — returning tagged, teachable comments plus a merge-or-iterate verdict. Use when the user asks to "review the design of this PR", "give me must-change / consider / nit feedback", "is this PR ready to merge", or "review the design of this change". Reviews in priority order, tags every comment, and stops at a human approval gate without auto-merging. Do NOT use for diff-correctness, compile, or logic-bug review (use the host's code-review tooling), or for stack-specific code review (use review-backend-code / review-frontend-code).
 ---
 
 # pr-design-review
@@ -12,10 +12,14 @@ template conformance** — and return tagged, teachable comments plus a merge/it
 
 ## When to use
 - Triggers: *"review the design of this PR"*, *"give me must-change / consider / nit feedback"*, *"is this PR ready to merge"*, *"review the design of this change"*.
-- **Not this skill (important negatives):** diff-correctness / compile / logic bugs → built-in **`/code-review`**; security (BOLA, injection, secrets, RBAC) → **`reviewing-software-security`**; localizing a specific bug → **`progressive-bug-hunter`**; opening the PR → **`publishing-git-review-requests`**.
+- **Not this skill (important negatives):** diff-correctness / compile / logic bugs → the host's code-review tooling; stack-specific code review → **`review-backend-code`** / **`review-frontend-code`**; security (BOLA, injection, secrets, RBAC) → **`reviewing-software-security`**; localizing a specific bug → **`progressive-bug-hunter`**; opening the PR → **`publishing-git-review-requests`**.
 
 ## Input
 - A PR diff / changeset **plus** the requirement it implements.
+- Optional: the team's standard PR/code template (house template, scaffold
+  profile, or repo convention doc). Template conformance is checked against
+  this input; if none is provided, mark that check `n/a — no template
+  provided` instead of inventing one.
 
 ## Output
 A **Code Review** artifact + checklist + verdict. Skeleton:
@@ -33,7 +37,7 @@ Verdict:  MERGE  |  ITERATE
 ```
 
 ## Decision rules
-1. **Review in priority order**: (1) business-logic completeness, (2) unit-test coverage of all business logic, (3) API/process over-engineering, (4) conformance to the standard template.
+1. **Review in priority order**: (1) business-logic completeness, (2) unit-test coverage of all business logic, (3) API/process over-engineering, (4) conformance to the provided standard template (n/a when none provided).
 2. **Tag every comment**: *must-change* (must fix) · *consider* (fix if time allows) · *nit* (let it pass).
 3. **Business-logic coverage = 100%**, and probe edge-case parameters to cut risk.
 4. **PR > 400 lines → reject and split** — prefer split by interface change → draft handler → business logic.
@@ -44,7 +48,7 @@ Verdict:  MERGE  |  ITERATE
 - [ ] Business logic complete for the requirement
 - [ ] 100% business-logic test coverage + edge cases
 - [ ] Not over-engineered (the "5-minutes-to-explain" test)
-- [ ] Matches the standard template
+- [ ] Matches the provided standard template (or `n/a — no template provided`)
 - [ ] Every comment tagged must-change / consider / nit
 - [ ] PR size acceptable (else split)
 - [ ] Verdict recorded with reasons

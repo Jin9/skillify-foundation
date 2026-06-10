@@ -13,8 +13,9 @@ description: >
   needing an epic-and-stories.md for TL handoff. Use when stakeholders
   produced semi-structured notes needing INVEST stories with Gherkin AC.
 
-  Do NOT use for TL-stage design (use design-review), code generation
-  from a finished spec (use implement-from-spec), domain-glossary lookups
+  Do NOT use for TL-stage design (use designing-tech-lead-handoff), code
+  generation from a finished spec (use the implement-*-feature skills),
+  domain-glossary lookups
   with no work request, inputs containing actual PII values, inputs
   carrying the training ground-truth annotation block, or for the decomposed
   pipeline (use extract-brief-structure).

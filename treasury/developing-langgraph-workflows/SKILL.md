@@ -46,9 +46,9 @@ persistence assumptions.
 6. **Handle persistence deliberately**: Before adding or changing checkpointers,
    read `references/langgraph-v1-notes.md`. Treat node names, state keys, and
    reducers as compatibility-sensitive when persisted threads may exist.
-7. **Verify behavior**: Run graph import checks and focused tests. For this repo,
-   preserve the local SDK provider path and headless API provider path unless
-   the user explicitly requests a provider change.
+7. **Verify behavior**: Run graph import checks and focused tests. Preserve the
+   project's existing model-provider wiring (e.g. a local SDK path and a
+   headless API path) unless the user explicitly requests a provider change.
 
 ## Output format
 

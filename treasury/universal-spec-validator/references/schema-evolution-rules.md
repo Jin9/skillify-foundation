@@ -15,6 +15,14 @@ Evolution checks require a `--baseline` (the previously-shipped spec). With no
 baseline, emit one `info` finding `schema-evolution: skipped (no baseline)` and
 exit-neutral on this axis.
 
+Script enforcement status: `scripts/validate_spec.py` emits rule IDs E0 (no
+baseline — info), E1 (field removed), E2 (type changed — excluding the SAFE
+widenings listed below, e.g. integer→number), E3 (new required field without
+default), E4 (enum narrowed), E5 (optional became required), diffed over
+top-level properties only. Constraint tightening (raised `minLength`, added
+`pattern`) and stable-identifier rules below are *not yet script-enforced* —
+review them manually.
+
 ## Compatibility model
 - **Backward** (default): a caller built on the NEW schema still handles OLD-shaped data.
 - **Forward**: a caller on the OLD schema still handles NEW-shaped data.
