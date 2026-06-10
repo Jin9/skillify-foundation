@@ -10,8 +10,8 @@ description: >
   "show me the plan / critique / review", "abort the workflow", "resume the
   workflow", or pastes a goal that maps onto research → plan → critique → 🔒
   implement → review → test. Honors AGENTS.md: never auto-approves, never edits
-  .agent/, never runs production commands. Do NOT use for the Claude-native
-  pipeline (use composing-agent-pipelines), the BA/Architect/Dev/QA squad (use
+  .agent/, never runs production commands. Do NOT use for the in-session
+  multi-phase pipeline (use composing-agent-pipelines), the BA/Architect/Dev/QA squad (use
   orchestrating-openclaw-squad), or for deciding to approve implement (use
   reviewing-implement-gate).
 ---
@@ -23,7 +23,7 @@ description: >
 Drive a goal through the agent-scaffold pipeline by planning the run, spawning
 fit-for-job sub-agents where richer reasoning helps, dispatching the workflow
 through `just`, and monitoring state without ever editing it. The skill owns
-*how Claude operates the scaffold*; the scaffold owns the actual stage
+*how the agent operates the scaffold*; the scaffold owns the actual stage
 execution and the model API calls.
 
 ## When to use this skill
@@ -112,8 +112,11 @@ fire (see `references/failure-triage.md` for the classification table).
 For every response, lead with a one-line state summary in the shape:
 
 ```
-<workflow_id>: <current_stage> <status> (<elapsed>m, $<spent>/$<cap>)
+<workflow_id>: <current_stage> <status> (<elapsed>m, $<spent>/$<cap>, src=<mix>)
 ```
+
+`scripts/state_summary.sh` is the canonical emitter of this line; keep this
+shape and the script in sync.
 
 Then one of: a status paragraph, a launch-confirmation block (template), a
 stage-readout summary, or a failure-triage block. Always cite the file path
@@ -125,7 +128,7 @@ the information came from (e.g., `state.json`, `stages/critique.log:42`).
 |---|---|---|
 | Read state | `Read` on `.agent/state.json`, `status.md`, `stages/*.md`, `stages/*.log` | jq via Bash for filtered reads. |
 | Run scaffold verbs | `Bash` running `just <verb>` | Never bypass `just`; never call the dispatcher directly. |
-| Pre-flight reasoning | `Agent` tool with `subagent_type` from `references/agent-spawning.md` | Pick by job, not by name familiarity. |
+| Pre-flight reasoning | The host's sub-agent spawn mechanism (per-host mapping in `references/agent-spawning.md`) | Pick by job, not by name familiarity. |
 | Cost truth | `Bash` running `just llm-spend <hours>` | LiteLLM `/spend/logs` is authoritative; `state.json` cost is a snapshot. |
 | Tail live logs | `Bash` running `tail -n 50 .agent/stages/<stage>.log` | Logs are already redacted at write time. |
 
@@ -149,8 +152,8 @@ Before responding, verify:
 - DO NOT fabricate `state.json` field values; read the file.
 - DO NOT loop status checks unprompted.
 - DO NOT raise the spend cap without an explicit user request.
-- DO NOT use `run_in_background` for pre-flight Agent calls unless the user
-  asked; pre-flight findings should land before launch confirmation.
+- DO NOT run pre-flight sub-agents in the background unless the user asked;
+  pre-flight findings should land before launch confirmation.
 
 ## Troubleshooting
 

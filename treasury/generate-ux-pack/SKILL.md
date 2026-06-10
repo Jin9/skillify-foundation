@@ -1,8 +1,8 @@
 ---
 name: generate-ux-pack
 description: >
-  Produce a v1.1 UX-design intake pack from a UX team's drop (bundled prototype HTML,
-  Frontend Spec markdown, BA brief directory). Emits a structured `ux-design-{idem8}/`
+  Produce a UX-design intake pack (vendored v1.1 contract) from a UX team's
+  drop (bundled prototype HTML, Frontend Spec markdown, BA brief directory). Emits a structured `ux-design-{idem8}/`
   tree with tokens.json (W3C design tokens + WCAG contrast), route-map.md,
   component-inventory.md, microcopy.json (bilingual TH/EN with tipping-off scan),
   screen-states.md, form-validation.md (Thai-locale rules + banking-grade carve-outs),
@@ -14,7 +14,7 @@ description: >
   with refreshed findings).
 
   Do NOT use for code generation (use implement-frontend-feature). Do NOT use for
-  BA elicitation (use ba-elicit-from-raw). Do NOT use to extract Thai strings from
+  BA elicitation (use eliciting-banking-brief). Do NOT use to extract Thai strings from
   bundled HTML — emit `TBD-extract-from-prototype` for the UX team to fill.
 compatibility: [claude-code, codex, opencode]
 metadata:
@@ -31,7 +31,7 @@ metadata:
 
 ## Purpose
 
-Convert a UX team's drop into a structured v1.1 UX-design intake pack consumed by the downstream TL-design and frontend-implementation steps. Banking-grade discipline: bilingual handling, WCAG contrast computed (not asserted), tipping-off vocabulary scan on every emitted English string, no invented PII, BA story cross-references verified before emission, honest TBDs over fabricated completeness.
+Convert a UX team's drop into a structured UX-design intake pack (v1.1 contract) consumed by the downstream TL-design and frontend-implementation steps — downstream consumers read `tokens.json`, `route-map.md`, `component-inventory.md`, and `microcopy.json` as first-class inputs. Banking-grade discipline: bilingual handling, WCAG contrast computed (not asserted), tipping-off vocabulary scan on every emitted English string, no invented PII, BA story cross-references verified before emission, honest TBDs over fabricated completeness.
 
 ## Inputs
 
@@ -53,11 +53,11 @@ Per `schemas/input.json`:
 
 4. **Compute WCAG contrasts** — for every brand/text/background combination in tokens.json, compute contrast ratio with the WCAG formula; emit `wcagAA` / `wcagAAA` booleans + `usage_note`. Failures surface as P1 findings.
 
-5. **Generate flows/** — 4 required flows (customer-onboarding, customer-checkout, customer-order-tracking, payment-failure-recovery) with Mermaid sequence diagrams and per-screen narrative. Add others if BA brief has additional customer journeys.
+5. **Generate flows/** — derive the flow set from the BA brief's customer journeys, one flow file per journey with a Mermaid sequence diagram and per-screen narrative. For commerce-domain briefs the default set is customer-onboarding, customer-checkout, customer-order-tracking, payment-failure-recovery; for other domains use the brief's own journeys (see `references/per-file-rules.md` §flows).
 
 6. **Generate screens/** — one folder per customer-facing BA epic (skip admin/governance epics). Per epic: `EPIC.md` + `stories/STORY-N-{slug}.md` per BA story. Cross-references back to route-map.md, microcopy.json, component-inventory.md, screen-states.md.
 
-7. **Run maturity audit** — count artifacts present (target 9/9), TBD count in microcopy.json, WCAG failures, BA stories without UX coverage, UX routes without BA stories. Compute `maturity_level` (0|1|2|3) per v1.1 §4 audit triage.
+7. **Run maturity audit** — count artifacts present (target 9/9), TBD count in microcopy.json, WCAG failures, BA stories without UX coverage, UX routes without BA stories. Compute `maturity_level` (0|1|2|3) per `references/per-file-rules.md` §Maturity triage.
 
 8. **Emit output.json** — discriminated `output_type`: `ux_pack | blocked_ux_pack | partial_ux_pack | failure_shape`. Include `pack_dir`, paths to all artifacts, `maturity_level`, P1/P2 findings, `audit_id`. Write to disk + return summary in chat.
 
@@ -80,10 +80,5 @@ JSON: `output.json` matching `schemas/output.json` — paths to all emitted arti
 
 Progressive disclosure — load only what each step needs:
 
-- `references/generate-prompt.md` — original v1.1 generator prompt (full body, verbatim)
-- `references/per-file-rules.md` — extracted per-file authoring rules + quality rules + output discipline
-
-Not skill references (external to this skill; informational only, never loaded
-at runtime): a canonical Maturity-Level-2 example output exists in the project
-under the `ux-intake-v1.1` design directory. Frontmatter schema validation is a
-build/CI concern handled outside the skill.
+- `references/per-file-rules.md` — canonical per-file authoring rules + quality rules + maturity triage + output discipline
+- `references/generate-prompt.md` — original v1.1 generator prompt (verbatim provenance copy; `per-file-rules.md` wins where they differ)

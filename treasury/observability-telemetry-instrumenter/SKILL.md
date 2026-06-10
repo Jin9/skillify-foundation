@@ -13,9 +13,9 @@ description: >
   token-accounting reconciliation skeleton. Do NOT use for the inter-agent
   handoff contract (multi-agent-handoff-architect), credential scrubbing in
   the pipeline (devops-infrastructure-hardener), governance policy
-  (governance-policy-generator), generic non-AI APM, or after-the-fact spend
-  review (reviewing-agent-spend reviews spend; this instruments the telemetry
-  that exposes it).
+  (governance-policy-generator), generic non-AI APM, feature/service
+  observability design (observability-design), or after-the-fact spend
+  review (reviewing-agent-spend).
 ---
 
 # Observability Telemetry Instrumenter

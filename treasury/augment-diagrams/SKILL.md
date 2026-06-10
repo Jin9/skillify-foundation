@@ -95,10 +95,11 @@ output unchanged and in the same order.
 #### Diagrams
 
 **Canonical rules:** the When, Count, Where, Format, Allowed diagram types,
-and Scan test rules live in
-[`../synthesize-report/references/output-contract.md`](../synthesize-report/references/output-contract.md)
-under **Diagrams**. Apply them verbatim. If those rules change, this skill
-follows — no need to edit here.
+and Scan test rules live in the sibling `synthesize-report` skill's
+`output-contract.md` reference, under **Diagrams**. Locate that skill in the
+host's installed-skill directory and apply its rules verbatim; if it is not
+installed, ask the user for the output-contract file. If those rules change,
+this skill follows — no need to edit here.
 
 **Backfill-mode delta — Grounding:** every entity, arrow, or layer MUST
 trace to a finding **already cited in this section's existing prose**.

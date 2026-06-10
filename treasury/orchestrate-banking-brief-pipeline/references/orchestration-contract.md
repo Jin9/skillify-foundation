@@ -21,6 +21,8 @@ Stage commands are configured as `stage=command` pairs. The runner replaces:
 
 The command must write strict JSON to `{output}`. The orchestrator owns validation and state mutation.
 
+Trust boundary: stage commands are operator-supplied and run through the shell with the operator's full privileges; the runner does not sandbox or escape them. Configure only commands you trust, and quote paths containing shell metacharacters.
+
 ## State Shape
 
 `pipeline_state.json` contains:
@@ -52,9 +54,9 @@ The failure payload must include `failed_stage`, `failure_code`, `failure_reason
 
 After all stages pass, assemble `output.json` from validated stage payloads:
 
-- carry `epics`, `stories`, `scope_kind`, source details, and extraction notes from extraction
+- carry `epics`, `scope_kind`, source details, `out_of_scope_deferred`, and `glossary_candidates` from extraction (extraction notes are not assembled into `output.json`; they remain available under `pipeline_state.json` → `stage_outputs`)
 - carry `pii_inventory`, `stakeholders`, `legal_status_by_epic`, `regulatory_dependencies`, `governance_gaps`, and `blocks_tl_handoff` from compliance
 - carry `open_questions`, `assumptions_made`, and hidden sweep metadata from ambiguity
-- carry final `stories.acceptance_criteria` and banking-grade rows from Gherkin
+- carry `stories` (with final `acceptance_criteria` and banking-grade rows) from Gherkin
 
 Set `output_type` to `blocked_partial_brief` when `blocks_tl_handoff` is true or any P1 open question exists. Otherwise set `output_type` to `brief`.

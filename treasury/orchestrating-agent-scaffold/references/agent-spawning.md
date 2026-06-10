@@ -2,9 +2,15 @@
 
 The scaffold's stage runners (`scripts/stage-runners/<stage>.sh`) talk to
 their configured models directly (Gemini for research, Codex for plan and
-implement, Claude for critique and review). The orchestrator's job is to
-spawn *Claude Code* sub-agents *before* `just workflow` to reduce wasted
-spend or *between* stages when the user asks for a richer summary.
+implement, Claude for critique and review — scaffold configuration data, not
+a host requirement). The orchestrator's job is to spawn host sub-agents
+*before* `just workflow` to reduce wasted spend or *between* stages when the
+user asks for a richer summary.
+
+Host binding note: the `subagent_type` values below are the binding for a
+Claude Code-style host. On other hosts, map each job to the closest
+equivalent sub-agent mechanism, or run the job inline when the host has no
+spawn mechanism.
 
 ## Spawn rules
 
@@ -27,8 +33,8 @@ spend or *between* stages when the user asks for a richer summary.
 | Open-ended investigation (>3 tool calls) | `general-purpose` | "What's the simplest way to migrate from X to Y here?" |
 | Hand-off to a security-focused review | invoke `reviewing-software-security` skill | The goal touches auth, KYC, disbursement, secrets, or PII. |
 | Hand-off to backend code review | invoke `crafting-backend-code` skill | The goal is a backend refactor or API design choice. |
-| Hand-off to a Claude-native multi-phase pipeline | invoke `composing-agent-pipelines` skill | The user explicitly asked for the Claude pipeline, not the scaffold. |
-| Read changed-code review | (no scaffold equivalent) — use Claude's `/review` slash if installed | Post-implement readout of the diff. |
+| Hand-off to an in-session multi-phase pipeline | invoke `composing-agent-pipelines` skill | The user explicitly asked for the in-session pipeline, not the scaffold. |
+| Read changed-code review | (no scaffold equivalent) — use the host's diff-review command if installed | Post-implement readout of the diff. |
 
 ## What pre-flight outputs feed into
 

@@ -9,8 +9,11 @@ spec-validation.md. Exit: 0 = no blocking findings, 1 = blocking finding(s),
 
 No network, no command execution, no LLM. stdlib only (YAML config optional).
 """
-import argparse, glob, json, re, sys
+import argparse, fnmatch, glob, json, re, sys
 from pathlib import Path
+
+# type changes listed as SAFE widenings in schema-evolution-rules.md
+SAFE_TYPE_WIDENINGS = {("integer", "number")}
 
 SEV_GATE = {"critical": "block", "high": "block", "medium": "warn",
             "low": "warn", "info": "info"}
@@ -161,7 +164,7 @@ def check_evolution(base_obj, cur_obj, spec, F, mode):
                 "schema-evolution-rules.md")
         else:
             bt, ct = bp[name].get("type"), cp[name].get("type")
-            if bt and ct and bt != ct:
+            if bt and ct and bt != ct and (bt, ct) not in SAFE_TYPE_WIDENINGS:
                 add(F, "schema-evolution", "E2", "high", spec, f"$.{name}",
                     f"field '{name}' type changed {bt}->{ct} (breaking)",
                     "schema-evolution-rules.md")
@@ -212,6 +215,11 @@ def main():
         except Exception as e:
             print(f"error: cannot read {p}: {e}", file=sys.stderr)
             sys.exit(2)
+        if obj is None and Path(p).suffix.lower() in (".json", ".yaml", ".yml"):
+            # a gate must fail closed: a structured spec we cannot parse is a
+            # parse error (exit 2), not a silent regex-only pass
+            print(f"error: cannot parse {p} as JSON or YAML", file=sys.stderr)
+            sys.exit(2)
         check_command_safety(raw, p, F)
         check_portability(raw, obj, p, F, cfg)
         if a.baseline:
@@ -221,7 +229,7 @@ def main():
     kept = []
     for f in F:
         if any(f["id"] == ig.get("rule") and
-               glob.fnmatch.fnmatch(f["spec"], ig.get("locator", "*"))
+               fnmatch.fnmatch(f["spec"], ig.get("locator", "*"))
                for ig in ignores):
             continue
         if f["id"] in overrides:

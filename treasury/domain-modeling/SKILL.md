@@ -1,7 +1,7 @@
 ---
 name: domain-modeling
 description: >
-  Defines domain boundaries and DDD building blocks so ownership is clear, the model matches the business, and domain logic stays separate from infrastructure. Use when the user asks "define the domain model", "where are the bounded contexts/boundaries", "what are the aggregates and events", or "who owns this part of the business". Produces a Domain Model artifact with ubiquitous language, bounded contexts and owners, aggregates and invariants, commands versus events, and an explicit domain/infra separation note. Do NOT use for reverse-engineering the model from existing code (that belongs to business-logic-extractor).
+  Defines domain boundaries and DDD building blocks so ownership is clear, the model matches the business, and domain logic stays separate from infrastructure. Use when the user asks "define the domain model", "where are the bounded contexts/boundaries", "what are the aggregates and events", or "who owns this part of the business". Produces a Domain Model artifact with ubiquitous language, bounded contexts and owners, aggregates and invariants, commands versus events, and an explicit domain/infra separation note. Do NOT use for reverse-engineering the model from existing code (that belongs to business-logic-extractor), or for persistence schema, index, and migration design (use data-modeling).
 ---
 
 # domain-modeling

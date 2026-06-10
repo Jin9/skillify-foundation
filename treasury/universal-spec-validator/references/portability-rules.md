@@ -31,7 +31,7 @@ one strict mode is rejected or silently altered by another. **Flag**:
 `additionalProperties` absent/true on an object used as a tool input; optional
 fields not modeled as nullable; `required` missing properties when strict.
 
-## P3 — Reasoning-killed-by-format (severity: low/info)
+## P3 — Reasoning-killed-by-format (severity: low/info) — *not yet enforced by `scripts/validate_spec.py`; manual-review rule*
 Forcing structure too early degrades reasoning; the mitigation is a
 reason-then-format split. **Info** when a tool/skill spec mandates structured
 output for a step described as requiring multi-step reasoning with no separate
@@ -51,7 +51,7 @@ providers; unannotated skills fail at runtime on a stricter model. **Flag** a
 skill/tool that implies code execution, file write, or network access but
 declares no capability requirement the router can gate on.
 
-## P6 — Unidentified shared keys (severity: info)
+## P6 — Unidentified shared keys (severity: info) — *not yet enforced by `scripts/validate_spec.py`; manual-review rule*
 JSON-Schema/Protobuf carry no semantic typing; reused keys across record
 classes drift in meaning. **Info**: recommend JSON-LD `@context` or an IRI/URI
 `$id` for cross-agent shared records.

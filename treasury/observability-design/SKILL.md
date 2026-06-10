@@ -1,7 +1,7 @@
 ---
 name: observability-design
 description: >
-  Designs how a feature is observed in production — correlation/request/business IDs, logs, metrics, traces, dashboards, and alerts — so production behavior is debuggable and only meaningful problems page anyone. Use when the user asks "what should we log/trace here", "design the dashboards and alerts", "make this debuggable in prod", or "what should alert on-call". Produces an Observability Design artifact with an ID strategy, log/metric/trace plan, dashboard panels, SLO burn-rate alert recipe, and quiet signals to watch. Do NOT use for defining cost/performance budgets.
+  Designs how a feature is observed in production — correlation/request/business IDs, logs, metrics, traces, dashboards, and alerts — so production behavior is debuggable and only meaningful problems page anyone. Use when the user asks "what should we log/trace here", "design the dashboards and alerts", "make this debuggable in prod", or "what should alert on-call". Produces an Observability Design artifact with an ID strategy, log/metric/trace plan, dashboard panels, SLO burn-rate alert recipe, and quiet signals to watch. Do NOT use for defining cost/performance budgets, or for instrumenting agent/LLM telemetry code with OpenTelemetry GenAI conventions (use observability-telemetry-instrumenter).
 ---
 
 # observability-design
@@ -11,7 +11,7 @@ Design the telemetry a feature needs so production behavior is **debuggable** an
 
 ## When to use
 - Triggers: *"what should we log/trace here"*, *"design the dashboards and alerts"*, *"make this debuggable in prod"*, *"what should alert on-call"*.
-- **Not this skill:** defining cost/performance budgets is a separate budgeting step.
+- **Not this skill:** defining cost/performance budgets is a separate budgeting step; instrumenting agent/LLM telemetry code is `observability-telemetry-instrumenter`.
 
 ## Input
 - The feature + its **Critical User Journeys (CUJs)**, expected volume, and current telemetry stack.

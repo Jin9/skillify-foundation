@@ -4,6 +4,10 @@ Pick the smallest cap that fits the workflow shape. Lower caps fail loudly
 when an agent goes off the rails; higher caps mask runaway spend until the
 LiteLLM report on Monday.
 
+PLAYBOOK is the scaffold's own operations document and lives in the scaffold
+checkout (not shipped with this skill), like the `docs/STATE_SCHEMA.md` noted
+in `state-cheatsheet.md`.
+
 ## Tiers (from PLAYBOOK §2)
 
 | Cap | When to use |

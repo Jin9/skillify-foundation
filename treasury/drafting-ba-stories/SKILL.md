@@ -73,12 +73,10 @@ summary: <2–3 sentence epic summary>
 `issue-key` is the tracker key if one exists, else `<none>`. This table is the manifest downstream nodes read first.
 
 ### Per-story file = a full `user-story-template` instance
-Each `ST-NN-<slug>.md` follows the vendored template exactly. **Only Title and Description are required**; keep the
-sections the Scope Sheet supports and delete the rest — except **Acceptance Criteria, which this pipeline keeps** (the
-G2 gate is about testable criteria). Add a `### <decision matrix>` table **only when the scope gives conditional
-logic** — never invent one. Banking / compliance rigor is **not** force-filled here (it lives in
-`checking-ba-governance`, S3). The per-section source map (which Scope Sheet field feeds each template section) and a
-full worked story example live in `references/story-set-anatomy.md`; an exemplar story is `references/example_TierRateStory.md`.
+Each `ST-NN-<slug>.md` follows the vendored template exactly. The section-keeping rules (what is required, what this
+pipeline always keeps, when a decision-matrix table is allowed, and where banking/compliance rigor lives instead) are
+normative in `references/story-set-anatomy.md` — apply them as written, together with its per-section source map
+(which Scope Sheet field feeds each template section); an exemplar story is `references/example_TierRateStory.md`.
 
 ### Deterministic naming (re-run-idempotent)
 1. **ST-NN** — number stories densely from `01`, zero-padded, in the order they are derived from `in_scope` (top to

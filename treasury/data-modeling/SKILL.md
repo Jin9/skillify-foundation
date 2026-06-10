@@ -1,7 +1,7 @@
 ---
 name: data-modeling
 description: >
-  Design the persistence model safely (schema, source of truth, indexes, constraints) with an expand/contract migration and rollback plan that preserves backward compatibility. Use when the user asks "design the table/schema", "what indexes do we need", "plan this migration", or "where's the source of truth". Produces a Data Model plus Migration Plan artifact, a checklist, and a human approval gate before any migration runs. Do NOT use for query-cost or performance tuning of an existing system or chasing a specific slow path (use progressive-bug-hunter).
+  Design the persistence model safely (schema, source of truth, indexes, constraints) with an expand/contract migration and rollback plan that preserves backward compatibility. Use when the user asks "design the table/schema", "what indexes do we need", "plan this migration", or "where's the source of truth". Produces a Data Model plus Migration Plan artifact, a checklist, and a human approval gate before any migration runs. Do NOT use for query-cost or performance tuning of an existing system or chasing a specific slow path (use progressive-bug-hunter), or for domain boundaries, aggregates, and ownership (use domain-modeling).
 ---
 
 # data-modeling

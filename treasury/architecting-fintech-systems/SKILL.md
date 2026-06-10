@@ -39,40 +39,48 @@ Architect modes only. Each mode is a workflow that ends with a hand-off the impl
 
 ### `design` — full architecture pass
 
-```
-- [ ] L1 Business Intent + regulatory/financial invariant stated
-- [ ] L2 bounded contexts + data ownership + transactional/authorization boundaries named
-- [ ] L3 sync vs async, failure modes, scalability, cost posture chosen
-- [ ] Trade-offs stated on at least 2 of the 4 axes
-- [ ] Hand-off summary written for `crafting-backend-code`
-```
+Entry: the user asks for a new or revised architecture; L1 intent is known or obtainable.
+
+1. State the L1 Business Intent and the regulatory/financial invariant that must hold.
+2. Draw L2: bounded contexts, data ownership, transactional and authorization boundaries.
+3. Choose L3: sync vs async, failure modes, scalability, cost posture.
+4. State trade-offs on at least 2 of the 4 axes.
+5. Write the hand-off summary for `crafting-backend-code`.
+
+Exit: hand-off summary emitted and the validation gate passes.
 
 ### `analyze` — deep breakdown of an existing architecture
 
-```
-- [ ] Strengths
-- [ ] Gaps (correctness, regulatory exposure, cost, scalability, observability)
-- [ ] Contradictions (shared data ownership, hidden cross-context transactions, non-idempotent consumers)
-- [ ] Recommendations, prioritized by risk and effort
-```
+Entry: an existing architecture (docs, diagrams, or a described system) is provided.
+
+1. List strengths.
+2. List gaps: correctness, regulatory exposure, cost, scalability, observability.
+3. List contradictions: shared data ownership, hidden cross-context transactions, non-idempotent consumers.
+4. Prioritize recommendations by risk and effort.
+
+Exit: prioritized recommendation list delivered.
 
 ### `review` — architecture / design review
 
-```
-- [ ] Risks flagged by severity (P1/P2/P3)
-- [ ] Domain-correctness, regulatory exposure, consistency, scalability checked
-- [ ] Concrete redesign or hand-off note suggested for each finding
-```
+Entry: a concrete design or proposal is presented for judgment.
+
+1. Flag risks by severity (P1/P2/P3).
+2. Check domain correctness, regulatory exposure, consistency, scalability.
+3. Attach a concrete redesign or hand-off note to every finding.
+
+Exit: every finding carries a severity and an action.
 
 ### `plan` — produce an architecture plan, do not execute
 
-```
-- [ ] ADR(s) drafted using `templates/adr.md`
-- [ ] Priorities set
-- [ ] Open decisions listed with owners (product, domain, data, infra, security, compliance)
-- [ ] Dependencies + sequencing stated (contract, schema, feature flag, migration, rollout)
-- [ ] Validation and rollback plan included at strategy level
-```
+Entry: a chosen design needs sequencing into an executable plan.
+
+1. Draft ADR(s) using `templates/adr.md`.
+2. Set priorities.
+3. List open decisions with owners (product, domain, data, infra, security, compliance).
+4. State dependencies and sequencing: contract, schema, feature flag, migration, rollout.
+5. Include validation and rollback plans at strategy level.
+
+Exit: ADR set plus sequenced plan delivered; nothing executed.
 
 ## Interaction Rules
 
@@ -87,23 +95,22 @@ Architect modes only. Each mode is a workflow that ends with a hand-off the impl
 API Gateway → Orchestrator (Process Manager) → Domain Processor (Aggregate) → Adapter (External Systems)
 ```
 
-- **Orchestrator** controls flow only. Contains no business logic.
-- **Domain Processor** owns business rules, state transitions, and event emission.
-- **Adapter** is protocol translation only.
-
-Full details, event rules, sync/async heuristics, schema evolution, and anti-patterns: see [references/architecture.md](references/architecture.md).
+Layer responsibilities, event-driven rules, sync/async heuristics, schema
+evolution, and anti-patterns are normative in
+[references/architecture.md](references/architecture.md) — apply them from
+there; do not restate them here.
 
 ## Navigation
 
 - **Architecture & events** — [references/architecture.md](references/architecture.md)
 - **Data & ingestion (staging→merge, Kafka)** — [references/data-events.md](references/data-events.md)
-- **Go code style & Fowler refactoring** — [references/go-style.md](references/go-style.md)
+- **Go code style & Fowler refactoring** — [references/go-style.md](references/go-style.md) *(L4 hand-off context only — cite in the hand-off summary; never apply directly in this skill)*
 - **Operations & observability (logs, RED/USE, SLOs, retries)** — [references/operations.md](references/operations.md)
 - **Security & compliance (PII, audit, authZ, SOC 2 / PCI)** — [references/security.md](references/security.md)
 - **Testing strategy (layers, Go conventions, load)** — [references/testing.md](references/testing.md)
 - **System performance (caching, DB, concurrency, profiling)** — [references/performance.md](references/performance.md)
-- **SQL & migrations** — [references/sql-migrations.md](references/sql-migrations.md)
-- **Terraform / IaC** — [references/iac-terraform.md](references/iac-terraform.md)
+- **SQL & migrations** — [references/sql-migrations.md](references/sql-migrations.md) *(L4 hand-off context only)*
+- **Terraform / IaC** — [references/iac-terraform.md](references/iac-terraform.md) *(L4 hand-off context only)*
 
 ## Hard safety rules
 
@@ -126,7 +133,7 @@ These are inviolable for any design or recommendation. Refusal is brief and offe
 
 ## Output format
 
-Produce structured architecture documents, ADRs (use `templates/adr.md`), review reports, or hand-off summaries for `crafting-backend-code`. Prefer `.md`, `.xlsx`, TSV, or Mermaid diagrams. Code blocks may appear only as illustrative pseudocode or contract sketches, never as production-ready files; for runnable code, hand off to `crafting-backend-code`.
+Canonical artifact per mode — `design`: a one-page hand-off summary `.md` for `crafting-backend-code`; `analyze`: a findings report `.md` (strengths / gaps / contradictions / prioritized recommendations); `review`: a severity-tagged review report `.md`; `plan`: an ADR set from `templates/adr.md` plus a sequenced plan `.md`. Use Mermaid for diagrams; use `.xlsx` or TSV only when the user asks for a tabular artifact. Code blocks may appear only as illustrative pseudocode or contract sketches, never as production-ready files; for runnable code, hand off to `crafting-backend-code`.
 
 ## Constraints
 
