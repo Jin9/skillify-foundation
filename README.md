@@ -1,6 +1,6 @@
 # Skillify — AI Agent Skill Engineering Toolkit
 
-A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 56 primary and supporting sources across the Anthropic, OpenAI, GitHub Copilot, open-standard, platform-rule, and academic agent ecosystems.
+A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 57 primary and supporting sources across the Anthropic, OpenAI, GitHub Copilot, open-standard, platform-rule, and academic agent ecosystems.
 
 ## What is a Skill?
 
@@ -19,9 +19,9 @@ my-skill/
 
 ```
 .
-├── literature/              # 56 curated source documents
+├── literature/              # 57 curated source documents
 ├── skillify/                # The skill-creator meta-skill and validation tooling
-└── treasury/                # 91 top-level skills grouped by purpose
+└── treasury/                # 122 top-level skills grouped by purpose
     ├── README.md            # Skill catalog grouped by purpose
     └── <skill>/             # each: SKILL.md plus optional local assets
 ```
@@ -97,24 +97,24 @@ python3 skillify/scripts/check_links.py path/to/skill-folder
 
 ## Treasury — Production Skill Library
 
-The `treasury/` directory holds **91 top-level skills** grouped by purpose. Full per-skill detail, source family, asset breakdown, curated folder names, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
+The `treasury/` directory holds **122 top-level skills** grouped by purpose. Full per-skill detail, source family, asset breakdown, curated folder names, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
 
 | Purpose Group | Count |
 |---------------|-------|
-| Banking, BA Delivery & Requirements | 14 |
-| Architecture, Engineering Decisions & Planning | 19 |
-| Implementation, Platform Templates & Code Review | 11 |
-| Testing, QA & Validation | 4 |
-| Agent Orchestration & Workflow Infrastructure | 10 |
-| Research, Debate & Knowledge Synthesis | 14 |
-| Security, Governance & Compliance | 5 |
-| Observability, Cost & Incident Operations | 6 |
-| Code Analysis, Productivity & Publishing | 8 |
-| **Total** | **91** |
+| Banking, BA Delivery & Requirements | 15 |
+| Architecture, Engineering Decisions & Planning | 21 |
+| Implementation, Platform Templates & Code Review | 14 |
+| Testing, QA & Validation | 12 |
+| Agent Orchestration & Workflow Infrastructure | 13 |
+| Research, Debate & Knowledge Synthesis | 15 |
+| Security, Governance & Compliance | 7 |
+| Observability, Cost & Incident Operations | 9 |
+| Code Analysis, Productivity & Publishing | 16 |
+| **Total** | **122** |
 
 ## Literature Sources
 
-The `literature/` directory contains the complete research corpus — 56 documents totaling ~758K words — organized by ecosystem:
+The `literature/` directory contains the complete research corpus — 57 documents totaling ~763K words — organized by ecosystem:
 
 | Category | Files | Key Sources |
 |----------|-------|-------------|
@@ -124,7 +124,7 @@ The `literature/` directory contains the complete research corpus — 56 documen
 | **Best Practices** | 4 | Cross-platform authoring guides, SKILL.md pattern analysis |
 | **Awesome Lists** | 2 | ScienceAIX and VoltAgent community aggregations |
 | **Open Standard** | 1 | Open Agent Skills specification |
-| **Other Platforms** | 13 | Gemini CLI, Cursor, Cline, OpenCode, Windsurf, Spring AI, Strapi, antfu |
+| **Other Platforms** | 14 | Gemini CLI, Cursor, Cline, OpenCode, Windsurf, Spring AI, Strapi, antfu |
 | **Research Papers** | 6 | ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent |
 | **Skill Design Methodology** | 4 | Source index, reading taxonomy, synthesized design principles, literature review |
 
