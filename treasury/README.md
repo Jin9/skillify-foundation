@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-122 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+123 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -12,8 +12,8 @@
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 15 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 7 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 9 |
-| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 16 |
-| **Total** | **122** |
+| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 17 |
+| **Total** | **123** |
 
 ---
 
@@ -179,7 +179,7 @@ Telemetry, cost governance, incident handling, readiness, and postmortems.
 | [`running-performance-load-test`](./running-performance-load-test/) | Drive a pre-prod performance/load test against a staging or UAT target and emit a budget-backed PASS, FAIL, or ERROR gate from real runner metrics — p95, p99, error rate, and throughput measured by a load runner, neve... | workflow-pack | references · schemas |
 | [`validating-production-slo`](./validating-production-slo/) | Validate a live production release against its declared SLOs by querying live SLIs over a bake window, evaluating multi-window burn-rate, and emitting a promote, hold, or rollback recommendation with a Pass, Marginal,... | workflow-pack | references · schemas |
 
-## Code Analysis, Productivity & Publishing (16)
+## Code Analysis, Productivity & Publishing (17)
 
 Code analysis, productivity, translation, publishing, and human-readable report generation.
 
@@ -188,6 +188,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`business-logic-extractor`](./business-logic-extractor/) | Extract the implemented business logic and rules FROM a codebase — cross-referenced with requirements and agent/execution traces — into a faithful, traceable specification that BOUNDS information loss: salient rules,... | existing treasury | references · scripts · templates |
 | [`daily-planner`](./daily-planner/) | Turn a raw list of tasks into a prioritized, trackable daily plan and keep it current across days. Use when the user says "here are my tasks, help me prioritize", "plan my day", "what should I work on first", "make my... | skillify | templates |
 | [`drawio`](./drawio/) | Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions dra... | drawio-mcp | — |
+| [`drawio-plus`](./drawio-plus/) | Generate clean, standardized, non-overlapping draw.io / diagrams.net diagrams of any kind (architecture, flow, ER, class, network, sequence, mockup) whose boxes never overlap and whose arrows route around boxes, following fixed 80/60/40 spacing and grid stand... | skillify | references · scripts · templates · examples |
 | [`generating-pseudocode`](./generating-pseudocode/) | Analyzes requirements or existing code to generate clean, language-agnostic pseudocode that bridges high-level intent and implementation, readable by a Python, Go, or TypeScript developer without translation. Use when... | existing treasury | references |
 | [`jira-fix-mr-workflow`](./jira-fix-mr-workflow/) | Run one Jira issue through a gated fix-to-GitLab-MR workflow that advances only on human approval. Use when the user says "fix Jira issue DGL-1234 and open an MR", "run the Jira fix workflow for a given issue key", "f... | jira-flow | — |
 | [`milestone-jo-check`](./milestone-jo-check/) | Verify that a vendor's billed milestones stay within the Job Order (JO) limits — that the summed Total Manday across all milestones is within the JO Estimated Manday, and the summed Total Amount is within the JO Estim... | review-milestone | scripts |
@@ -241,6 +242,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`drafting-ba-stories`](./drafting-ba-stories/) | Banking, BA Delivery & Requirements | business-analyse |
 | [`drafting-stage-prompt`](./drafting-stage-prompt/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
 | [`drawio`](./drawio/) | Code Analysis, Productivity & Publishing | drawio-mcp |
+| [`drawio-plus`](./drawio-plus/) | Code Analysis, Productivity & Publishing | skillify |
 | [`eliciting-banking-brief`](./eliciting-banking-brief/) | Banking, BA Delivery & Requirements | business-analyse |
 | [`engineer-growth-planning`](./engineer-growth-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`engineering-doc-planning`](./engineering-doc-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
