@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-123 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+124 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -107,7 +107,7 @@ Test planning, acceptance criteria, QA, and implementation validation.
 | [`testing-strategy`](./testing-strategy/) | Decide what to test and at which level (unit / integration / contract / e2e / regression) and map a requirement's business logic into concrete test scenarios, so coverage guarantees behavior rather than a number. Use... | business-analyse | — |
 | [`validating-banking-implementation`](./validating-banking-implementation/) | QA Engineer persona for enterprise banking implementation artifacts. Adversarial OWASP Top 10 testing, transactional-integrity audit, race / deadlock analysis, and chaos-test plan drafting on completed Developer-stage... | squad-delivery | references |
 
-## Agent Orchestration & Workflow Infrastructure (13)
+## Agent Orchestration & Workflow Infrastructure (14)
 
 Multi-agent orchestration, scaffold configuration, prompts, gates, and workflow infrastructure.
 
@@ -117,6 +117,7 @@ Multi-agent orchestration, scaffold configuration, prompts, gates, and workflow 
 | [`agentic-workflow-design`](./agentic-workflow-design/) | Design how an AI-agent pipeline is supervised — its stages and owners, the human-in-the-loop approval gates, the never-do guardrails and command-safety policy, accountability for AI-generated output, and observability... | business-analyse | references |
 | [`authoring-scaffold-profile`](./authoring-scaffold-profile/) | Author or modify an agent-scaffold profile file at profiles/NAME.sh. Sets STAGES, GATED_STAGES, and per-stage AGENT / MODEL / PROMPT_PREFIX env vars. Validates that every STAGE has a runner script, that GATED_STAGES i... | existing treasury | references · templates |
 | [`composing-agent-pipelines`](./composing-agent-pipelines/) | Composes a portable multi-agent pipeline (Plan, Gather, Analyze, Review, Validate, Decide, Compact) for research, code review, implementation planning, or trade-off analysis. Use when the user asks to "compose agent p... | existing treasury | examples · references · scripts · templates |
+| [`delegating-to-cli-models`](./delegating-to-cli-models/) | Drive external model CLIs as advisory sub-agents from one orchestrating agent: codex (GPT, gpt-5.5) and agy (Antigravity/Gemini), plus optional headless self-delegation. Dispatch headlessly with a watchdog and the exact model label, ground-truth the backend, then adjudic... | skillify | examples · references · scripts · templates |
 | [`developing-langgraph-workflows`](./developing-langgraph-workflows/) | Guide professional LangGraph v1.x implementation, refactoring, and review workflows. Use when the user asks "Implement a LangGraph v1.x workflow in this repo using professional StateGraph patterns", "Refactor this Lan... | langgraph-claude-agent | references · templates |
 | [`drafting-stage-prompt`](./drafting-stage-prompt/) | Curate stage prompts for the agent-scaffold prompt library at prompts/library/STAGE/TOPIC.md. Captures the Friday prompt-review ritual: a stage prompt with a why-it-works paragraph, success metric, failure mode, model... | existing treasury | references · templates |
 | [`handoff-revoke`](./handoff-revoke/) | Reverse a previously emitted deploy handoff as a SAGA compensating action — revoke the issued short-lived deploy credentials, signal the release control plane to halt or roll back the promotion tied to a handoff recei... | workflow-pack | references · schemas |
@@ -234,6 +235,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`daily-planner`](./daily-planner/) | Code Analysis, Productivity & Publishing | skillify |
 | [`data-modeling`](./data-modeling/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`defining-engineering-standards`](./defining-engineering-standards/) | Architecture, Engineering Decisions & Planning | business-analyse |
+| [`delegating-to-cli-models`](./delegating-to-cli-models/) | Agent Orchestration & Workflow Infrastructure | skillify |
 | [`delivery-planning`](./delivery-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`designing-tech-lead-handoff`](./designing-tech-lead-handoff/) | Architecture, Engineering Decisions & Planning | squad-delivery |
 | [`developing-langgraph-workflows`](./developing-langgraph-workflows/) | Agent Orchestration & Workflow Infrastructure | langgraph-claude-agent |
