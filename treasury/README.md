@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-124 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+125 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -8,12 +8,12 @@
 | [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 21 |
 | [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 14 |
 | [Testing, QA & Validation](#testing-qa-validation) | 12 |
-| [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 13 |
+| [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 14 |
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 15 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 7 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 9 |
-| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 17 |
-| **Total** | **123** |
+| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 18 |
+| **Total** | **125** |
 
 ---
 
@@ -180,7 +180,7 @@ Telemetry, cost governance, incident handling, readiness, and postmortems.
 | [`running-performance-load-test`](./running-performance-load-test/) | Drive a pre-prod performance/load test against a staging or UAT target and emit a budget-backed PASS, FAIL, or ERROR gate from real runner metrics — p95, p99, error rate, and throughput measured by a load runner, neve... | workflow-pack | references · schemas |
 | [`validating-production-slo`](./validating-production-slo/) | Validate a live production release against its declared SLOs by querying live SLIs over a bake window, evaluating multi-window burn-rate, and emitting a promote, hold, or rollback recommendation with a Pass, Marginal,... | workflow-pack | references · schemas |
 
-## Code Analysis, Productivity & Publishing (17)
+## Code Analysis, Productivity & Publishing (18)
 
 Code analysis, productivity, translation, publishing, and human-readable report generation.
 
@@ -190,6 +190,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`daily-planner`](./daily-planner/) | Turn a raw list of tasks into a prioritized, trackable daily plan and keep it current across days. Use when the user says "here are my tasks, help me prioritize", "plan my day", "what should I work on first", "make my... | skillify | templates |
 | [`drawio`](./drawio/) | Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions dra... | drawio-mcp | — |
 | [`drawio-plus`](./drawio-plus/) | Generate clean, standardized, non-overlapping draw.io / diagrams.net diagrams of any kind (architecture, flow, ER, class, network, sequence, mockup) whose boxes never overlap and whose arrows route around boxes, following fixed 80/60/40 spacing and grid stand... | skillify | references · scripts · templates · examples |
+| [`extract-anything`](./extract-anything/) | Extract ANY source — a document, a prior workflow stage's output, a spec, code, or notes — into a single LEAN, chainable JSON contract that preserves the source's salient context with bounded, inline-recorded information loss, so workflow stages chain without re-reading the sourc... | skillify | examples · references · schemas · scripts · templates |
 | [`generating-pseudocode`](./generating-pseudocode/) | Analyzes requirements or existing code to generate clean, language-agnostic pseudocode that bridges high-level intent and implementation, readable by a Python, Go, or TypeScript developer without translation. Use when... | existing treasury | references |
 | [`jira-fix-mr-workflow`](./jira-fix-mr-workflow/) | Run one Jira issue through a gated fix-to-GitLab-MR workflow that advances only on human approval. Use when the user says "fix Jira issue DGL-1234 and open an MR", "run the Jira fix workflow for a given issue key", "f... | jira-flow | — |
 | [`milestone-jo-check`](./milestone-jo-check/) | Verify that a vendor's billed milestones stay within the Job Order (JO) limits — that the summed Total Manday across all milestones is within the JO Estimated Manday, and the summed Total Amount is within the JO Estim... | review-milestone | scripts |
@@ -253,6 +254,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`executing-frontend-unit-tests`](./executing-frontend-unit-tests/) | Testing, QA & Validation | workflow-pack |
 | [`executing-integration-tests`](./executing-integration-tests/) | Testing, QA & Validation | workflow-pack |
 | [`executing-qa-test-suite`](./executing-qa-test-suite/) | Testing, QA & Validation | workflow-pack |
+| [`extract-anything`](./extract-anything/) | Code Analysis, Productivity & Publishing | skillify |
 | [`extract-brief-structure`](./extract-brief-structure/) | Banking, BA Delivery & Requirements | craft |
 | [`extract-findings`](./extract-findings/) | Research, Debate & Knowledge Synthesis | squad-researcher |
 | [`frame-debate`](./frame-debate/) | Research, Debate & Knowledge Synthesis | squad-brainstorm |
