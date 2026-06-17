@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "extract-anything/output",
+  "title": "extract-anything envelope",
+  "description": "One JSON envelope: the extracted contract plus an inline loss-bounding _meta block. The contract's inner shape is mode-dependent (conform => the caller's target_schema; infer => a minimal inferred shape), so it is intentionally left open here.",
+  "type": "object",
+  "required": ["contract", "_meta"],
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "description": "The extracted, lean, downstream-facing payload. Shape per mode; validated against target_schema separately when conform mode is used.",
+      "type": ["object", "array"]
+    },
+    "_meta": {
+      "type": "object",
+      "required": ["mode", "source_ref", "coverage", "confidence", "dropped"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["conform", "infer"] },
+        "source_ref": {
+          "description": "How to reach the original source (path, ref, or anchor) so dropped context is recoverable.",
+          "type": "string",
+          "minLength": 1
+        },
+        "coverage": {
+          "description": "How much must-preserve content was captured.",
+          "type": "string",
+          "enum": ["high", "partial", "low"]
+        },
+        "confidence": {
+          "description": "Extractor confidence in the contract's fidelity to the source.",
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "dropped": {
+          "description": "Every intentional omission. Silent loss is forbidden.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["item", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "item": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "provenance": {
+          "description": "Per non-obvious contract field, where in the source it came from.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "from"],
+            "additionalProperties": false,
+            "properties": {
+              "field": { "type": "string" },
+              "from": { "type": "string" }
+            }
+          }
+        },
+        "idempotency_key": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

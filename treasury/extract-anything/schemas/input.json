@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "extract-anything/input",
+  "title": "extract-anything input",
+  "type": "object",
+  "required": ["source"],
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "description": "The material to extract from: inline text, or a path/ref to a file. Any kind (prose, notes, spec, code, structured data, prior-stage output).",
+      "type": "string",
+      "minLength": 1
+    },
+    "target_schema": {
+      "description": "Optional downstream contract shape (a JSON Schema object or a flat field list). Present => conform mode; absent => infer mode.",
+      "type": ["object", "array", "null"]
+    },
+    "focus": {
+      "description": "Optional steer: what the consuming stage cares about (a goal, a question, or the next stage's name). Steers salience; never invents content.",
+      "type": "string"
+    },
+    "tier_hint": {
+      "description": "Optional model tier that will consume the contract. Lower tiers get flatter, smaller contracts.",
+      "type": "string",
+      "enum": ["small", "mid", "frontier"]
+    },
+    "idempotency_key": {
+      "description": "Optional caller-supplied id, echoed into _meta for trace correlation.",
+      "type": "string"
+    }
+  }
+}
