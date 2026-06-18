@@ -36,18 +36,18 @@ as given — change structure, never invent or drop data.
 3. **Zero external resource requests**: no remote stylesheet, font, image,
    media, `@import`, or CSS `url(http...)`. Hyperlinks (`a href`) and `data:`
    URIs are allowed. Full list in `references/self-containment-rules.md`.
-4. **Escape every interpolated value** per the table in
+4. **Escape every inserted value** per the table in
    `references/layout-patterns.md`. The only HTML you author is structural
    markup; all leaf text is escaped input.
-5. **Preserve content**: structure may change, data may not. Never fabricate,
-   summarise away, or silently drop input.
+5. **Preserve content**: structure may change, data may not. Never make up,
+   shorten away, or quietly drop input.
 6. Build on `templates/page.html` — keep its doctype, `utf-8` charset,
    viewport, single inline `<style>`, and `@media print` block.
 
 ## Inputs
 
 - The content to render (provided inline, by file path, or as session findings).
-- Optional: desired output path/filename, page title, one provenance line.
+- Optional: desired output path/filename, page title, one source line.
   If not given, default the path to `./<kebab-title>.html` and derive a title
   from the content; do not block on these.
 
@@ -108,7 +108,7 @@ report path + pattern
 - Exactly one file: `<output.html>` (default `./<kebab-title>.html`).
 - Self-contained: passes `scripts/check_self_contained.py` (doctype + `utf-8`
   charset, no `script`, no `on*`/`javascript:`, no remote resource load).
-- Readable: single `<h1>`, semantic structure, ~70ch column, responsive/
+- Readable: single `<h1>`, semantic structure, ~80%-wide column, responsive/
   scrollable tables, print-clean, warm light theme — all from the template,
   unmodified in intent.
 - No other files created or modified.
@@ -145,5 +145,5 @@ Before reporting done, verify:
 ## Templates and scripts
 
 - `templates/page.html` — the canonical single-file skeleton (do not weaken it).
-- `scripts/check_self_contained.py` — deterministic pass/fail gate; the skill
+- `scripts/check_self_contained.py` — automatic pass/fail check; the skill
   runs it on its own output before reporting completion.
