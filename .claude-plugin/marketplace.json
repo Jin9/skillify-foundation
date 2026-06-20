@@ -1,0 +1,15 @@
+{
+  "name": "skillify-foundation",
+  "owner": { "name": "chinnawat.w", "email": "animate90@gmail.com" },
+  "description": "Marketplace for plugins built with the skillify-foundation toolkit.",
+  "plugins": [
+    {
+      "name": "ticket-to-mr",
+      "source": "./plugins/ticket-to-mr",
+      "description": "Gated Jira-issue -> GitLab-MR workflow with a run-scoped PreToolUse command-safety hook, prompt-injection quarantine, and a hash-chained gate audit log. Bundles its localization and MR-publishing skill dependencies.",
+      "category": "developer-workflow",
+      "keywords": ["jira", "gitlab", "merge-request", "agentic-workflow", "gated", "code-fix"],
+      "author": { "name": "chinnawat.w" }
+    }
+  ]
+}
