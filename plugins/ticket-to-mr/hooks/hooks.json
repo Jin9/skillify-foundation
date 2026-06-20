@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/core/policy/policy_match.py --hook",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

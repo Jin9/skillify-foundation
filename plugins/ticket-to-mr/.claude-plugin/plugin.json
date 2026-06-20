@@ -1,0 +1,9 @@
+{
+  "name": "ticket-to-mr",
+  "displayName": "Ticket → MR (gated Jira fix workflow)",
+  "version": "0.2.0",
+  "description": "Gated workflow that takes one Jira issue to one GitLab merge request through four human approval gates, bundled self-contained with its localization (progressive-bug-hunter) and MR-publishing (publishing-git-review-requests) skill dependencies, plus a PreToolUse command-safety hook and gate state machine.",
+  "author": { "name": "chinnawat.w" },
+  "hooks": "./hooks/hooks.json",
+  "keywords": ["jira", "gitlab", "merge-request", "agentic-workflow", "gated", "code-fix"]
+}

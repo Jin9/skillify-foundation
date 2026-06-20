@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gate 3 — Commit, push, open MR checkpoint",
+  "type": "object",
+  "required": ["key", "branch", "mr_title", "source_branch", "target_branch"],
+  "properties": {
+    "key": { "type": "string" },
+    "branch": { "type": "string" },
+    "mr_title": { "type": "string" },
+    "source_branch": { "type": "string" },
+    "target_branch": { "type": "string" },
+    "mr_url": { "type": "string" },
+    "auto_merge": { "type": "boolean" }
+  }
+}
