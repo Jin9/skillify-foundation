@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gate 2 — Implement + test checkpoint",
+  "type": "object",
+  "required": ["key", "branch", "files_changed", "diff_lines", "test_command", "test_result", "commit_message"],
+  "properties": {
+    "key": { "type": "string" },
+    "branch": { "type": "string" },
+    "files_changed": { "type": "array" },
+    "diff_lines": { "type": "number" },
+    "test_command": { "type": "string" },
+    "test_result": { "type": "string" },
+    "commit_message": { "type": "string" },
+    "known_limitations": { "type": "array" }
+  }
+}

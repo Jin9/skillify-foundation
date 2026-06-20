@@ -1,0 +1,30 @@
+{
+  "key": "DGL-1234",
+  "fields": {
+    "summary": "Reject expired OTP on the funds-transfer confirm step",
+    "description": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "When a customer confirms a funds transfer with an OTP older than 5 minutes, the request is accepted. It must be rejected with error E_OTP_EXPIRED." }
+          ]
+        },
+        {
+          "type": "heading",
+          "attrs": { "level": 3 },
+          "content": [ { "type": "text", "text": "Acceptance Criteria" } ]
+        },
+        {
+          "type": "bulletList",
+          "content": [
+            { "type": "listItem", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "OTP older than 5 minutes is rejected with E_OTP_EXPIRED." } ] } ] },
+            { "type": "listItem", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Valid OTP within the window still succeeds." } ] } ] }
+          ]
+        }
+      ]
+    }
+  }
+}

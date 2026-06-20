@@ -1,0 +1,4 @@
+# Runtime gate-runner state and audit logs — not source.
+runs/
+**/__pycache__/
+*.pyc

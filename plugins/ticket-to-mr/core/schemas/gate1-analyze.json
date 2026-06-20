@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gate 1 — Analyze checkpoint",
+  "type": "object",
+  "required": ["key", "requirement_summary", "acceptance_criteria", "impacted_files", "plan", "risk", "test_plan"],
+  "properties": {
+    "key": { "type": "string" },
+    "requirement_summary": { "type": "string" },
+    "acceptance_criteria": { "type": "array" },
+    "impacted_files": { "type": "array" },
+    "plan": { "type": "string" },
+    "risk": { "type": "string" },
+    "test_plan": { "type": "string" },
+    "missing_clarification": { "type": "array" },
+    "quarantined_instructions": { "type": "array" }
+  }
+}

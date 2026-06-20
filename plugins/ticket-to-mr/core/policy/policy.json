@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "comment": "Single source of truth for ticket-to-mr command-safety + gates. Evaluation order: deny -> confirm -> allow -> default. Deny always wins. Patterns are Python re, matched case-insensitively against the full Bash command string. Edit here, then run core/policy/generate.py to regenerate the Codex projection.",
+  "default": "ask",
+  "deny": [
+    { "id": "git-add-all", "pattern": "\\bgit\\s+add\\s+(-A\\b|--all\\b|\\.|:/|\\*)", "reason": "Stage explicit paths only; never `git add .` / -A / --all." },
+    { "id": "stage-secrets", "pattern": "\\bgit\\s+add\\b.*(\\.env|secret|id_rsa|\\.pem\\b|credential|\\.npmrc|\\.aws)", "reason": "Refusing to stage secrets / .env / keys." },
+    { "id": "stage-cicd-prod", "pattern": "\\bgit\\s+add\\b.*(\\.github/workflows|\\.gitlab-ci|/deploy/|/prod/|/production/)", "reason": "Refusing to stage CI/CD or prod config." },
+    { "id": "git-commit-amend", "pattern": "\\bgit\\s+commit\\b.*--amend", "reason": "Never --amend in this workflow." },
+    { "id": "git-commit-coauthor", "pattern": "(?i)co-authored-by", "reason": "Never add a Co-Authored-By trailer; use Assisted-by." },
+    { "id": "git-push-force", "pattern": "\\bgit\\s+push\\b.*(--force\\b|--force-with-lease\\b|\\s-f\\b|\\s\\+[\\w/]+:)", "reason": "Force-push is forbidden." },
+    { "id": "git-push-delete", "pattern": "\\bgit\\s+push\\b.*(--delete\\b|\\s:[\\w/]+)", "reason": "Never delete a remote branch." },
+    { "id": "rm-recursive-force", "pattern": "\\brm\\s+(-\\w*r\\w*f|-\\w*f\\w*r|-r\\s+-f|-f\\s+-r)\\w*", "reason": "Recursive force delete is forbidden." },
+    { "id": "remote-exec", "pattern": "(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?(sh|bash|zsh|python\\d?)", "reason": "No piping remote content into a shell/interpreter." },
+    { "id": "mr-merge-approve", "pattern": "\\b(glab\\s+mr\\s+(merge|approve|close)|gh\\s+pr\\s+(merge|close))\\b", "reason": "Never merge / approve / close the MR or PR." },
+    { "id": "jira-transition", "pattern": "\\b(transition|transitionJiraIssue|editJiraIssue)\\b", "reason": "Never transition or edit the Jira issue from the shell." }
+  ],
+  "confirm": [
+    { "id": "git-commit", "pattern": "\\bgit\\s+commit\\b", "reason": "Committing is a gated step (Gate 2/3) — requires named approval." },
+    { "id": "git-push", "pattern": "\\bgit\\s+push\\b", "reason": "Pushing is a Gate-3 outward action — requires named approval." },
+    { "id": "mr-create", "pattern": "\\b(glab\\s+mr\\s+create|gh\\s+pr\\s+create)\\b", "reason": "Opening the MR/PR is a Gate-3 action — requires named approval." },
+    { "id": "git-checkout-branch", "pattern": "\\bgit\\s+(checkout\\s+-b|switch\\s+-c|branch)\\b", "reason": "Branch creation should follow the fix/{KEY}-{slug} convention; confirm name." }
+  ],
+  "allow": [
+    { "id": "git-read", "pattern": "\\bgit\\s+(status|diff|log|show|branch\\s+--show-current|rev-parse|remote\\s+-v|ls-files|fetch)\\b" },
+    { "id": "git-add-explicit", "pattern": "\\bgit\\s+add\\s+(?!-A\\b|--all\\b|\\.|:/|\\*)[\\w./@-]+" },
+    { "id": "test-pytest", "pattern": "python\\d?\\s+-m\\s+pytest\\b" },
+    { "id": "test-npm", "pattern": "\\bnpm\\s+(test|run\\s+test)\\b" },
+    { "id": "test-go", "pattern": "\\bgo\\s+test\\b" },
+    { "id": "test-cargo", "pattern": "\\bcargo\\s+test\\b" },
+    { "id": "read-only", "pattern": "^\\s*(ls|cat|head|tail|grep|rg|find|pwd|echo|wc|sort|uniq|diff)\\b" }
+  ],
+  "caps": {
+    "diff_max_files": 20,
+    "diff_max_lines": 400,
+    "repair_loop_max": 3,
+    "test_rerun_max": 3,
+    "phase_wallclock_seconds": 900
+  },
+  "paths": {
+    "deny_stage": [".env", "secret", "id_rsa", "*.pem", "credential", ".npmrc", ".aws", ".github/workflows", ".gitlab-ci.yml", "deploy/", "prod/", "production/"]
+  },
+  "gates": {
+    "gate1": { "type": "sync", "name": "Analyze approval", "approval": "named-human" },
+    "gate2": { "type": "async", "name": "Implement review", "approval": "named-human" },
+    "gate3": { "type": "sync", "name": "MR approval", "approval": "named-human" },
+    "gate4": { "type": "sync", "name": "Jira comment approval", "approval": "named-human" }
+  },
+  "conventions": {
+    "branch_pattern": "fix/{KEY}-{slug}",
+    "commit_format": "fix: {summary} ({KEY})",
+    "commit_trailer": "Assisted-by: {agent} ({model})",
+    "mr_title_format": "[{KEY}] {summary}"
+  }
+}
