@@ -1,19 +1,19 @@
 # Treasury — Production Skill Library
 
-125 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+126 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
 | [Banking, BA Delivery & Requirements](#banking-ba-delivery-requirements) | 15 |
 | [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 21 |
-| [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 14 |
+| [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 15 |
 | [Testing, QA & Validation](#testing-qa-validation) | 12 |
 | [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 14 |
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 15 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 7 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 9 |
 | [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 18 |
-| **Total** | **125** |
+| **Total** | **126** |
 
 ---
 
@@ -67,7 +67,7 @@ Design, modeling, planning, and engineering decision support.
 | [`technical-debt-management`](./technical-debt-management/) | Classify technical debt, prioritize it by business risk and cost-of-delay, make the dangerous debt visible, and negotiate a fix budget with PM/business. Use when the user asks "how do we deal with this tech debt", "is... | business-analyse | — |
 | [`technical-feasibility`](./technical-feasibility/) | Decides whether and how a requirement is buildable on the current stack, surfacing the options, dependencies, and risks before anyone commits to a design or a date. Use when the user asks "can we build this", "is this... | business-analyse | — |
 
-## Implementation, Platform Templates & Code Review (14)
+## Implementation, Platform Templates & Code Review (15)
 
 Implementation, platform template, refactoring, and code-review skills.
 
@@ -81,6 +81,7 @@ Implementation, platform template, refactoring, and code-review skills.
 | [`implement-frontend-feature`](./implement-frontend-feature/) | Generate production-grade React/TypeScript code for one frontend feature from an approved UI design, with banking-grade discipline: WCAG 2.1 AA a11y, no any outside parsers, no localStorage auth tokens, no unsanitized... | squad-delivery | RATIONALE.md · references · schemas · tests |
 | [`implementing-go-template-requirements`](./implementing-go-template-requirements/) | Apply a single requirement (spec line, ticket, bug report, user story) to a Go service that follows the go-template scaffold by editing ONLY business logic under `app/[domain]/` plus narrow `register*` wiring in `rout... | agentic | examples · references · templates |
 | [`langgraph-professional`](./langgraph-professional/) | Guide professional LangGraph v1.x implementation, refactoring, and review workflows. Use when the user asks "Implement a LangGraph v1.x workflow in this repo using professional StateGraph patterns", "Refactor this Lan... | langgraph-claude-agent | references · templates |
+| [`lean-go`](./lean-go/) | Implement, improve, and refactor Go backend code as a senior engineer: simple, high-impact, readable code with lean comments, idiomatic Go conventions, Martin Fowler refactoring idioms, a handler/service/access layering kernel, and table-driven testify... | platform-mgmt | references |
 | [`platform-common`](./platform-common/) | Shared Go infrastructure library for A-Team Krungthai DGL microservices — Gin middleware, Kafka producer/consumer, JWT, structured slog logging, response envelopes, database/Redis/Firestore/GCS/S3 connectors, AES/RSA... | agentic | references |
 | [`platform-go-service`](./platform-go-service/) | Scaffold or extend a Go microservice in this repository (go-template) using A-Team platform conventions: DDD aggregate-per-package, CQRS handler/consumer split, Fowler-style Repository / Cache / Gateway in `access/`,... | agentic | references |
 | [`refactoring-go-services`](./refactoring-go-services/) | Incrementally refactor messy Go microservices toward clean DDD/CQRS architecture while preserving behavior — one code smell and one Fowler-style refactoring action per iteration, verified by tests or build after each... | agentic | examples · references |
@@ -271,6 +272,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`integration-design`](./integration-design/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`jira-fix-mr-workflow`](./jira-fix-mr-workflow/) | Code Analysis, Productivity & Publishing | jira-flow |
 | [`langgraph-professional`](./langgraph-professional/) | Implementation, Platform Templates & Code Review | langgraph-claude-agent |
+| [`lean-go`](./lean-go/) | Implementation, Platform Templates & Code Review | platform-mgmt |
 | [`milestone-jo-check`](./milestone-jo-check/) | Code Analysis, Productivity & Publishing | review-milestone |
 | [`model-selection`](./model-selection/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`multi-agent-handoff-architect`](./multi-agent-handoff-architect/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
