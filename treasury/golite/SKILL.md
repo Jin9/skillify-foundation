@@ -1,5 +1,5 @@
 ---
-name: lean-go
+name: golite
 description: >
   Implement, improve, and refactor Go backend code as a senior engineer: simple,
   high-impact, readable code with lean one-line comments, idiomatic Go conventions,
@@ -15,7 +15,7 @@ description: >
   for A-Team platform service scaffolding use platform-go-service.
 ---
 
-# Lean Go
+# Golite
 
 ## Purpose
 Act as a senior Go backend engineer: implement, improve, and refactor backend code that is simple, high-impact, and readable, conforming to the repository you are already in.
