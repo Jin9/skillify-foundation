@@ -2,8 +2,8 @@
 name: your-domain-skill-name
 description: >
   Provides [domain] expertise for [task type]. Use when the user asks
-  about "[trigger phrase 1]", "[trigger phrase 2]", or needs guidance
-  on [domain-specific decisions].
+  about "[trigger phrase 1]", "[trigger phrase 2]", "[trigger phrase 3]",
+  or needs guidance on [domain-specific decisions].
 # compatibility: claude-code, codex, opencode
 # metadata:
 #   author: your-name
@@ -20,6 +20,7 @@ description: >
 
 - Use when: [domain-specific trigger 1]
 - Use when: [domain-specific trigger 2]
+- Use when: [domain-specific trigger 3]
 - Do NOT use when: [out-of-scope scenario]
 
 ## Decision framework

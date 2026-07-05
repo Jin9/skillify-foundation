@@ -7,11 +7,11 @@ This directory contains platform-specific instructions for installing
 
 | Platform | Primary skill locations | Optional always-on file | Install method |
 |---|---|---|---|
-| Claude Code | `~/.claude/skills/skillify/`, `.claude/skills/skillify/` | `CLAUDE.md` | Copy full skill folder |
-| OpenAI Codex | `~/.agents/skills/skillify/`, `.agents/skills/skillify/`; `$CODEX_HOME/skills/skillify/` only for legacy compatibility | `AGENTS.md` | Copy full skill folder |
-| GitHub Copilot | `~/.copilot/skills/skillify/`, `~/.agents/skills/skillify/`, `.github/skills/skillify/`, `.agents/skills/skillify/` | `.github/copilot-instructions.md` | Copy full skill folder |
-| Gemini CLI | `~/.agents/skills/skillify/`, `.agents/skills/skillify/` | `GEMINI.md`, `AGENTS.md` | Copy full skill folder |
-| Antigravity | `~/.gemini/antigravity/skills/skillify/`, `.agents/skills/skillify/` | `~/.gemini/GEMINI.md`, `.agents/rules/` | Copy full skill folder |
+| Claude Code | `~/.claude/skills/skillify/`, `.claude/skills/skillify/` | `CLAUDE.md` | Copy skill folder (minus `platforms/`) |
+| OpenAI Codex | `~/.agents/skills/skillify/`, `.agents/skills/skillify/`; `$CODEX_HOME/skills/skillify/` only for legacy compatibility | `AGENTS.md` | Copy skill folder (minus `platforms/`) |
+| GitHub Copilot | `~/.copilot/skills/skillify/`, `~/.agents/skills/skillify/`, `.github/skills/skillify/`, `.agents/skills/skillify/` | `.github/copilot-instructions.md` | Copy skill folder (minus `platforms/`) |
+| Gemini CLI | `~/.agents/skills/skillify/`, `.agents/skills/skillify/` | `GEMINI.md`, `AGENTS.md` | Copy skill folder (minus `platforms/`) |
+| Antigravity | `~/.gemini/antigravity-cli/skills/skillify/`, `.agents/skills/skillify/` | `~/.gemini/GEMINI.md`, `.agents/rules/` | Copy skill folder (minus `platforms/`) |
 
 ## Quick Install
 
@@ -21,8 +21,8 @@ Run from this directory:
 bash install.sh
 ```
 
-By default the script copies the full skill folder to these user/global
-locations:
+By default the script copies the skill's canonical directories (everything
+except `platforms/`) to these user/global locations:
 
 1. Claude Code: `~/.claude/skills/skillify/`
 2. Shared Agent Skills (read by Codex): `~/.agents/skills/skillify/`
@@ -69,5 +69,7 @@ Use one canonical source (`SKILL.md` plus support directories) and
 platform-specific installation notes. This avoids drift while preserving
 host-specific discovery paths.
 
-Copy the whole skill folder, not just `SKILL.md`: this skill references
-`references/`, `templates/`, `scripts/`, and `platforms/`.
+Copy the skill's canonical directories, not just `SKILL.md`: `references/`,
+`templates/`, `scripts/`, `examples/`, and `assets/` travel with every install.
+`platforms/` (these install notes) is intentionally excluded from installed
+copies — `install.sh` and every manual snippet above already omit it.

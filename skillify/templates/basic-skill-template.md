@@ -2,7 +2,7 @@
 name: your-skill-name
 description: >
   What this skill does in one sentence. Use when the user asks to
-  "trigger phrase 1", "trigger phrase 2", or works with [file types].
+  "trigger phrase 1", "trigger phrase 2", "trigger phrase 3", or works with [file types].
   Do NOT use for [negative trigger — what this skill should NOT handle].
 # Optional fields (uncomment as needed):
 # when_to_use: Additional trigger context
@@ -22,6 +22,7 @@ description: >
 
 - Use when: [trigger 1 — specific user intent or phrase]
 - Use when: [trigger 2 — specific user intent or phrase]
+- Use when: [trigger 3 — specific user intent or phrase]
 - Do NOT use when: [negative trigger — what to avoid]
 
 ## Core workflow

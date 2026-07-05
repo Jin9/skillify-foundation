@@ -34,6 +34,8 @@ Additional context for when the agent should invoke the skill. Appended to `desc
 - Required system packages
 - Network access needs
 
+Note on enforcement: `scripts/quick_validate.py` enforces `description` length (1024) plus the name/format rules. The 1,536-character combined `description`+`when_to_use` cap and the 500-character `compatibility` cap are host-documented limits the validator does not check. The compatibility cross-check (matching `platforms/<host>.md`) covers only the five mapped hosts — `claude-code`, `codex`, `copilot`, `gemini`, `antigravity`; other tokens pass through unvalidated by design.
+
 ### `metadata` (optional)
 
 Custom key-value pairs. Suggested fields:

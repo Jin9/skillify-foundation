@@ -74,7 +74,7 @@ Use `SKILL.md` Core workflow: Create. Return here only for the Cross-mode rules 
 
 ## Adapt
 
-1. Identify the source platform and target platform from the user request. If the source platform is unstated, infer it from the existing folder location (`.claude/skills/`, `skills/`, `.gemini/`, `.agents/skills/`) or, if still unclear, ask once before translating.
+1. Identify the source platform and target platform from the user request. If the source platform is unstated, infer it from the existing folder location (`.claude/skills/`, `skills/`, `.gemini/`, `.agents/skills/`, `.github/skills/`, `~/.copilot/skills/`, `$CODEX_HOME/skills/`) or, if still unclear, ask once before translating.
 2. Read `platform-compatibility.md` and compare frontmatter, folder location, root rules, tools, and activation model.
 3. Translate platform-specific fields; remove unsupported fields instead of leaving dead metadata.
 4. Preserve workflow logic and replace vendor/tool-specific language with generic tool capability names.

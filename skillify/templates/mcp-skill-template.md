@@ -3,7 +3,7 @@ name: your-mcp-skill-name
 description: >
   Orchestrates [workflow name] across [Service A] and [Service B].
   Use when the user asks to "[trigger phrase 1]", "[trigger phrase 2]",
-  or needs to coordinate actions across [services].
+  "[trigger phrase 3]", or needs to coordinate actions across [services].
 # compatibility: claude-code
 # metadata:
 #   author: your-name

@@ -25,7 +25,7 @@ Manual personal install from `skillify/platforms/`:
 for DEST in "$HOME/.copilot/skills/skillify" "$HOME/.agents/skills/skillify"; do
   mkdir -p "$DEST"
   cp ../SKILL.md "$DEST/"
-  for dir in references templates scripts platforms examples assets; do
+  for dir in references templates scripts examples assets; do
     if [ -d "../$dir" ]; then
       mkdir -p "$DEST/$dir"
       cp -R "../$dir/." "$DEST/$dir/"

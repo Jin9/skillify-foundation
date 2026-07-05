@@ -24,7 +24,7 @@ Manual personal install from `skillify/platforms/`:
 for DEST in "$HOME/.agents/skills/skillify" "${CODEX_HOME:-$HOME/.codex}/skills/skillify"; do
   mkdir -p "$DEST"
   cp ../SKILL.md "$DEST/"
-  for dir in references templates scripts platforms examples assets; do
+  for dir in references templates scripts examples assets; do
     if [ -d "../$dir" ]; then
       mkdir -p "$DEST/$dir"
       cp -R "../$dir/." "$DEST/$dir/"
@@ -61,4 +61,4 @@ Restart Codex if required by your host, then ask:
 
 - Keep `SKILL.md` frontmatter intact for skill discovery.
 - Keep `AGENTS.md` short and repo-specific.
-- Include the whole skill folder; `skillify` references `scripts/`, `templates/`, `references/`, and `platforms/`.
+- Include the referenced support directories (`references/`, `templates/`, `scripts/`, `examples/`); `platforms/` stays behind — install notes are not part of the deployed skill.
