@@ -46,3 +46,5 @@ Blogs, community repos, and experimental listicles. Used for validation, not fou
 | **Snyk Top Claude Skills** | `literature/anthropic-claude/snyk_top_claude_skills.md` | Tier 3 | Security-first boundary definitions for agent capabilities. | Cross-checks the `security-checklist.md` coverage. | Medium |
 | **MGechev Skills Best Practices** | `literature/best-practices/mgechev_skills_best_practices.md` | Tier 3 | Maintainability and iterative testing of skill definitions. | Adds community weight to `lifecycle-and-iteration.md`. | Medium |
 | **Awesome Agent Skills (ScienceAIx)** | `literature/awesome-lists/awesome_agent_skills_scienceaix.md` | Tier 3 | Ecosystem mapping and naming conventions. | Broadens `domain-skill-template.md` categories. | Low |
+
+> 2026-07-05: extended by `sources-2026-07.md` (2026-07 rerun — corpus refreshed to 68 clean-markdown sources; see consult-records/ for cross-model provenance).

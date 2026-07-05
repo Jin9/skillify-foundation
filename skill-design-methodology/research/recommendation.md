@@ -95,3 +95,5 @@ provenance_dated: 2026-05-19
 - Do not edit platform install scripts, deployment docs, validation scripts, or templates.
 - Apply the default `init_skill.py` decision: wire it into Create rather than removing it from the script manifest.
 - Mirror the final `SKILL.md` and `mode-playbooks.md` to `~/.codex/skills/skillify/`.
+
+> 2026-07-05: extended by `recommendation-2026-07.md` (2026-07 rerun — corpus refreshed to 68 clean-markdown sources; see consult-records/ for cross-model provenance).

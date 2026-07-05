@@ -54,3 +54,17 @@ No blocking finding remains. Recommended follow-ups are non-blocking:
 3. Decide whether `init_skill.py` should create standard subdirectories by default or be called with flags.
 4. Add a `quick_validate.py` cross-check that every `compatibility:` token has a matching platform file.
 5. Resolve Scope Boundary vs. Constraints duplication inside `SKILL.md`.
+
+---
+
+## Follow-up status (2026-07-05)
+
+- #1 validation-gate pointers for Compress/Split/Merge/Adapt: IMPLEMENTED — `skillify/references/mode-playbooks.md:51,62,72,83` ("Run the Validation gate from `SKILL.md`").
+- #2 check_links.py covers `platforms/`: IMPLEMENTED — `skillify/scripts/check_links.py:15-17` (RESOURCE_RE includes the platforms prefix).
+- #4 compatibility↔platform-file cross-check: IMPLEMENTED — `skillify/scripts/quick_validate.py:182-194`.
+- #3 init_skill.py default subdirs: superseded — the 2026-07 rerun fixed the scaffold's trigger-placeholder count instead; the subdir set was deliberately left unchanged.
+- #5 Scope-Boundary vs Constraints duplication: REJECTED in `recommendation-2026-07.md` (already a pointer; further rewrite is style churn with eval-indicator risk).
+
+Full rerun: see the `-2026-07.md` sibling artifacts and `consult-records/`.
+
+> 2026-07-05: extended by `review-2026-07.md` (2026-07 rerun — corpus refreshed to 68 clean-markdown sources; see consult-records/ for cross-model provenance).
