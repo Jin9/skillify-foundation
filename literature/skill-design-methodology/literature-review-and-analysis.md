@@ -1,6 +1,6 @@
 # Literature Review and Analysis
 
-A cross-corpus synthesis of the 54 source documents in `literature/`. Companion to `agent-skill-design-principles.md` (prescriptive) and `agent-skill-source-index.md` (catalog); this document is the descriptive review — what the corpus actually says, where it converges, where it disagrees, and what it leaves uncovered.
+A cross-corpus synthesis of the 68 source documents in `literature/`. Companion to `agent-skill-design-principles.md` (prescriptive) and `agent-skill-source-index.md` (catalog); this document is the descriptive review — what the corpus actually says, where it converges, where it disagrees, and what it leaves uncovered. (Sections 1–11 were written against the pre-2026-07 corpus; §13 records the 2026-07-05 refresh that superseded the counts and extraction caveats below.)
 
 ---
 
@@ -18,20 +18,21 @@ The current `agent-skill-design-principles.md` captures roughly 80% of what the 
 
 | Category | Files | Coverage |
 |---|---:|---|
-| `anthropic-claude/` | 13 | Official Claude Code & Skills docs, Anthropic engineering blog, community Claude Code skill notes, Groff three-tier pattern, Snyk skill catalog |
+| `anthropic-claude/` | 15 | Official Claude Code & Skills docs, Plugins & Plugin Marketplaces, Anthropic engineering blog, community Claude Code skill notes, Groff three-tier pattern, Snyk skill catalog |
 | `codex-copilot/` | 9 | Codex agents/skills/best-practices, GitHub Copilot agent skills, GitHub CLI `gh skill`, VS Code Copilot, VS Code custom agents |
 | `openai/` | 4 | OpenAI skill-creator canonical example, skills repo, API tools/skills guide, cookbook |
 | `best-practices/` | 4 | agentskills.io, mgechev best practices, two Medium deep-dives on the SKILL.md pattern |
 | `awesome-lists/` | 2 | VoltAgent and ScienceAIX curated catalogs |
-| `open-standard/` | 1 | Open Agent Skills specification (openagentskills.dev) |
-| `other-platforms/` | 13 | agents.md, Gemini CLI (context + commands), Cursor rules, Cline rules, OpenCode, Windsurf Cascade, Spring AI, Strapi, antfu collection, sohamkamani, DataCamp, agentskills.io home |
+| `open-standard/` | 2 | Open Agent Skills specification (openagentskills.dev), MCP specification rev 2025-11-25 |
+| `other-platforms/` | 14 | agents.md, Gemini CLI (context + commands), Cursor rules, Cline rules, OpenCode, Windsurf Cascade, Spring AI, Strapi, antfu collection, sohamkamani, DataCamp, agentskills.io home, skills.sh |
 | `research-papers/` | 6 | ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent |
-| `skill-design-methodology/` | 3 | Source index, reading-task taxonomy, design principles (already synthesized) |
-| **Total** | **54** | ~33,500 lines / ~750k words |
+| `research-vault/` | 8 | Internal deep-research syntheses (SKILL.md design, routing, portability, activation, degradation, global-vs-local, .claude/skills strategy, marketplaces) |
+| `skill-design-methodology/` | 4 | Source index, reading-task taxonomy, design principles, this literature review |
+| **Total** | **68** | ~22,750 lines / ~168k words (clean markdown) |
 
-**Extraction caveat:** roughly one in four files is a saved HTML page capture rather than clean markdown (notably most `codex-copilot/` Codex docs, several `vscode_*` files, the OpenAI cookbook, and some `other-platforms/` blog captures). Their content is partially recoverable but biases automated frequency analysis with HTML noise. A normalization pass is the highest-leverage cleanup task.
+**Extraction caveat — RESOLVED 2026-07-05:** the corpus previously carried ~26 saved-HTML page captures plus partial-HTML GitHub captures whose noise inflated substring frequency counts (the old "~750k words" total was mostly markup). The 2026-07-05 refresh normalized every capture to clean markdown with a standard provenance header (`skill-design-methodology/tools/normalize_capture.py`), re-captured the load-bearing Anthropic/agentskills.io docs as served markdown, and recovered all four former Cloudflare-stub captures. Term-frequency analysis over the corpus is now meaningful.
 
-The README at the project root and `agent-skill-source-index.md` both reference "55 sources" — the discrepancy is `claude_guide.pdf` (a binary file with the markdown companion `claude_guide.md` already counted).
+Historical note: pre-refresh, the root README said 57 sources, this document said 54, and an earlier "55 sources" figure circulated — the drift came from the `claude_guide.pdf` binary companion and two 2026-05-29 additions this review predated. The counting rule is now: every `.md` file under `literature/` counts (including the four `skill-design-methodology/` internal docs); the PDF companion is listed separately. `skill-design-methodology/tools/verify_corpus.py` recounts from disk and cross-checks every bookkeeping location.
 
 ---
 
@@ -371,6 +372,8 @@ Recent web searches (mid-2026) reveal major industry shifts that extend the find
 - `medium_cheat_codes_claude_code.md`
 - `snyk_top_claude_skills.md`
 - `claude_agent_sdk_2026.md`
+- `claude_code_plugins.md` *(added 2026-07-05)*
+- `claude_code_plugin_marketplaces.md` *(added 2026-07-05)*
 
 ### codex-copilot/
 - `codex_skills.md`, `codex_agents.md`, `codex_best_practices.md`, `codex_customization.md`
@@ -391,6 +394,7 @@ Recent web searches (mid-2026) reveal major industry shifts that extend the find
 
 ### open-standard/
 - `open_agent_skills_specification.md`
+- `mcp_specification.md` *(added 2026-07-05; MCP spec rev 2025-11-25, assembled from the official per-section pages)*
 
 ### other-platforms/
 - `agents_md.md`, `agentskills_home.md`
@@ -406,8 +410,29 @@ Recent web searches (mid-2026) reveal major industry shifts that extend the find
 - `voyager_skill_library.md`, `toolformer_tool_use.md`
 - `memgpt_context_management.md`, `swe_agent_computer_interfaces.md`
 
+### research-vault/ *(group added 2026-07-05)*
+- `skill_md_design.md`, `agent_skill_routing.md`, `cross_model_skill_portability.md`
+- `skill_activation_criteria.md`, `skill_degradation_risk.md`, `global_skills_vs_local_skills.md`
+- `claude_skills_strategy.md`, `prompt_skill_marketplace.md`
+- (each is a verbatim ResearchVault deep-research final report with inline bibliography; internal-synthesis trust tier, below official docs)
+
 ### skill-design-methodology/
 - `agent-skill-source-index.md` (catalog)
 - `agent-reading-task-taxonomy.md` (reading framework)
 - `agent-skill-design-principles.md` (prescriptive synthesis)
 - `literature-review-and-analysis.md` (this document — descriptive review)
+
+---
+
+## 13. 2026-07 Corpus Refresh (dated addendum)
+
+Executed 2026-07-05 on branch `Jin9/lit-refresh-skillify-2026-07` as the literature phase of the skillify rerun. What changed:
+
+1. **Re-captures (fresh content, Accessed 2026-07-05):** `anthropic_agent_skills_overview.md` and `anthropic_skill_best_practices.md` re-captured as served markdown from platform.claude.com; `agentskills_home.md` and `agentskills_best_practices.md` re-captured as served markdown; `spring_ai_agent_skills.md` re-captured via content-extraction proxy (page body is client-rendered).
+2. **Dead stubs recovered (all four):** `medium_skill_md_pattern.md` and `medium_deep_dive_skill_md.md` re-fetched directly and normalized; `medium_cheat_codes_claude_code.md` and `datacamp_top_agent_skills.md` re-captured via content-extraction proxy (Cloudflare-gated to direct fetches; provenance headers note possible abridgment). No sources were dropped.
+3. **Gap fills (new sources):** `open-standard/mcp_specification.md` (MCP rev 2025-11-25: architecture, base protocol, lifecycle, transports, server tools/prompts/resources, changelog); `anthropic-claude/claude_code_plugins.md` + `claude_code_plugin_marketplaces.md` (the distribution surface skillify itself ships through).
+4. **ResearchVault harvest (new group, 8 files):** skill-topic deep-research final reports copied verbatim with provenance headers; tiered as internal synthesis below official docs. Other near-topic vault runs exist but were deliberately not harvested (bounded to the 8 SKILL.md-relevant topics).
+5. **Normalization (48 files touched):** every raw/partial-HTML capture converted to clean markdown via `skill-design-methodology/tools/normalize_capture.py` (deterministic extraction — no prose rewriting); every capture now carries the standard header (`# Title` / `Source:` / `Accessed:` / `Category:` / `Provenance:` / `## Why This Source Matters`). Original capture dates preserved for normalized-in-place files.
+6. **Bookkeeping:** counts reconciled across README.md, CLAUDE.md, AGENTS.md, this document, and the source-index; the counting rule and the standing recount tool (`tools/verify_corpus.py`) are recorded in §2. Corpus now: **68 .md sources (+1 PDF companion), ~168k words / ~22,750 lines of clean markdown.**
+
+Impact on earlier sections: §2's old caveats are superseded (marked inline); §10 recommendations #4 (HTML normalization), #5 (count reconciliation), and #7 (frequency-analysis distrust) are now DONE; term-frequency claims elsewhere in this document that predate the refresh should be re-derived before being cited as evidence.

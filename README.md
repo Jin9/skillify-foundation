@@ -1,6 +1,6 @@
 # Skillify — AI Agent Skill Engineering Toolkit
 
-A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 57 primary and supporting sources across the Anthropic, OpenAI, GitHub Copilot, open-standard, platform-rule, and academic agent ecosystems.
+A research-backed toolkit for creating, validating, and maintaining production-grade `SKILL.md` files for AI coding agents. Built from a systematic review of 68 primary and supporting sources across the Anthropic, OpenAI, GitHub Copilot, open-standard, platform-rule, academic, and internal deep-research agent ecosystems.
 
 ## What is a Skill?
 
@@ -19,7 +19,7 @@ my-skill/
 
 ```
 .
-├── literature/              # 57 curated source documents
+├── literature/              # 68 curated source documents
 ├── skillify/                # The skill-creator meta-skill and validation tooling
 └── treasury/                # 129 top-level skills grouped by purpose
     ├── README.md            # Skill catalog grouped by purpose
@@ -114,18 +114,19 @@ The `treasury/` directory holds **129 top-level skills** grouped by purpose. Ful
 
 ## Literature Sources
 
-The `literature/` directory contains the complete research corpus — 57 documents totaling ~763K words — organized by ecosystem:
+The `literature/` directory contains the complete research corpus — 68 documents totaling ~168K words (clean markdown; the pre-2026-07 "~763K" figure counted raw-HTML capture noise, normalized away on 2026-07-05) — organized by ecosystem:
 
 | Category | Files | Key Sources |
 |----------|-------|-------------|
-| **Anthropic / Claude** | 13 | Claude Code Best Practices, Skills Repo, Sub-Agents, Context Engineering |
+| **Anthropic / Claude** | 15 | Claude Code Best Practices, Skills Repo, Sub-Agents, Context Engineering, Plugins & Plugin Marketplaces |
 | **Codex / Copilot** | 9 | Codex Skills & Agents, GitHub CLI Agent Skills, VS Code Copilot, VS Code Custom Agents |
 | **OpenAI** | 4 | Skill Creator (canonical reference), API Tools, Cookbook |
 | **Best Practices** | 4 | Cross-platform authoring guides, SKILL.md pattern analysis |
 | **Awesome Lists** | 2 | ScienceAIX and VoltAgent community aggregations |
-| **Open Standard** | 1 | Open Agent Skills specification |
+| **Open Standard** | 2 | Open Agent Skills specification, MCP specification (2025-11-25) |
 | **Other Platforms** | 14 | Gemini CLI, Cursor, Cline, OpenCode, Windsurf, Spring AI, Strapi, antfu |
 | **Research Papers** | 6 | ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent |
+| **Research Vault** | 8 | Internal deep-research syntheses: SKILL.md design, routing, portability, activation, degradation, scoping, strategy, marketplaces |
 | **Skill Design Methodology** | 4 | Source index, reading taxonomy, synthesized design principles, literature review |
 
 ## Platform Compatibility
@@ -135,7 +136,7 @@ Skillify generates portable `SKILL.md` folders compatible with:
 - **Claude Code** - `.claude/skills/` or `~/.claude/skills/`
 - **OpenAI Codex** - `.agents/skills/`, `~/.agents/skills/`, or `$CODEX_HOME/skills/`
 - **GitHub Copilot** - `.github/skills/`, `.agents/skills/`, `~/.copilot/skills/`, or optional custom instructions
-- **Gemini / Antigravity** - `.agents/skills/`, `.gemini/skills/`, `~/.gemini/skills/`, or `~/.gemini/antigravity/skills/`
+- **Gemini / Antigravity** - `.agents/skills/`, `.gemini/skills/`, `~/.gemini/skills/`, or `~/.gemini/antigravity-cli/skills/`
 
 Use the **Adapt** mode to convert between platform conventions.
 

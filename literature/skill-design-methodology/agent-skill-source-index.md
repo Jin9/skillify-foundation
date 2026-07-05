@@ -183,3 +183,24 @@ Tier 4: Community guides	Use for tricks, naming, trigger behavior, and real-worl
 Tier 5: Blog/listicle/catalog sources	Use for inspiration only; verify before adopting.
 
 For your case, I’d anchor the template on the open standard (AgentSkills.io) for maximum portability, using OpenAI + Anthropic official docs for platform-specific hooks. Community sources remain useful to improve naming, folder layout, and trigger behavior.
+
+---
+
+## 2026-07-05 Corpus Refresh
+
+Corpus count as of 2026-07-05: 68 source .md files (+1 PDF companion, `claude_guide.pdf`). Counting rule: every `.md` under `literature/` counts, including the four `skill-design-methodology/` internal docs; recount with `skill-design-methodology/tools/verify_corpus.py`.
+
+**Additions (new sources):**
+
+| Tier | Source | Local file |
+|---|---|---|
+| 1 Official | Claude Code — Plugins: https://code.claude.com/docs/en/plugins | `anthropic-claude/claude_code_plugins.md` |
+| 1 Official | Claude Code — Plugin marketplaces: https://code.claude.com/docs/en/plugin-marketplaces | `anthropic-claude/claude_code_plugin_marketplaces.md` |
+| 1 Official | Model Context Protocol — Specification rev 2025-11-25: https://modelcontextprotocol.io/specification/2025-11-25 | `open-standard/mcp_specification.md` |
+| Internal synthesis | ResearchVault deep-research reports (8 skill topics: SKILL.md design, routing, cross-model portability, activation criteria, degradation risk, global-vs-local, .claude/skills strategy, marketplaces) | `research-vault/*.md` |
+
+Internal-synthesis tier ranks below official docs and open standards: use for cross-checked secondary summaries, never as the primary basis for a rule. Other near-topic vault runs remain available in the vault but were deliberately not harvested.
+
+**Re-captures:** both Anthropic Agent Skills docs and both agentskills.io pages re-captured as served markdown (Accessed 2026-07-05); Spring AI agent-skills post re-captured via extraction proxy. All four former Cloudflare-stub captures (two Medium personal-domain posts fetched directly; jonathans-musings Medium post and the DataCamp catalog via extraction proxy, possibly abridged — see their Provenance headers) are recovered; nothing was dropped.
+
+**Normalization:** every remaining raw/partial-HTML capture was converted to clean markdown and every capture file now carries a standard provenance header. The corpus word total is now an honest ~168k (the old ~750–763k figures counted HTML markup).

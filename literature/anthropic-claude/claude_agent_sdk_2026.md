@@ -1,5 +1,15 @@
 # Claude Agent SDK (2026)
 
+Source: https://code.claude.com/docs/llms.txt
+Accessed: 2026-05-29
+Category: anthropic-claude / agent SDK vs skills
+Provenance: synthesized web-research summary written 2026-05-29 (not a page scrape); header added 2026-07-05
+
+## Why This Source Matters
+
+Summary of the 2026 Claude Agent SDK split: the SDK owns runtime orchestration (MCP, context, hooks) while Skills carry domain knowledge. Frames what belongs in a skill versus the host runtime. Tier 5 synthesis note — verify against official docs before citing.
+
+
 The **Claude Agent SDK** (formerly known as the "Claude Code SDK") is a developer toolkit and library that exposes the autonomous agent harness powering Claude Code as a programmable interface for Python and TypeScript.
 
 ### Overview

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is **not an application** — it is a research-backed toolkit for engineering `SKILL.md` files (Agent Skills) for AI coding agents. There is no build, no server, no app runtime. The "product" is Markdown skill folders. Three layers, each grounded in the one before it:
 
-- **`literature/`** — 57 curated source documents (~763K words) across the Anthropic, OpenAI, Copilot, open-standard, platform-rule, and academic agent ecosystems. The evidence base. Read-only research corpus; do not edit source files.
+- **`literature/`** — 68 curated source documents (~168K words, clean markdown as of the 2026-07-05 corpus refresh) across the Anthropic, OpenAI, Copilot, open-standard, platform-rule, academic, and internal deep-research agent ecosystems. The evidence base. Read-only research corpus; do not edit source files.
 - **`skillify/`** — the skill-creator *meta-skill*. A single `SKILL.md` (8 modes) plus `references/`, `templates/`, `scripts/`, `examples/` synthesized from the literature. This is the engine that produces and audits all other skills.
 - **`treasury/`** — 123 production skills built with `skillify`, grouped into 9 purpose groups. `treasury/README.md` is the **authoritative catalog** (the root `README.md` count can lag — trust `treasury/README.md`).
 

@@ -1,3 +1,15 @@
+# Claude Guide
+
+Source: https://resources.anthropic.com/hubfs/The-Complete-Guide-to-Building-Skill-for-Claude.pdf
+Accessed: 2026-04-26
+Category: anthropic-claude / long-form skill guide
+Provenance: text extraction of the companion claude_guide.pdf; header added 2026-07-05
+
+## Why This Source Matters
+
+Anthropic's long-form practitioner manual for building Claude skills: planning, structure, testing, iteration, sharing, troubleshooting. The deepest single official treatment of the full skill lifecycle. Tier 1 official source.
+
+
 The Complete Guide 
 to Building Skills 
 for Claude
