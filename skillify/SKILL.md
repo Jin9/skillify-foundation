@@ -176,4 +176,3 @@ For frontmatter rules (kebab-case names, reserved-vendor-name ban, no XML angle 
 - `scripts/init_skill.py` - Boilerplate skill folder generator.
 - `scripts/quick_validate.py` - Deterministic frontmatter and structure validator.
 - `scripts/check_links.py` - Local reference/template link checker.
-- `platforms/install.sh` - Cross-platform skill installation script.

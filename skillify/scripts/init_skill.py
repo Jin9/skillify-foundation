@@ -43,6 +43,7 @@ description: >
 
 - Use when: [specific trigger phrase or user intent]
 - Use when: [another specific trigger phrase or user intent]
+- Use when: [a third specific trigger phrase or user intent]
 - Do NOT use when: [out-of-scope scenario]
 
 ## Workflow

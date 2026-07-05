@@ -377,7 +377,11 @@ def main() -> int:
         report_path.write_text(report, encoding="utf-8")
         print(report)
         print(f"Report written: {report_path}")
-        return 0 if after_metrics["indicator_pass"] >= before_metrics["indicator_pass"] else 1
+        regressed = (
+            after_metrics["indicator_pass"] < before_metrics["indicator_pass"]
+            or after_metrics["golden_pass"] < before_metrics["golden_pass"]
+        )
+        return 1 if regressed else 0
     finally:
         shutil.rmtree(before_temp.parent, ignore_errors=True)
 

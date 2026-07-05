@@ -55,3 +55,5 @@ Risks for model phases:
 - The skill is broad by mode count, so later phases should challenge whether mode routing is enough to prevent over-triggering.
 - Completion-report and validation instructions are inline; later phases should decide whether that is useful immediate context or reference bloat.
 - Platform compatibility is broad; later phases should avoid vendor-specific assumptions in the core body.
+
+> 2026-07-05: extended by `research-notes-2026-07.md` (2026-07 rerun — corpus refreshed to 68 clean-markdown sources; see consult-records/ for cross-model provenance).

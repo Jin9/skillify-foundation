@@ -1,5 +1,15 @@
 # Skills Best Practice
 
+Source: https://github.com/shanraisshan/claude-code-best-practice/blob/main/best-practice/claude-skills.md
+Accessed: 2026-04-26
+Category: anthropic-claude / community field notes
+Provenance: header added 2026-07-05; body unchanged
+
+## Why This Source Matters
+
+Community notes documenting Claude-Code-specific frontmatter fields (when_to_use, allowed-tools, context, effort, hooks) and trigger behavior beyond the official spec, including the 1536-char combined description cap. Tier 4 community source.
+
+
 ![Last Updated](https://img.shields.io/badge/Last_Updated-Apr%2024%2C%202026%2012%3A27%20AM%20PKT-white?style=flat&labelColor=555) ![Version](https://img.shields.io/badge/Claude_Code-v2.1.118-blue?style=flat&labelColor=555)<br>
 [![Implemented](https://img.shields.io/badge/Implemented-2ea44f?style=flat)](../implementation/claude-skills-implementation.md)
 

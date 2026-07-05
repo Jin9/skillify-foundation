@@ -1,3 +1,15 @@
+# OpenAI Skill Creator — canonical SKILL.md example
+
+Source: https://github.com/openai/skills/blob/main/skills/.system/skill-creator/SKILL.md
+Accessed: 2026-04-26
+Category: openai / canonical example
+Provenance: verbatim artifact capture including its original YAML frontmatter (below); header added 2026-07-05
+
+## Why This Source Matters
+
+The canonical OpenAI skill-creator SKILL.md — the single most load-bearing example in the corpus for structure, wording, metadata.short-description, and modular instruction style. Directly informed skillify's init_skill.py and meta-skill logic. Tier 3 official example.
+
+
 ---
 name: skill-creator
 description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Codex's capabilities with specialized knowledge, workflows, or tool integrations.

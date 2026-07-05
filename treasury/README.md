@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-126 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+129 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -8,12 +8,12 @@
 | [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 21 |
 | [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 15 |
 | [Testing, QA & Validation](#testing-qa-validation) | 12 |
-| [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 14 |
+| [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 16 |
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 15 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 7 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 9 |
-| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 18 |
-| **Total** | **126** |
+| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 19 |
+| **Total** | **129** |
 
 ---
 
@@ -81,7 +81,8 @@ Implementation, platform template, refactoring, and code-review skills.
 | [`implement-backend-feature`](./implement-backend-feature/) | Generate production-grade Go backend code for one microservice feature from an approved design document. Use when implementing a Go HTTP handler from a design spec. Use when generating a CQRS command or query handler... | squad-delivery | RATIONALE.md · references · schemas · tests |
 | [`implement-frontend-feature`](./implement-frontend-feature/) | Generate production-grade React/TypeScript code for one frontend feature from an approved UI design, with banking-grade discipline: WCAG 2.1 AA a11y, no any outside parsers, no localStorage auth tokens, no unsanitized... | squad-delivery | RATIONALE.md · references · schemas · tests |
 | [`implementing-go-template-requirements`](./implementing-go-template-requirements/) | Apply a single requirement (spec line, ticket, bug report, user story) to a Go service that follows the go-template scaffold by editing ONLY business logic under `app/[domain]/` plus narrow `register*` wiring in `rout... | agentic | examples · references · templates |
-| [`langgraph-professional`](./langgraph-professional/) | Guide professional LangGraph v1.x implementation, refactoring, and review workflows. Use when the user asks "Implement a LangGraph v1.x workflow in this repo using professional StateGraph patterns", "Refactor this Lan... | langgraph-claude-agent | references · templates || [`platform-common`](./platform-common/) | Shared Go infrastructure library for A-Team Krungthai DGL microservices — Gin middleware, Kafka producer/consumer, JWT, structured slog logging, response envelopes, database/Redis/Firestore/GCS/S3 connectors, AES/RSA... | agentic | references |
+| [`langgraph-professional`](./langgraph-professional/) | Guide professional LangGraph v1.x implementation, refactoring, and review workflows. Use when the user asks "Implement a LangGraph v1.x workflow in this repo using professional StateGraph patterns", "Refactor this Lan... | langgraph-claude-agent | references · templates |
+| [`platform-common`](./platform-common/) | Shared Go infrastructure library for A-Team Krungthai DGL microservices — Gin middleware, Kafka producer/consumer, JWT, structured slog logging, response envelopes, database/Redis/Firestore/GCS/S3 connectors, AES/RSA... | agentic | references |
 | [`platform-go-service`](./platform-go-service/) | Scaffold or extend a Go microservice in this repository (go-template) using A-Team platform conventions: DDD aggregate-per-package, CQRS handler/consumer split, Fowler-style Repository / Cache / Gateway in `access/`,... | agentic | references |
 | [`refactoring-go-services`](./refactoring-go-services/) | Incrementally refactor messy Go microservices toward clean DDD/CQRS architecture while preserving behavior — one code smell and one Fowler-style refactoring action per iteration, verified by tests or build after each... | agentic | examples · references |
 | [`review-backend-code`](./review-backend-code/) | Adversarially verify Go backend code emitted by a Generate stage against the approved design and the 11 banking-grade decision rules + v2 augmentations, then issue a machine-readable verdict (approve, loop_back, or hu... | agentic | RATIONALE.md · references · schemas · tests |
@@ -107,7 +108,7 @@ Test planning, acceptance criteria, QA, and implementation validation.
 | [`testing-strategy`](./testing-strategy/) | Decide what to test and at which level (unit / integration / contract / e2e / regression) and map a requirement's business logic into concrete test scenarios, so coverage guarantees behavior rather than a number. Use... | business-analyse | — |
 | [`validating-banking-implementation`](./validating-banking-implementation/) | QA Engineer persona for enterprise banking implementation artifacts. Adversarial OWASP Top 10 testing, transactional-integrity audit, race / deadlock analysis, and chaos-test plan drafting on completed Developer-stage... | squad-delivery | references |
 
-## Agent Orchestration & Workflow Infrastructure (14)
+## Agent Orchestration & Workflow Infrastructure (16)
 
 Multi-agent orchestration, scaffold configuration, prompts, gates, and workflow infrastructure.
 
@@ -119,6 +120,8 @@ Multi-agent orchestration, scaffold configuration, prompts, gates, and workflow 
 | [`composing-agent-pipelines`](./composing-agent-pipelines/) | Composes a portable multi-agent pipeline (Plan, Gather, Analyze, Review, Validate, Decide, Compact) for research, code review, implementation planning, or trade-off analysis. Use when the user asks to "compose agent p... | existing treasury | examples · references · scripts · templates |
 | [`delegating-to-cli-models`](./delegating-to-cli-models/) | Drive external model CLIs as advisory sub-agents from one orchestrating agent: codex (GPT, gpt-5.5) and agy (Antigravity/Gemini), plus optional headless self-delegation. Dispatch headlessly with a watchdog and the exact model label, ground-truth the backend, then adjudic... | skillify | examples · references · scripts · templates |
 | [`developing-langgraph-workflows`](./developing-langgraph-workflows/) | Guide professional LangGraph v1.x implementation, refactoring, and review workflows. Use when the user asks "Implement a LangGraph v1.x workflow in this repo using professional StateGraph patterns", "Refactor this Lan... | langgraph-claude-agent | references · templates |
+| [`discord-harness-extend`](./discord-harness-extend/) | Add or modify one tool in a Discord LLM harness while preserving the gate-lives-outside-the-model invariant: write the @tool handler, re-validate side effects inside the handler, classify ALLOW/CONFIRM/DENY in config... | discord-llm-harness | references · scripts · templates |
+| [`discord-harness-operate`](./discord-harness-operate/) | Run, configure, monitor, and deploy the Discord MySQL-operator bot without changing its tool code: the .env-secrets vs config.yaml-policy split, model swap via models.work, the Grafana/Prometheus stack, /healthz, and... | discord-llm-harness | references · scripts |
 | [`drafting-stage-prompt`](./drafting-stage-prompt/) | Curate stage prompts for the agent-scaffold prompt library at prompts/library/STAGE/TOPIC.md. Captures the Friday prompt-review ritual: a stage prompt with a why-it-works paragraph, success metric, failure mode, model... | existing treasury | references · templates |
 | [`handoff-revoke`](./handoff-revoke/) | Reverse a previously emitted deploy handoff as a SAGA compensating action — revoke the issued short-lived deploy credentials, signal the release control plane to halt or roll back the promotion tied to a handoff recei... | workflow-pack | references · schemas |
 | [`handoff-to-deploy`](./handoff-to-deploy/) | Hand a QA-signed-off release off to the deploy/release control plane behind a mandatory synchronous named-human approval, mint short-lived OIDC deploy credentials, and emit an immutable handoff receipt that ties the l... | workflow-pack | references · schemas |
@@ -180,7 +183,7 @@ Telemetry, cost governance, incident handling, readiness, and postmortems.
 | [`running-performance-load-test`](./running-performance-load-test/) | Drive a pre-prod performance/load test against a staging or UAT target and emit a budget-backed PASS, FAIL, or ERROR gate from real runner metrics — p95, p99, error rate, and throughput measured by a load runner, neve... | workflow-pack | references · schemas |
 | [`validating-production-slo`](./validating-production-slo/) | Validate a live production release against its declared SLOs by querying live SLIs over a bake window, evaluating multi-window burn-rate, and emitting a promote, hold, or rollback recommendation with a Pass, Marginal,... | workflow-pack | references · schemas |
 
-## Code Analysis, Productivity & Publishing (18)
+## Code Analysis, Productivity & Publishing (19)
 
 Code analysis, productivity, translation, publishing, and human-readable report generation.
 
@@ -192,6 +195,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`drawio-plus`](./drawio-plus/) | Generate clean, standardized, non-overlapping draw.io / diagrams.net diagrams of any kind (architecture, flow, ER, class, network, sequence, mockup) whose boxes never overlap and whose arrows route around boxes, following fixed 80/60/40 spacing and grid stand... | skillify | references · scripts · templates · examples |
 | [`extract-anything`](./extract-anything/) | Extract ANY source — a document, a prior workflow stage's output, a spec, code, or notes — into a single LEAN, chainable JSON contract that preserves the source's salient context with bounded, inline-recorded information loss, so workflow stages chain without re-reading the sourc... | skillify | examples · references · schemas · scripts · templates |
 | [`generating-pseudocode`](./generating-pseudocode/) | Analyzes requirements or existing code to generate clean, language-agnostic pseudocode that bridges high-level intent and implementation, readable by a Python, Go, or TypeScript developer without translation. Use when... | existing treasury | references |
+| [`git-pro`](./git-pro/) | Manage git end-to-end like an expert: branch and stage cleanly, write atomic conventional-commit messages, choose merge vs rebase, resolve conflicts, tidy UNPUBLISHED history (squash, reorder, amend), and undo mistake... | skillify | examples · references · templates |
 | [`jira-fix-mr-workflow`](./jira-fix-mr-workflow/) | Run one Jira issue through a gated fix-to-GitLab-MR workflow that advances only on human approval. Use when the user says "fix Jira issue DGL-1234 and open an MR", "run the Jira fix workflow for a given issue key", "f... | jira-flow | — |
 | [`milestone-jo-check`](./milestone-jo-check/) | Verify that a vendor's billed milestones stay within the Job Order (JO) limits — that the summed Total Manday across all milestones is within the JO Estimated Manday, and the summed Total Amount is within the JO Estim... | review-milestone | scripts |
 | [`organizing-local-files`](./organizing-local-files/) | Plans and applies safe, offline organization of local files and folders. Use when the user says "organize this folder", "clean up my files", "classify my documents", "make folder taxonomy", "generate a safe move plan"... | existing treasury | references · templates |
@@ -241,6 +245,8 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`designing-tech-lead-handoff`](./designing-tech-lead-handoff/) | Architecture, Engineering Decisions & Planning | squad-delivery |
 | [`developing-langgraph-workflows`](./developing-langgraph-workflows/) | Agent Orchestration & Workflow Infrastructure | langgraph-claude-agent |
 | [`devops-infrastructure-hardener`](./devops-infrastructure-hardener/) | Security, Governance & Compliance | existing treasury |
+| [`discord-harness-extend`](./discord-harness-extend/) | Agent Orchestration & Workflow Infrastructure | discord-llm-harness |
+| [`discord-harness-operate`](./discord-harness-operate/) | Agent Orchestration & Workflow Infrastructure | discord-llm-harness |
 | [`domain-modeling`](./domain-modeling/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`drafting-ba-stories`](./drafting-ba-stories/) | Banking, BA Delivery & Requirements | business-analyse |
 | [`drafting-stage-prompt`](./drafting-stage-prompt/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
@@ -261,6 +267,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`generate-ux-pack`](./generate-ux-pack/) | Architecture, Engineering Decisions & Planning | squad-delivery |
 | [`generating-gherkin-acceptance-criteria`](./generating-gherkin-acceptance-criteria/) | Testing, QA & Validation | craft |
 | [`generating-pseudocode`](./generating-pseudocode/) | Code Analysis, Productivity & Publishing | existing treasury |
+| [`git-pro`](./git-pro/) | Code Analysis, Productivity & Publishing | skillify |
 | [`golite`](./golite/) | Implementation, Platform Templates & Code Review | platform-mgmt |
 | [`governance-policy-generator`](./governance-policy-generator/) | Security, Governance & Compliance | existing treasury |
 | [`handoff-revoke`](./handoff-revoke/) | Agent Orchestration & Workflow Infrastructure | workflow-pack |
@@ -271,7 +278,8 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`incident-response`](./incident-response/) | Observability, Cost & Incident Operations | business-analyse |
 | [`integration-design`](./integration-design/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`jira-fix-mr-workflow`](./jira-fix-mr-workflow/) | Code Analysis, Productivity & Publishing | jira-flow |
-| [`langgraph-professional`](./langgraph-professional/) | Implementation, Platform Templates & Code Review | langgraph-claude-agent || [`milestone-jo-check`](./milestone-jo-check/) | Code Analysis, Productivity & Publishing | review-milestone |
+| [`langgraph-professional`](./langgraph-professional/) | Implementation, Platform Templates & Code Review | langgraph-claude-agent |
+| [`milestone-jo-check`](./milestone-jo-check/) | Code Analysis, Productivity & Publishing | review-milestone |
 | [`model-selection`](./model-selection/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`multi-agent-handoff-architect`](./multi-agent-handoff-architect/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
 | [`observability-design`](./observability-design/) | Observability, Cost & Incident Operations | business-analyse |

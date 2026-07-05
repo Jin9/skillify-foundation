@@ -278,3 +278,15 @@ Gate:
 - Preserve user edits and avoid unrelated refactors.
 - Validate after editing with existing `skillify` scripts where applicable.
 - Report changed files, validation results, and remaining risks at the end.
+
+## Addendum — 2026-07 Rerun Notes (authority, corrected execution variant, contract fixes)
+
+1. **Authority.** This `plan.md` is the authoritative executable spec for reruns. `cross-model-skillification-pipeline.md` (`pipeline_phase: pre-0`) is the model-routing rationale that motivated it — keep both, never merge them (layered-docs rule).
+2. **Model execution notes (verified in the 2026-07-05 rerun):**
+   - Claude phases (0-support, 3, 4, 6) run IN-SESSION in the orchestrating agent. The command template above (`claude -p --model opus --effort max`) hangs on large prompts — a headless child inherits high effort and stalls; do not use it for these phases.
+   - Gemini phases (1, 2) run via the Antigravity CLI: `agy --model "<exact display label from agy models>" --print "<prompt>"`, `--model` BEFORE the prompt; ground-truth the backend from `~/.gemini/antigravity-cli/log/cli-*.log`. The plain `gemini` CLI headless is workspace-trust-gated — only the user may run it. Keep agy prompts to ≤~8 explicit file paths with a simple output contract; the 16-file attempt derailed to empty output (`agent executor error: trajectory converted to zero chat messages`) — split and retry.
+   - Codex/GPT phases run as `codex exec -m gpt-5.5` (gpt-5 / gpt-5-codex are rejected on a ChatGPT account), watchdog-wrapped (macOS has no `timeout`). Delegation mechanics live in the `delegating-to-cli-models` skill wrappers.
+   - **Meta-rule (supersedes the "final merge authority" line in Model Defaults):** all external-CLI output is ADVISORY. The orchestrating Claude adjudicates, verifies claims against primary sources, applies every repo edit itself, and records one consult-record per CLI call under `research/consult-records/`.
+3. **Output Contract correction.** Installed targets are `~/.claude/skills/skillify` and the shared `~/.agents/skills/skillify`, both written by `skillify/platforms/install.sh`. `~/.codex/skills/skillify` does not exist by default — install.sh creates it only under `INSTALL_CODEX_COMPAT=1` (avoid: duplicate skill discovery). The "primary target" path at the top of this file is stale on that point.
+4. **Artifacts rule amendment.** `skill-design-methodology/tools/` is a sanctioned home for deterministic process tooling (`normalize_capture.py`, `verify_corpus.py`), alongside `evals/`. Rerun artifacts are suffixed siblings (`<name>-2026-07.md`) with fresh frontmatter; prior-run artifacts stay untouched except a one-line pointer.
+5. **Literature-refresh preflight (new step before Phase 1).** Refresh the corpus and run `tools/verify_corpus.py` to green BEFORE Gemini tiering so Phase 1 grounds in clean sources. Executed 2026-07-05: 68 sources, all header/no-HTML/bookkeeping checks pass; corpus word total is now an honest ~168k (the old ~763K counted HTML noise).

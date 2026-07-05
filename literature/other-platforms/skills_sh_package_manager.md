@@ -1,5 +1,15 @@
 # skills.sh - AI Agent Skills Package Manager (2026)
 
+Source: https://skills.sh
+Accessed: 2026-05-29
+Category: other-platforms / skill distribution
+Provenance: synthesized web-research summary written 2026-05-29 (not a page scrape); header added 2026-07-05
+
+## Why This Source Matters
+
+Summary of skills.sh, the 2026 universal package manager for agent skills (npx skills add). Evidence for the distribution-hub shift that makes supply-chain review a first-class skill concern. Tier 5 synthesis note — verify before citing.
+
+
 **Skills.sh** is a community-driven open directory and package manager designed specifically for **AI agent skills**. Launched by Vercel in early 2026, it aims to standardize how developers discover, install, and manage the procedural knowledge and tools used by AI coding agents.
 
 ### What are "Agent Skills"?

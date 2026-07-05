@@ -28,7 +28,7 @@ Skills shape agent behavior. Treat every installed skill like executable influen
 
 ## Provenance and Supply Chain (installed or third-party skills)
 
-Skills are increasingly distributed through package managers and registries (for example `npx skills add` via skills.sh, or `gh skill` for GitHub-hosted skills). Treat an installed skill as untrusted code until reviewed:
+Skills are increasingly distributed through package managers, registries, and host plugin marketplaces (for example `npx skills add` via skills.sh, `gh skill` for GitHub-hosted skills, or marketplace-distributed plugins that bundle skills). Treat an installed skill as untrusted code until reviewed — marketplace distribution does not imply review:
 
 1. **Inspect before install.** Read the `SKILL.md` and every file under `scripts/` at the source before adding the skill, not after.
 2. **Check provenance.** Prefer skills that record their origin (source repository plus a pinned ref or commit) and a declared license. Unsourced or unlicensed skills are higher risk.

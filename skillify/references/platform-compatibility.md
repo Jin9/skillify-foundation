@@ -25,7 +25,7 @@ A request about a persona, tool permissions, or model choice is custom-agent wor
 | OpenAI Codex | `~/.agents/skills/<name>/`, `$CODEX_HOME/skills/<name>/` | `.agents/skills/<name>/` | `AGENTS.md` | Implicit by `description` or explicit `$name` |
 | GitHub Copilot | `~/.copilot/skills/<name>/`, `~/.agents/skills/<name>/` | `.github/skills/<name>/`, `.agents/skills/<name>/` | `.github/copilot-instructions.md`, `AGENTS.md` | Implicit by `description` in agent hosts |
 | Gemini CLI | `~/.gemini/skills/<name>/`, `~/.agents/skills/<name>/` | `.gemini/skills/<name>/`, `.agents/skills/<name>/` | `GEMINI.md`, `AGENTS.md` | Implicit by `description` after skill activation consent |
-| Antigravity | `~/.gemini/antigravity/skills/<name>/` | `.agents/skills/<name>/` | `~/.gemini/GEMINI.md`, `.agents/rules/` | Implicit by `description`; rules can reinforce triggers |
+| Antigravity | `~/.gemini/antigravity-cli/skills/<name>/` | `.agents/skills/<name>/` | `~/.gemini/GEMINI.md`, `.agents/rules/` | Implicit by `description`; rules can reinforce triggers |
 
 ## Universal Format
 
@@ -41,7 +41,7 @@ A request about a persona, tool permissions, or model choice is custom-agent wor
 - Keep `SKILL.md` platform-neutral: say "Run the command" instead of "Ask Claude to run the command."
 - Put host-specific installation notes in `platforms/`, not in the reusable workflow.
 - Prefer `.agents/skills/<name>/` for repository-scoped cross-agent skills.
-- Copy the whole skill folder, not only `SKILL.md`; referenced `scripts/`, `templates/`, and `platforms/` must travel with it.
+- Copy the whole skill folder, not only `SKILL.md`; referenced `references/`, `templates/`, and `scripts/` must travel with it.
 - Keep repo policy in always-on rule files. Keep repeatable workflows in `SKILL.md`.
 
 ## Activation Mechanisms
@@ -93,7 +93,7 @@ copy the full trigger list into the UI chip.
 
 ### Antigravity
 
-1. Install global skills under `~/.gemini/antigravity/skills/`.
+1. Install global skills under `~/.gemini/antigravity-cli/skills/`.
 2. Install workspace skills under `.agents/skills/`.
 3. Use Rules only to reinforce behavior that should apply broadly; do not duplicate full skill instructions there.
 

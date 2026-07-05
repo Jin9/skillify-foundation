@@ -102,3 +102,5 @@ What **not** to compact:
 - **The banned-docs list (5 named files) is enforced by `quick_validate.py` via filename match.** Adding a 6th banned doc requires updating both the script and the Constraints section. Consider extracting the list into a script constant that the section references.
 - **`init_skill.py` is unreferenced from any workflow step**, so it is never executed in the Create path; gate 1 will not exercise it. Either wire it into the Create workflow or accept that it is a manual bootstrap tool.
 - **Installed copy at `~/.codex/skills/skillify/SKILL.md` may drift from the repo copy.** The Phase 3 plan instructs Codex to keep the installed target as the primary. Final Phase 7 validation must run against both, or pick one canonical and document the sync method.
+
+> 2026-07-05: extended by `analysis-2026-07.md` (2026-07 rerun — corpus refreshed to 68 clean-markdown sources; see consult-records/ for cross-model provenance).
