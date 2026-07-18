@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-18
+
+### Added
+
+- Promoted `launching-workflow-routines` into the treasury (129 → 130): a by-name launcher over a `routines/` registry of designed multi-workflow routines — resolve, script-validate, overview-first plan, gated node-by-node dispatch, script-verified artifacts, run report. Ships `validate_routine.py` / `check_run.py`, the routine-format and run-protocol references, templates, and a demo routine.
+- Added the root `routines/` registry with three starter routines (`cross-model-authoring`, `research-squad-chain`, `banking-ba-wrap`) plus `INDEX.md`.
+
+### Changed
+
+- Synced treasury counts to 130 across `treasury/README.md`, root `README.md`, `AGENTS.md` (was stale at 122), and `CLAUDE.md` (was stale at 123).
+
 ## 2026-05-30
 
 ### Changed

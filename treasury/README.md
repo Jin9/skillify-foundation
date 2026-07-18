@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-129 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+130 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -8,12 +8,12 @@
 | [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 21 |
 | [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 15 |
 | [Testing, QA & Validation](#testing-qa-validation) | 12 |
-| [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 16 |
+| [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 17 |
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 15 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 7 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 9 |
 | [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 19 |
-| **Total** | **129** |
+| **Total** | **130** |
 
 ---
 
@@ -108,7 +108,7 @@ Test planning, acceptance criteria, QA, and implementation validation.
 | [`testing-strategy`](./testing-strategy/) | Decide what to test and at which level (unit / integration / contract / e2e / regression) and map a requirement's business logic into concrete test scenarios, so coverage guarantees behavior rather than a number. Use... | business-analyse | — |
 | [`validating-banking-implementation`](./validating-banking-implementation/) | QA Engineer persona for enterprise banking implementation artifacts. Adversarial OWASP Top 10 testing, transactional-integrity audit, race / deadlock analysis, and chaos-test plan drafting on completed Developer-stage... | squad-delivery | references |
 
-## Agent Orchestration & Workflow Infrastructure (16)
+## Agent Orchestration & Workflow Infrastructure (17)
 
 Multi-agent orchestration, scaffold configuration, prompts, gates, and workflow infrastructure.
 
@@ -125,6 +125,7 @@ Multi-agent orchestration, scaffold configuration, prompts, gates, and workflow 
 | [`drafting-stage-prompt`](./drafting-stage-prompt/) | Curate stage prompts for the agent-scaffold prompt library at prompts/library/STAGE/TOPIC.md. Captures the Friday prompt-review ritual: a stage prompt with a why-it-works paragraph, success metric, failure mode, model... | existing treasury | references · templates |
 | [`handoff-revoke`](./handoff-revoke/) | Reverse a previously emitted deploy handoff as a SAGA compensating action — revoke the issued short-lived deploy credentials, signal the release control plane to halt or roll back the promotion tied to a handoff recei... | workflow-pack | references · schemas |
 | [`handoff-to-deploy`](./handoff-to-deploy/) | Hand a QA-signed-off release off to the deploy/release control plane behind a mandatory synchronous named-human approval, mint short-lived OIDC deploy credentials, and emit an immutable handoff receipt that ties the l... | workflow-pack | references · schemas |
+| [`launching-workflow-routines`](./launching-workflow-routines/) | Trigger a pre-designed multi-node workflow routine BY NAME from a routines/ registry: resolve, script-validate, show an overview run plan, then execute node-by-node with human gates, script-verified artifacts under... | skillify | examples · references · scripts · templates |
 | [`multi-agent-handoff-architect`](./multi-agent-handoff-architect/) | Design inter-agent handoff APIs as versioned JSON Schema contracts (required taskId, intent, state, confidence, provenance/trace, schemaVersion) with binary single-writer ownership, observability spanning agent bounda... | existing treasury | references · schemas · scripts · templates |
 | [`orchestrating-agent-scaffold`](./orchestrating-agent-scaffold/) | Orchestrates a multi-stage research-squad workflow on top of the agent-scaffold (just / state.json / zellij / LiteLLM / ntfy / sandbox). Plans the run, picks profile and cap, spawns fit-for-job sub-agents for pre-flig... | existing treasury | references · scripts · templates |
 | [`orchestrating-openclaw-squad`](./orchestrating-openclaw-squad/) | Orchestrates a multi-agent squad (Business Analyst, Architect, Developer, QA Engineer) with strict human-in-the-loop validation, sandbox isolation, and explicit approval gates for enterprise and regulated workflows. U... | existing treasury | references · templates |
@@ -279,6 +280,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`integration-design`](./integration-design/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`jira-fix-mr-workflow`](./jira-fix-mr-workflow/) | Code Analysis, Productivity & Publishing | jira-flow |
 | [`langgraph-professional`](./langgraph-professional/) | Implementation, Platform Templates & Code Review | langgraph-claude-agent |
+| [`launching-workflow-routines`](./launching-workflow-routines/) | Agent Orchestration & Workflow Infrastructure | skillify |
 | [`milestone-jo-check`](./milestone-jo-check/) | Code Analysis, Productivity & Publishing | review-milestone |
 | [`model-selection`](./model-selection/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`multi-agent-handoff-architect`](./multi-agent-handoff-architect/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
