@@ -21,7 +21,7 @@ my-skill/
 .
 ├── literature/              # 68 curated source documents
 ├── skillify/                # The skill-creator meta-skill and validation tooling
-└── treasury/                # 130 top-level skills grouped by purpose
+└── treasury/                # 131 top-level skills grouped by purpose
     ├── README.md            # Skill catalog grouped by purpose
     └── <skill>/             # each: SKILL.md plus optional local assets
 ```
@@ -97,20 +97,20 @@ python3 skillify/scripts/check_links.py path/to/skill-folder
 
 ## Treasury — Production Skill Library
 
-The `treasury/` directory holds **130 top-level skills** grouped by purpose. Full per-skill detail, source family, asset breakdown, curated folder names, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
+The `treasury/` directory holds **131 top-level skills** grouped by purpose. Full per-skill detail, source family, asset breakdown, curated folder names, and an alphabetical index live in the catalog: [`treasury/README.md`](treasury/README.md).
 
 | Purpose Group | Count |
 |---------------|-------|
 | Banking, BA Delivery & Requirements | 15 |
-| Architecture, Engineering Decisions & Planning | 21 |
+| Architecture, Engineering Decisions & Planning | 22 |
 | Implementation, Platform Templates & Code Review | 15 |
 | Testing, QA & Validation | 12 |
-| Agent Orchestration & Workflow Infrastructure | 16 |
+| Agent Orchestration & Workflow Infrastructure | 17 |
 | Research, Debate & Knowledge Synthesis | 15 |
 | Security, Governance & Compliance | 7 |
 | Observability, Cost & Incident Operations | 9 |
 | Code Analysis, Productivity & Publishing | 19 |
-| **Total** | **129** |
+| **Total** | **131** |
 
 ## Literature Sources
 

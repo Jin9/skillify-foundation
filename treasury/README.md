@@ -1,11 +1,11 @@
 # Treasury — Production Skill Library
 
-130 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+131 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
 | [Banking, BA Delivery & Requirements](#banking-ba-delivery-requirements) | 15 |
-| [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 21 |
+| [Architecture, Engineering Decisions & Planning](#architecture-engineering-decisions-planning) | 22 |
 | [Implementation, Platform Templates & Code Review](#implementation-platform-templates-code-review) | 15 |
 | [Testing, QA & Validation](#testing-qa-validation) | 12 |
 | [Agent Orchestration & Workflow Infrastructure](#agent-orchestration-workflow-infrastructure) | 17 |
@@ -13,7 +13,7 @@
 | [Security, Governance & Compliance](#security-governance-compliance) | 7 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 9 |
 | [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 19 |
-| **Total** | **130** |
+| **Total** | **131** |
 
 ---
 
@@ -39,7 +39,7 @@ Business-analysis workflows for regulated banking and delivery handoffs.
 | [`scoping-technical-requirements`](./scoping-technical-requirements/) | Turns a messy business requirement into a clear, bounded technical scope a team can safely act on, surfacing the open questions and non-functional requirements that decide everything downstream. Use when the user asks... | business-analyse | — |
 | [`sweep-ambiguities`](./sweep-ambiguities/) | Detect linguistic ambiguities and hidden requirements in a structured banking brief using the eight ambiguity detectors and ten elicitation frames. Use when a user asks to "find the hidden requirements in this brief",... | craft | examples · references · templates |
 
-## Architecture, Engineering Decisions & Planning (21)
+## Architecture, Engineering Decisions & Planning (22)
 
 Design, modeling, planning, and engineering decision support.
 
@@ -60,6 +60,7 @@ Design, modeling, planning, and engineering decision support.
 | [`integration-design`](./integration-design/) | Design resilient integration with an external/3rd-party system (timeouts, retries, fallback, error mapping, idempotency, and a clear ownership/support model) so their failures do not become our outages. Use when the u... | business-analyse | — |
 | [`model-selection`](./model-selection/) | Assign each agent or stage in an agentic workflow a model and reasoning effort by criteria — a privacy/data-class gate, capability-to-role match, cost-per-successful-task, reasoning effort, structured decoding, and a... | business-analyse | — |
 | [`pr-design-review`](./pr-design-review/) | Review a PR's design and maintainability — business-logic completeness, test coverage, over-engineering, and template conformance — returning tagged, teachable comments plus a merge-or-iterate verdict. Use when the us... | business-analyse | — |
+| [`principal-advisor`](./principal-advisor/) | Principal/staff-level engineering sparring partner for explicit technology decisions and idea exploration — compares stack and architecture options, tests feasibility, steelmans then challenges assumpt... | skillify | references · templates |
 | [`production-readiness`](./production-readiness/) | Verify a feature is safe to ship — observability, rollback, runbook, migration safety, and a passing smoke test — and return a clear go / no-go / conditional verdict. Use when the user asks "is this safe to ship", "pr... | business-analyse | — |
 | [`red-teaming-implementation-plan`](./red-teaming-implementation-plan/) | Adversarially red-team an implementation plan or Tech-Lead design BEFORE any code is written, then issue a machine-readable PROCEED, REVISE, or BLOCK verdict with severity-ranked findings. Use when asked to red-team a... | workflow-pack | references · schemas |
 | [`refactor-decision`](./refactor-decision/) | Decide whether a refactor is necessary, bound its scope, protect existing behavior with tests first, and avoid cosmetic refactors that have no business reason. Use when the user asks "should we refactor this", "how bi... | business-analyse | — |
@@ -298,6 +299,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`platform-common`](./platform-common/) | Implementation, Platform Templates & Code Review | agentic |
 | [`platform-go-service`](./platform-go-service/) | Implementation, Platform Templates & Code Review | agentic |
 | [`pr-design-review`](./pr-design-review/) | Architecture, Engineering Decisions & Planning | business-analyse |
+| [`principal-advisor`](./principal-advisor/) | Architecture, Engineering Decisions & Planning | skillify |
 | [`production-readiness`](./production-readiness/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`progressive-bug-hunter`](./progressive-bug-hunter/) | Code Analysis, Productivity & Publishing | existing treasury |
 | [`publishing-git-review-requests`](./publishing-git-review-requests/) | Code Analysis, Productivity & Publishing | existing treasury |

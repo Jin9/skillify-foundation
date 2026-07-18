@@ -22,7 +22,7 @@ Three layers, each grounded in the one before it:
 
 - `literature/` — 68 curated source documents (~168K words, clean markdown as of the 2026-07-05 corpus refresh) across the agent ecosystem. Read-only research corpus; do not edit source files.
 - `skillify/` — the skill-creator *meta-skill*: one `SKILL.md` (8 modes) plus `references/`, `templates/`, `scripts/`, `examples/`. The engine that produces and audits every other skill.
-- `treasury/` — 130 production skills grouped into 9 purpose groups. `treasury/README.md` is the **authoritative catalog** (the root `README.md` count can lag — trust `treasury/README.md`).
+- `treasury/` — 131 production skills grouped into 9 purpose groups. `treasury/README.md` is the **authoritative catalog** (the root `README.md` count can lag — trust `treasury/README.md`).
 
 ## Code style
 

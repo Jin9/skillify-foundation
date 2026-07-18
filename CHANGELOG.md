@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-07-19
+
+### Added
+
+- Promoted `principal-advisor` into the treasury (130 → 131): a conversational principal/staff-level advisory sparring partner for chat hosts — advise / assess (BUILDABLE / NOT NOW / PHASED) / challenge (steelman-first, evidence-based findings) / brainstorm stances plus on-request in-chat wrap-up templates, a depth dial, and a conditional Thailand-fintech lens (BOT/PDPA/AMLA). Text-only (no scripts), vendor-neutral, packaged for claude.ai zip upload. Verified by both deterministic validators, an independent 49/50 rubric audit, a 20/20 blind trigger eval, and an adjudicated codex (gpt-5.6-sol, max reasoning effort) cross-model consult.
+
+### Changed
+
+- Synced treasury counts to 131 across `treasury/README.md` (summary, group, catalog, and index tables), root `README.md`, `AGENTS.md`, and `CLAUDE.md`.
+
 ## 2026-07-18
 
 ### Added
