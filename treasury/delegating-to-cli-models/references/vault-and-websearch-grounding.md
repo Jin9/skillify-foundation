@@ -1,6 +1,6 @@
 # Vault and websearch grounding
 
-The flagship research-digest mode dispatches agy/"Gemini 3.1 Pro (High)" to digest a research vault
+The flagship research-digest mode dispatches agy at the frontier tier to digest a research vault
 plus current web sources. This file covers reading the vault safely and keeping the digest honest.
 
 ## The vault is read via its local mirror, not iCloud
