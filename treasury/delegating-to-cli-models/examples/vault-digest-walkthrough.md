@@ -1,7 +1,10 @@
 # Walkthrough — research-digest mode (real run)
 
-A real research-digest run captured while building this skill: dispatch agy/"Gemini 3.1 Pro (High)"
-to digest five ResearchVault reports (local mirror) plus a web pass, then adjudicate.
+The research-digest run that grounded this skill, captured **2026-06-15**: dispatch agy at the
+frontier tier to digest five ResearchVault reports (local mirror) plus a web pass, then adjudicate.
+The framing and adjudication below are that run verbatim. The dispatch form and provenance lines in
+sections 2 and 3 were **re-verified by live dispatch on 2026-07-30** against the current CLI
+contract — the digest itself was not re-run, so section 4 remains the June output.
 
 ## 1. Frame & route
 
@@ -13,20 +16,33 @@ fixed-section Markdown digest.
 
 ## 2. Dispatch (through the wrapper, neutral CWD)
 
+Use the **display-label** form for the frontier model — the equivalent slug is accepted without
+error but silently runs the default model (see section 3).
+
 ```bash
-TIMEOUT=540 bash scripts/run_agy.sh "Gemini 3.1 Pro (High)" "$(cat harvest-prompt.txt)" "$HOME/agy-harvest-scratch"
+TIMEOUT=600 bash scripts/run_agy.sh "Gemini 3.1 Pro (High)" "$(cat harvest-prompt.txt)" "$HOME/agy-harvest-scratch"
 ```
 
-## 3. Ground-truth the backend
+## 3. Ground-truth the model
 
 ```text
-PROVENANCE: cli=agy requested_label="Gemini 3.1 Pro (High)" backend_label="Gemini 3.1 Pro (High)" timeout=540s exit=0 log=".../cli-20260615_223818.log"
+PROVENANCE: cli=agy requested_model="Gemini 3.1 Pro (High)" backend_label="Gemini 3.1 Pro (High)" backend_verified=yes print_timeout=90s watchdog=120s elapsed=11s timeout=none exit=0 log=".../cli-wrapper-20260730_013907-78960.log"
 ```
 
-`backend_label` equals the requested label — the call really ran on Gemini 3.1 Pro (High), not a
-silent Flash fallback, and the watchdog did not fire.
+`backend_verified=yes` is the only thing that licenses reading the output: the call really ran on
+the frontier model, and neither timeout fired.
 
-## 4. Advisory output (excerpt)
+This is not a formality. The same request written as a slug — a slug `agy models` itself lists —
+produces a normal-looking answer and a zero exit while running a different, cheaper model:
+
+```text
+PROVENANCE: cli=agy requested_model="gemini-3.1-pro-high" backend_label="Gemini 3.6 Flash (High)" backend_verified=MISMATCH ... exit=0
+error: SILENT FALLBACK — requested "gemini-3.1-pro-high" but the backend ran "Gemini 3.6 Flash (High)".
+```
+
+The wrapper exits 3 and the output is discarded. Nothing in the answer text would have revealed it.
+
+## 4. Advisory output (excerpt, 2026-06-15 run)
 
 ```text
 ## Watchdog & timeout patterns

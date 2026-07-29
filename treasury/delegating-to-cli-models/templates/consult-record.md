@@ -5,10 +5,11 @@
 - **Timestamp:** [YYYY-MM-DD HH:MM:SS]
 - **Mode:** consult | research-digest | code-structure | fan-out
 - **CLI:** codex | agy | headless-claude
-- **Requested model label:** [e.g. "Gemini 3.1 Pro (High)" | gpt-5.5 | opus]
-- **Backend verified (from log/provenance):** [yes — backend_label="…" | no — explain]
-- **Effort / tier:** [small | mid | frontier; flag or label used]
-- **Watchdog:** [TIMEOUT=Ns; fired? yes/no] · **Exit:** [code]
+- **Requested model:** [as passed, e.g. "Gemini 3.1 Pro (High)" | gpt-5.6-sol | opus | (config default)]
+- **Model that answered:** [backend_label / resolved_model from the provenance line]
+- **Verified:** [yes | MISMATCH — discard and re-dispatch | no — explain why it could not be checked]
+- **Effort / tier:** [small | mid | frontier]
+- **Watchdog:** [TIMEOUT=Ns] · **Timeout:** [none | watchdog | CLI response timeout] · **Exit:** [code]
 
 ## Prompt
 

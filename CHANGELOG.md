@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-07-30
+
+### Fixed
+
+- `delegating-to-cli-models`: repaired the agy and codex dispatch contracts, which had stopped working as documented. `run_agy.sh` no longer gates on `agy models` — that call is server-backed, was observed hanging indefinitely, ran before the watchdog was armed, and now emits slugs rather than the display labels the guard whole-line-matched, so it rejected every documented model. The wrapper now accepts either identifier form, writes a per-run `--log-file` so concurrent fan-out dispatches stop racing for the newest shared log, keeps agy's own response timeout under the watchdog (it defaults to 5m, so a longer watchdog could never fire), and exits 3 when the backend model differs from the request. `run_codex.sh` stops passing `-m` unless a model is explicitly pinned — `codex exec` resolves `config.toml` itself, and an unconditional `-m` silently defeated `--profile` and `-c model=` layering — and reads the resolved model back from codex's own run header.
+
+### Changed
+
+- Refreshed `delegating-to-cli-models` model guidance for agy 1.1.8 and codex-cli 0.146.0: `gpt-5.5` → `gpt-5.6-sol`, Flash tier → 3.6, and tier-first routing so concrete model identifiers live in exactly one dated table. Corrected two claims disproved by live dispatch: argument order is *not* what drops `--model` (a controlled 2×2 showed `--model` after `--print` is honored), and agy now has a separate `--effort` flag that hard-conflicts with an effort-encoded model identifier. Verified 2026-07-30 — `gemini-3.1-pro-high` is accepted with exit 0 and no warning while the backend silently runs the default model, so the display-label form is now the documented default and post-run verification is mandatory rather than advisory.
+
 ## 2026-07-19
 
 ### Added
