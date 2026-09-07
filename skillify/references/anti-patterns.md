@@ -24,15 +24,15 @@ See also: `validation-rubric.md` for scoring and `progressive-disclosure.md` for
 **Why it's bad**: It breaks portability. If another repository uses a different branching strategy, the skill will fail or cause issues.
 **Fix**: Keep repository-specific rules in `AGENTS.md` (or `CLAUDE.md`) at the root of the project. Keep `SKILL.md` strictly focused on the reusable workflow.
 
-## 5. Non-Step-By-Step Workflows
-**What it is**: A wall of unstructured text explaining how a task should theoretically be done.
-**Why it's bad**: The agent might skip steps or execute them out of order.
-**Fix**: Provide explicit, numbered lists in imperative format ("1. Do X. 2. Verify Y. 3. Output Z.").
+## 5. Wrong Degree of Freedom
+**What it is**: Specificity that does not match fragility. Under-specified: a wall of prose for an operation where only one sequence is safe. Over-specified: step-by-step choreography, prohibition walls, or "must" and "never" emphasis for work the agent should judge.
+**Why it's bad**: Under-specified fragile work gets skipped or reordered. Over-specified judgment work makes the agent follow the script instead of its better plan, and stacked emphasis over-applies: rigid, hedging output and prohibitions that anchor toward the failure they name. Skills written for earlier model generations are often too prescriptive for current ones and lower output quality.
+**Fix**: Match specificity to fragility per `model-generation-fit.md` section 1, and keep every item on its keep list. Keep a prohibition only when it guards a failure seen on the current model or encodes a real policy, and say why. `scripts/cruft_scan.py` flags the common forms.
 
 ## 6. Overriding User Intent
-**What it is**: Instructing the agent to forcefully rewrite user code to a specific style even when the user explicitly asked to "just fix the syntax error."
-**Why it's bad**: It creates a frustrating user experience where the agent argues with the user.
-**Fix**: Make style guidelines optional or dependent on specific trigger conditions ("When the user asks for a code review...").
+**What it is**: A skill instruction that outranks the user: forcing a style rewrite when the user asked to "just fix the syntax error", or any line that makes the agent pause, ask for a confirmation the user did not request, or leave requested work unfinished.
+**Why it's bad**: Current models weight skill instructions heavily; when the skill and the user disagree the agent may stop, change direction, or follow the skill's rule instead of the request, and the user experiences an agent that argues or stalls.
+**Fix**: State that the user's request sets the scope and wins on conflict (the operating contract in `templates/operating-contract.md`). Reserve stops for destructive or irreversible actions and for genuine changes to the scope the user set. Make style guidance conditional ("When the user asks for a code review..."). For diagnosing and rewriting the offending line, see the "Unrequested pause or divergence" row in `lifecycle-and-iteration.md`.
 
 ## 7. Generating Output When Asked for a Skill
 **What it is**: A meta-skill (like a skill-creator) generating the *target code* instead of generating the `SKILL.md` file.
@@ -59,7 +59,7 @@ See also: `validation-rubric.md` for scoring and `progressive-disclosure.md` for
 **Why it's bad**: Content drifts apart over time, creating contradictions that confuse the agent.
 **Fix**: Information should live in exactly one place. Skills point to references; they don't copy them.
 
-## 12. Hardcoded Platform Assumptions
-**What it is**: A skill that assumes it will only run in Claude Code (e.g., referencing Claude-specific frontmatter fields or tool names).
-**Why it's bad**: It breaks when used in Codex, Copilot, or other agents that support the open skill standard.
-**Fix**: Write platform-agnostic instructions. Use the `compatibility` field to declare supported platforms. See `references/platform-compatibility.md`.
+## 12. Hardcoded Platform or Model Assumptions
+**What it is**: A skill that assumes one host or one model generation: host-specific frontmatter fields or tool names; pinned model names; workarounds for a retired model's habits; scaffolds the current model has natively ("think step by step", "show your reasoning", "hold all findings until the end", "never use bullets").
+**Why it's bad**: Host assumptions break on Codex, Copilot, Gemini, or Antigravity. Model assumptions rot silently at the next release: pinned names degrade, retention crutches waste tokens, "show your reasoning" can trigger a refusal on some models, and narration or formatting suppressors strip output the user wanted.
+**Fix**: Write platform-agnostic instructions and declare hosts in `compatibility`. Name model-cost tiers (`small`, `mid`, `frontier`) and effort hints, never model names; a dated "e.g." beside a tier is acceptable only in a data table, never in a rule line (`model-generation-fit.md` section 5). Drop scaffolds for behavior the agent now does unprompted; keep verification steps and exact scripts for fragile operations. Re-audit at every model release (`lifecycle-and-iteration.md`, `model-generation-fit.md`). See `references/platform-compatibility.md`.

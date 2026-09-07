@@ -55,7 +55,7 @@ metadata:
 | `disable-model-invocation` | boolean | Set `true` to prevent auto-invocation |
 | `user-invocable` | boolean | Set `false` to hide from `/` menu (background knowledge only) |
 | `allowed-tools` | string | Tools allowed without permission prompts |
-| `model` | string | Model override (e.g., `haiku`, `sonnet`, `opus`) |
+| `model` | string | Host model alias override; never pin one in a portable skill, express the need as a body-level model-cost tier instead |
 | `effort` | string | Effort level override (`low`, `medium`, `high`, `xhigh`, `max`) |
 | `context` | string | Set to `fork` for isolated subagent context |
 | `agent` | string | Subagent type when `context: fork` (default: `general-purpose`) |
@@ -76,7 +76,7 @@ Not every field travels across hosts. Classify a field before relying on it:
 
 - **Required (all hosts):** `name`, `description`.
 - **Portable-optional:** `compatibility`, `metadata`, `when_to_use` — widely understood or safely ignored, so they are safe to keep in a cross-host skill.
-- **Host-specific:** the Advanced fields above (`allowed-tools`, `model`, `effort`, `context`, `paths`, `hooks`, `argument-hint`, and the Codex `metadata.short-description` / `agents/openai.yaml`). Useful on their host, ignored or unsupported elsewhere — keep them out of skills meant to run everywhere, or isolate them per the Adapt mode.
+- **Host-specific:** the Advanced fields above (`allowed-tools`, `model`, `effort`, `context`, `paths`, `hooks`, `argument-hint`, and the Codex `metadata.short-description` / `agents/openai.yaml`). Useful on their host, ignored or unsupported elsewhere — keep them out of skills meant to run everywhere, or isolate them per the Adapt mode. Prefer a body-level model-cost tier and effort hint over a frontmatter `model:` or `effort:` pin: tiers survive model releases and hosts that ignore the field (`workflow-patterns.md`, Model-cost tier and effort hints).
 
 ## Security Restrictions
 

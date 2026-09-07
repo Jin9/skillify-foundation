@@ -1,8 +1,30 @@
 # Workflow Patterns for Skills
 
-Five structural patterns for organizing skill instructions. Choose the pattern that matches your use case.
+Six structural patterns for organizing skill instructions. Choose the pattern that matches your use case; Pattern 0 is the default for judgment work, the numbered patterns are for work where order or a tool contract matters.
 
 See also: `progressive-disclosure.md` for deciding what stays in `SKILL.md` and `mode-playbooks.md` for Skillify's own mode workflows.
+
+## Pattern 0: Goal and Constraints
+
+**Use when**: The agent should judge how to do the work (analysis, review, design, writing) and no single sequence is the only safe one. This is the default degree of freedom for judgment work on current models: a scripted step list here lowers output quality.
+
+**Example structure**:
+
+```markdown
+## Approach
+
+Goal: a review of `<target>` that a maintainer can act on without re-reading the code.
+Constraints: report only findings you can point to a line for, because unverifiable findings cost the reader more than they save. Do not propose refactors outside the changed files; the request sets the scope.
+Done when: every finding has a location, a one-line fix, and a severity; the recap lists what was checked and what was not.
+```
+
+**Key techniques**:
+- State the goal, the one or two real constraints with their reason, and what done looks like
+- Name how the agent verifies its result before reporting it
+- Number steps only where order matters; describe everything else as outcomes
+- Carry the operating contract (Cross-Cutting Techniques below)
+
+---
 
 ## Pattern 1: Sequential Workflow Orchestration
 
@@ -31,7 +53,7 @@ Template: welcome_email_template
 ```
 
 **Key techniques**:
-- Explicit step ordering with numbered steps
+- Numbered steps only where a later step consumes an earlier step's output; describe the rest as outcomes
 - Dependencies between steps clearly stated
 - Validation at each stage before proceeding
 - Rollback instructions for failures
@@ -210,12 +232,25 @@ Explicit contracts let skills compose without the caller reading the body.
 
 When a skill retries, cap attempts (default 3), record a one-line lesson per failed attempt, and carry only recent lessons forward. State an escalation path for when the cap is hit instead of looping.
 
+### Operating contract (multi-step skills)
+
+When a skill drives the agent through more than one step, state its operating contract in one block instead of scattering rules: instruction priority (the user's request wins over everything; repo-policy files outrank the skill's defaults), autonomy (act once the inputs exist; at most one question per run), stop conditions (destructive or irreversible actions and genuine scope changes, nothing else), verification (which evidence is checked before a claim), delegation (when sub-agents are worth it), progress (an opening line and a standalone recap), and the default model-cost tier. Current models weight skill text heavily and, when a skill line conflicts with the request, may pause or follow the skill instead of the user; the contract gives them the tie-break. The canonical block with fill rules is `templates/operating-contract.md`; do not paraphrase it into a second version.
+
+### Delegation and parallelism
+
+Say when delegation is desirable, not only that it is allowed. Independent sub-tasks with no shared state go to parallel sub-agents; the final check goes to a fresh-context sub-agent, which beats self-critique; sequential or judgment-heavy work stays in the main thread. Batch independent tool calls in one turn. Prefer asynchronous fan-out with a bounded wait over spawn-and-block, so the lead keeps working while sub-agents run. Messages to sub-agents are self-contained: goal, inputs, expected output shape, and stop condition, with no pointer to context the sub-agent cannot see. Treat sub-agent and external-model output as advisory; the lead reconciles it.
+
+### Model-cost tier and effort hints (per node)
+
+Annotate each phase or step with a model-cost tier (`small` for mechanical extraction and formatting, `mid` for structuring and routine passes, `frontier` for ambiguous design and hard judgment) and, where it differs from the host default, an effort hint (`low`, `medium`, `high`). Two house forms are in use and both are accepted: a sentence or heading suffix, `model-cost tier: frontier (edit) / small (test)` or "Every step is model-cost tier: small.", and an inline tag at the start of a step, `[small/low]` or `[frontier/high]`. Name tiers, never models: model names rot, tiers do not. Tier and effort are separate levers; a frontier tier at low effort often beats a smaller tier at high effort on judgment steps, so raise effort only for hard, verifiable steps.
+
 ---
 
 ## Choosing Your Pattern
 
 | Pattern | Best For | Degree of Freedom |
 |---------|----------|-------------------|
+| Goal and Constraints | Review, analysis, design, writing, any judgment work | High |
 | Sequential | Onboarding, setup wizards, deployment pipelines | Low |
 | Multi-MCP | Cross-service workflows, handoffs | Medium |
 | Iterative | Report generation, code review, quality assurance | Medium |

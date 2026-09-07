@@ -21,7 +21,7 @@ Task-specific behavior loaded only when the agent determines the skill is releva
 
 - **Files**: `SKILL.md` inside skill directories
 - **Loading**: Agent reads the `description` field from frontmatter → decides whether to load the body
-- **Content**: Step-by-step instructions, output formats, constraints, examples
+- **Content**: the goal and its reasoned constraints, the operating contract, output formats, and numbered steps where order or fragility demands them (`model-generation-fit.md` section 1)
 - **Rule**: Keep under 500 lines. Point to Tier 3 for deep content.
 
 ### Tier 3: Deep References (unlimited, loaded as needed)
@@ -104,11 +104,13 @@ For simple edits, modify the XML directly.
 
 ## Anti-patterns
 
-- **Do NOT deeply nest references.** Keep all reference files one level deep from SKILL.md.
-- **Do NOT duplicate content across tiers.** A skill should point to a reference, not copy its content.
-- **Do NOT stuff everything into Tier 1.** Every line in the root rules file competes for attention.
-- **Do NOT create skills for trivially simple tasks.** A single CI workflow doesn't need its own skill.
+- Keep all reference files one level deep from SKILL.md; `scripts/quick_validate.py` fails a skill whose `references/` nests deeper, and deep chains cost a read per hop.
+- Point to a reference rather than copying it, because two copies drift apart and the agent then has to reconcile them. The operating contract is the one deliberate exception: templates carry a filled copy of `templates/operating-contract.md`.
+- Keep the root rules file to what applies to every task; every line there competes for attention on requests that will never use it.
+- Skip the skill entirely for a task with one obvious step, such as a single CI workflow; a skill has to earn its trigger cost across many sessions.
 
 ## Key Principle
 
 > The default assumption is that the agent is already very smart. Only add context the agent doesn't already have. Challenge each piece of information: "Does the agent really need this explanation?" and "Does this paragraph justify its token cost?"
+
+The same principle decides how prescriptive a step should be: see `model-generation-fit.md` section 1 for matching specificity to fragility.

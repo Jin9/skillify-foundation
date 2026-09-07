@@ -57,7 +57,7 @@ description: >
 
 ### 3. Workflow Clarity: 1/5 ❌
 
-**Issue**: Steps are vague bullets, not imperative numbered instructions.
+**Issue**: Steps are vague bullets with no entry or exit conditions, and the load-profile-compute-report order is a real data dependency that the prose leaves implicit. (Numbering is the right verdict here because each step consumes the previous step's output; for judgment work the fix would be goal, constraints, and verification instead.)
 **Fix**:
 ```markdown
 ## Core workflow
@@ -178,11 +178,21 @@ Produce a markdown summary report containing:
 - Correlation matrix (if >2 numeric columns)
 - Chart files as PNG (if requested)
 
+## Operating contract
+
+- Instruction priority: the user's request takes precedence over this skill; if a line here would make you pause or diverge from it, follow the user and say which line you set aside.
+- Autonomy: "analyze this data" is an instruction; act on the file named. Ask at most one question, only if the target file cannot be found.
+- Stop conditions: stop only before overwriting an existing report or chart file, or when the request changes scope. Before ending, check that the last paragraph is not a plan.
+- Verification: quote the row and column counts read from the file and the missing-value report before claiming the analysis is complete.
+- Delegation: none.
+- Progress: open with one line naming the file and the steps; close with a recap of the report sections produced.
+- Model-cost tier: small for load and profile; mid for the written summary.
+
 ## Constraints
 
-- DO NOT hardcode library choices. Use pandas by default; follow existing project patterns if different.
-- DO NOT skip missing value handling.
-- MUST report data quality issues before analysis.
+- Use pandas by default and follow the project's existing library if it differs; hardcoding a library breaks portability.
+- Handle missing values before computing statistics; unhandled gaps skew every summary number.
+- Report data quality issues before the analysis, so the reader can weigh the results.
 
 ## Examples
 
@@ -199,4 +209,4 @@ Produce a markdown summary report containing:
 **Result**: Structured report with statistics table and data quality summary.
 ```
 
-**Rescore**: 43/50 ✅ Pass
+**Rescore**: 44/50 ✅ Pass (`scripts/cruft_scan.py`: high=0 medium=0 low=0)
