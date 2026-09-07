@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-07
+
+### Added
+
+- Literature corpus refreshed with a 19-source frontier-model cohort for the Claude Fable 5.1 / GPT-6 Astra generation (68 -> 87 sources, ~249K words): the Fable 5.1, Fable 5, and Opus 5 prompting guides, the Fable 5.1 what's-new and migration guide, the cross-model prompting best-practices page, and four gap-fill references (effort, thinking, prompt caching, tool search) from Anthropic; OpenAI's GPT-6 Astra model guidance and launch announcement; the Codex models page for GPT-6 Astra; a 2026-09 re-capture of the Agent Skills specification; four Tier-2 pieces; and an attributed internal synthesis of the dated-prompt-pattern taxonomy (`research-vault/prompt_cruft_taxonomy_frontier_models.md`). No existing capture was re-fetched (scope decision); the 27 April-dated files stay flagged in the source index.
+- `skillify/references/model-generation-fit.md`: calibration principles for the current model generation (specificity matched to fragility, instruction priority and stops, verification scope, delegation, effort tiers instead of model names, reporting and style, memory, the keep list, a dated generation profile).
+- `skillify/templates/operating-contract.md`: the canonical instruction-priority / autonomy / stop-conditions / verification / delegation / progress / model-cost-tier block that every multi-step skill now carries; embedded (filled) in the three skill templates and the `init_skill.py` scaffold.
+- `skillify/scripts/cruft_scan.py`: stdlib advisory scanner for dated patterns (pressure language, thinking and show-your-reasoning scaffolds, narration cadences and numeric caps, unreasoned prohibition walls, narration suppressors, anti-formatting rules, pinned model names, hardcoded paths, missing operating contract or tier) with keep-list exemptions for trigger sections, table rows, fenced code, and quoted mentions; `--strict` is the exit check of the new Re-baseline sub-flow, `--self-test` proves each signal with a hit and a control.
+- Refactor sub-flow "Re-baseline for a model generation" in `references/mode-playbooks.md`; lifecycle rows for "Model release" and "Unrequested pause or divergence"; workflow Pattern 0 (goal and constraints) plus Cross-Cutting Techniques for the operating contract, delegation and parallelism, and per-node model-cost tier / effort hints.
+
+### Changed
+
+- `skillify/SKILL.md`: one clarification budget replaces three independent "ask once" rules; the degree-of-freedom ladder chooses by fragility (goal + reasoned constraints for judgment work, numbered steps only where order matters, scripts for fragile operations); gate 1 fixes-and-re-runs within the iteration cap instead of an unsatisfiable "do not write target files"; the eight-bullet "DO NOT" wall became six reasoned constraints; skillify carries its own filled operating contract and per-section model-cost tiers; new trigger "re-baseline this skill for a new model".
+- Rubric dimension 3 rewards specificity matched to fragility and an operating contract rather than numbered steps as such; dimension 5 names scaffolds and repeated reminders; dimension 6 covers stalls and user precedence. Anti-patterns stay at twelve: #5 is now "Wrong Degree of Freedom" (two-directional), #6 absorbs instruction priority and unrequested pauses, #12 is "Hardcoded Platform or Model Assumptions" (pinned names, retired-model scaffolds). Audit template gains a Target line, a Cruft Scan section, and two security lines.
+- Mode playbooks: "confirm the chain" and the Split/Merge approval pauses are gone (state the plan in the opening line and proceed; pause only for an unauthorised in-place overwrite); Audit states the host and model generation it assumes; Compress drops restatements of what the agent does unprompted; Adapt turns `model:`/`effort:` pins into body-level tiers.
+- Templates: MCP template is host-neutral (no "Settings > Extensions" paths) and declares all five hosts; constraints carry their reasons; "Validation checklist" is now "Verification" (name the evidence you will quote).
+- Security checklist: instruction-priority / stop-behaviour and reasoning-extraction checks, two threat-table rows, two review-prompt questions.
+- Eval harness (`skill-design-methodology/evals/`): the "before" baseline is now the whole skill folder at the git ref; twelve frontier-fit indicators and eight golden prompts (incl. two skill-conflict probes) added; 20/32 indicators and 16/20 prompts at HEAD -> 32/32 and 20/20 after.
+- Corpus bookkeeping synced to 87 sources in root `README.md`, `CLAUDE.md`, `AGENTS.md`, the literature review, and the source index; the never-changelogged 2026-07-05 refresh is back-filled below.
+
 ## 2026-07-30
 
 ### Fixed
@@ -30,6 +50,12 @@
 ### Changed
 
 - Synced treasury counts to 130 across `treasury/README.md`, root `README.md`, `AGENTS.md` (was stale at 122), and `CLAUDE.md` (was stale at 123).
+
+## 2026-07-05
+
+### Changed
+
+- Literature corpus refreshed to 68 clean-markdown sources (~168K words): every capture normalized to the standard provenance header by `skill-design-methodology/tools/normalize_capture.py`, four former Cloudflare-stub captures recovered, the load-bearing Anthropic and agentskills.io docs re-captured as served markdown, MCP specification (2025-11-25) and Claude Code plugin docs added, and an eight-report `research-vault/` group harvested. `verify_corpus.py` (38 checks) became the corpus acceptance gate. Skillify patched in 15 files for platform-fact drift (Antigravity `antigravity-cli` paths, install-doc link check, three trigger placeholders in scaffolds); rubric 49/50. (Back-filled 2026-09-07: this refresh landed in commits 0b21e45 and fd440ec but was never changelogged.)
 
 ## 2026-05-30
 

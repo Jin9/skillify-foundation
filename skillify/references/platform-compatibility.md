@@ -15,7 +15,7 @@ A `SKILL.md` is one of several host configuration surfaces. Keep them distinct; 
 - **Always-on rules** (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) — durable repository *conventions*.
 - **Memory** — ephemeral, session-scoped *facts*.
 
-A request about a persona, tool permissions, or model choice is custom-agent work, not a `SKILL.md`.
+A request about a persona, tool permissions, or which host model to run is custom-agent work, not a `SKILL.md`. A skill may still annotate its own steps with a model-cost tier and effort hint (`workflow-patterns.md`); that is workflow design, not model configuration.
 
 ## Compatibility Matrix
 
@@ -39,7 +39,7 @@ A request about a persona, tool permissions, or model choice is custom-agent wor
 ## Portability Rules
 
 - Keep `SKILL.md` platform-neutral: say "Run the command" instead of "Ask Claude to run the command."
-- Put host-specific installation notes in `platforms/`, not in the reusable workflow.
+- Keep host-specific installation notes out of the reusable workflow; they belong in the host's own install material, not in a generated skill.
 - Prefer `.agents/skills/<name>/` for repository-scoped cross-agent skills.
 - Copy the whole skill folder, not only `SKILL.md`; referenced `references/`, `templates/`, and `scripts/` must travel with it.
 - Keep repo policy in always-on rule files. Keep repeatable workflows in `SKILL.md`.
@@ -59,7 +59,7 @@ Treat these as host-specific rule-surface controls, not portable frontmatter; is
 
 1. Install the skill directory under `~/.claude/skills/` or `.claude/skills/`.
 2. Keep YAML frontmatter in `SKILL.md`.
-3. Remove or isolate Claude-only fields before sharing with hosts that do not support them.
+3. Remove or isolate Claude Code-only fields before sharing with hosts that do not support them.
 
 ### OpenAI Codex
 

@@ -16,8 +16,8 @@ See also: `anti-patterns.md` for named failure modes and `security-checklist.md`
 
 ## 3. Workflow Clarity (1-5)
 - **1/5**: Rambling paragraphs of theory.
-- **3/5**: Bulleted list, but steps are vague or out of order.
-- **5/5**: Imperative, numbered steps with clear entry and exit conditions.
+- **3/5**: Steps present but mismatched to fragility: judgment work over-scripted, or fragile steps left as prose; entry or exit conditions missing.
+- **5/5**: The agent can tell what done looks like at every step. Order-dependent or fragile work is imperative, numbered, with clear entry and exit conditions; judgment work states the goal, the constraints with reasons, and how to verify, without scripting the method; a multi-step skill carries an operating contract (`templates/operating-contract.md`).
 
 ## 4. Output Contract (1-5)
 - **1/5**: Doesn't specify what the agent should produce.
@@ -26,23 +26,23 @@ See also: `anti-patterns.md` for named failure modes and `security-checklist.md`
 
 ## 5. Token Efficiency (1-5)
 - **1/5**: Includes thousands of lines of documentation directly in `SKILL.md`.
-- **3/5**: Moderately long, could be compressed.
-- **5/5**: Lean `SKILL.md`. Uses `references/` for deep knowledge and `templates/` for code.
+- **3/5**: Carries lines the agent would do unprompted, or deep reference material inline; length by itself is not a defect (`model-generation-fit.md` keep list).
+- **5/5**: Lean `SKILL.md`. Uses `references/` for deep knowledge and `templates/` for code. Every line either changes what is legal, sets how success is measured, or supplies context the agent lacks (audience, environment, quality bar, the reason behind a constraint); no "think step by step", generic virtues, or scattered repetition of the same rule.
 
 ## 6. Conflict Risk (1-5)
 - **1/5**: Hardcodes repo-specific rules (e.g., "Always use `my-company-cli`") that conflict with `AGENTS.md`.
-- **3/5**: Minor overlapping instructions with other skills.
-- **5/5**: Fully portable and isolated.
+- **3/5**: Minor overlapping instructions with other skills, or an instruction that can stall the agent or redirect it against the user's stated intent.
+- **5/5**: Fully portable and isolated. No instruction makes the agent pause, ask for a confirmation the user did not request, or leave requested work unfinished (a stop before a destructive or irreversible action, a stop at a genuine scope change, and any approval gate the user asked for are not stalls). Where the skill could plausibly conflict with a request, it says the request wins.
 
 ## 7. Reusability (1-5)
 - **1/5**: Only works for one specific file in one specific repository.
-- **3/5**: Works across the repository, but not easily portable to other projects.
-- **5/5**: Can be dropped into any standard project using the target technology.
+- **3/5**: Works across the repository but is tied to one host or one model generation (host-specific frontmatter fields, a pinned model name in a rule, workarounds for a retired model).
+- **5/5**: Can be dropped into any standard project using the target technology, on any supported host; capability is expressed as model-cost tier and effort, never as a model name.
 
 ## 8. Security & Safety (1-5)
 - **1/5**: Contains destructive commands, exfiltration patterns, or hardcoded secrets.
 - **3/5**: No obvious risks, but uses broad tool permissions or unchecked external calls.
-- **5/5**: No destructive commands, no external requests outside the workflow, no product bias, permissions are scoped.
+- **5/5**: No destructive commands, no external requests outside the workflow, no product bias, permissions are scoped, and no instruction asks the agent to reproduce its own reasoning (`security-checklist.md` items 7-8).
 
 ## 9. Frontmatter Correctness (1-5)
 - **1/5**: Missing frontmatter, wrong delimiters, or invalid YAML.

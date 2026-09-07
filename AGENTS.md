@@ -20,7 +20,7 @@ Validating a skill folder *is* the test suite — there is no global test runner
 
 Three layers, each grounded in the one before it:
 
-- `literature/` — 68 curated source documents (~168K words, clean markdown as of the 2026-07-05 corpus refresh) across the agent ecosystem. Read-only research corpus; do not edit source files.
+- `literature/` — 87 curated source documents (~249K words, clean markdown; 2026-07-05 normalization plus the 2026-09-07 frontier-model cohort) across the agent ecosystem. Read-only research corpus; do not edit source files.
 - `skillify/` — the skill-creator *meta-skill*: one `SKILL.md` (8 modes) plus `references/`, `templates/`, `scripts/`, `examples/`. The engine that produces and audits every other skill.
 - `treasury/` — 131 production skills grouped into 9 purpose groups. `treasury/README.md` is the **authoritative catalog** (the root `README.md` count can lag — trust `treasury/README.md`).
 

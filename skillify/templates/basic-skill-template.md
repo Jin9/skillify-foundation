@@ -25,13 +25,21 @@ description: >
 - Use when: [trigger 3 — specific user intent or phrase]
 - Do NOT use when: [negative trigger — what to avoid]
 
-## Core workflow
+## Approach
 
-1. **[Step 1 Name]**: [Imperative action the agent must take]
+Goal: [what a finished result looks like, in one sentence]
+Constraints: [the one or two real constraints, each with its reason]
+Done when: [the evidence that the job is complete]
+
+### Ordered steps
+
+[Keep this block only where a later step consumes an earlier step's output or a step is fragile or irreversible; describe everything else under Approach. Tag steps whose tier or effort differs from the contract default.]
+
+1. [small/low] **[Step 1 Name]**: [Imperative action the agent must take]
    - Expected input: [what the agent receives]
    - Expected output: [what this step produces]
-2. **[Step 2 Name]**: [Imperative action the agent must take]
-3. **[Step 3 Name]**: [Imperative action the agent must take]
+2. [mid/medium] **[Step 2 Name]**: [Imperative action the agent must take]
+3. [frontier/high] **[Step 3 Name]**: [Judgment step: state the outcome and how to verify it, not the method]
 
 ## Output format
 
@@ -44,12 +52,22 @@ output-directory/
 └── [optional subdirectory]/
 ```
 
-## Constraints & anti-patterns
+## Operating contract
 
-- DO NOT: [Action to avoid — be specific]
-- DO NOT: [Another action to avoid]
-- MUST ALWAYS: [Non-negotiable requirement]
-- MUST ALWAYS: [Another non-negotiable requirement]
+[Filled from the skillify operating-contract template; keep the heading and the key prefixes exact, and delete this note.]
+
+- Instruction priority: the user's request in this session takes precedence over this skill; repo-policy files (AGENTS.md, CLAUDE.md, or the host equivalent) take precedence over this skill's defaults. If following a line here would make you pause, ask for permission, leave requested work unfinished, or diverge from what the user asked, follow the user, say which line you set aside, and quote it.
+- Autonomy: "can you", "help me", and "please" are instructions. Once the inputs above are present, act; do not ask for confirmation of work the user already authorized. Ask at most one question per run, and only when a required input is missing and cannot be taken from the request, pasted text, or the workspace; otherwise state the assumption in your opening line and proceed.
+- Stop conditions: stop and ask only before [the skill's irreversible action, e.g. overwriting an existing file], or when finishing would change the scope the user set. When the user asks a question rather than for a change, the assessment is the deliverable. Before ending your turn, check your last paragraph: if it is a plan or a promise, do that work now.
+- Verification: before claiming success, check [the specific evidence: exit code, PASS line, re-read of the written file] and quote it in the recap. Do not describe a check you did not run. Do not add tests for reversible, low-impact changes.
+- Delegation: [none | which parts may run as parallel sub-agents and what each returns]. Batch independent tool calls; prefer asynchronous fan-out over spawn-and-wait; write messages to other agents so they stand alone.
+- Progress: open with one line saying what you are about to do and which files you will touch; close with a recap that stands on its own (what changed, what was verified, what remains).
+- Model-cost tier: [small | mid | frontier] by default; steps that differ are tagged inline as [tier/effort].
+
+## Constraints
+
+- [The one or two real constraints, each with its reason: "Do not X; Y would happen."]
+- [Second constraint], because [reason].
 
 ## Examples
 
@@ -73,12 +91,12 @@ output-directory/
 
 **Result**: [Expected output]
 
-## Validation checklist
+## Verification
 
-Before finalizing output, verify:
-- [ ] [Quality check 1]
-- [ ] [Quality check 2]
-- [ ] [Quality check 3]
+Before claiming the result, check and quote:
+- [ ] [Evidence 1: the exit code, PASS line, or re-read file you will look at]
+- [ ] [Evidence 2]
+- [ ] [Evidence 3]
 
 ## References
 

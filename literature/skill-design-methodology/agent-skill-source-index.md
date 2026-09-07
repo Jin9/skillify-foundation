@@ -186,6 +186,40 @@ For your case, I’d anchor the template on the open standard (AgentSkills.io) f
 
 ---
 
+## 2026-09-07 Corpus Refresh
+
+Corpus count as of 2026-09-07: 87 source .md files (+1 PDF companion, `claude_guide.pdf`). Counting rule unchanged: every `.md` under `literature/` counts, including the four `skill-design-methodology/` internal docs; recount with `skill-design-methodology/tools/verify_corpus.py`.
+
+Scope (user decision 2026-09-07): frontier-model cohort only. No existing capture was re-fetched; the 27 files whose content dates from 2026-04-26 (all `codex-copilot/codex_*.md`, all four pre-existing `openai/*`, `claude_sub_agents.md`, `claude_code_best_practices.md`, both Anthropic engineering posts, and the community pieces listed in the 2026-07-05 section) remain stale and should be the first re-capture set next time.
+
+### Additions (Accessed 2026-09-07)
+
+| Source | Local path | Tier | Capture mode |
+|---|---|---|---|
+| Prompting Claude Fable 5.1 | `anthropic-claude/prompting_claude_fable_5_1.md` | 1 | served markdown |
+| What's new in Claude Fable 5.1 | `anthropic-claude/whats_new_claude_fable_5_1.md` | 1 | served markdown |
+| Claude prompting best practices (cross-model, 2026-09) | `anthropic-claude/claude_prompting_best_practices_2026_09.md` | 1 | served markdown |
+| Prompting Claude Fable 5 | `anthropic-claude/prompting_claude_fable_5.md` | 1 | served markdown |
+| Prompting Claude Opus 5 | `anthropic-claude/prompting_claude_opus_5.md` | 1 | served markdown |
+| Migrating to Claude Fable 5.1 | `anthropic-claude/claude_fable_5_1_migration_guide.md` | 1 | served markdown |
+| Effort parameter | `anthropic-claude/claude_effort_parameter.md` | 1 | served markdown (gap fill) |
+| Thinking (adaptive, preserved, progress updates) | `anthropic-claude/claude_thinking_adaptive_preserved.md` | 1 | served markdown (gap fill) |
+| Prompt caching | `anthropic-claude/claude_prompt_caching.md` | 1 | served markdown (gap fill) |
+| Tool search tool | `anthropic-claude/claude_tool_search_advanced_tool_use.md` | 1 | served markdown (gap fill) |
+| Using GPT-6 Astra (model guidance) | `openai/openai_gpt_6_astra_model_guidance.md` | 1 | served markdown |
+| GPT-6 Astra announcement | `openai/openai_gpt_6_astra_announcement.md` | 1 | browser page text, abridged (curl/WebFetch 403) |
+| Codex models (GPT-6 Astra) | `codex-copilot/codex_models_gpt_6_astra.md` | 1 | served markdown |
+| Agent Skills specification (re-capture) | `open-standard/agentskills_specification_2026_09.md` | 1 | served markdown |
+| The Decoder: OpenAI's Astra prompting tips | `best-practices/decoder_gpt_6_astra_prompting_tips.md` | 2 | HTML extract |
+| Codex KB: configuring GPT-6 Astra in Codex CLI | `codex-copilot/codex_kb_gpt_6_astra_config.md` | 2 | HTML extract |
+| Codex KB: GPT-6 Astra integration guide | `codex-copilot/codex_kb_gpt_6_astra_integration.md` | 2 | HTML extract |
+| Ken Huang: Fable 5.1 guide as agent product design | `best-practices/kenhuang_fable_5_1_agent_product_design.md` | 2 | HTML extract, abridged (paid post preview) |
+| Prompt and skill cruft taxonomy for frontier-model generations | `research-vault/prompt_cruft_taxonomy_frontier_models.md` | internal synthesis | attributed synthesis of the Claude Code 2.1.263 bundled `claude-api` skill's `prompt-audit.md` and `agent-design.md` (no verbatim redistribution) |
+
+Not captured: pvncher, "Rethinking skills and prompts for GPT-6 Astra" (x.com article, paywalled at capture time).
+
+Corpus-level gaps closed by this cohort: reasoning-effort controls, thinking budgets and preserved thinking, prompt caching, and tool search / deferred loading previously had no primary source. Gaps still open: no Gemini 3.x / Antigravity primary document; no OpenAI structured-outputs API reference.
+
 ## 2026-07-05 Corpus Refresh
 
 Corpus count as of 2026-07-05: 68 source .md files (+1 PDF companion, `claude_guide.pdf`). Counting rule: every `.md` under `literature/` counts, including the four `skill-design-methodology/` internal docs; recount with `skill-design-methodology/tools/verify_corpus.py`.

@@ -18,17 +18,19 @@ The current `agent-skill-design-principles.md` captures roughly 80% of what the 
 
 | Category | Files | Coverage |
 |---|---:|---|
-| `anthropic-claude/` | 15 | Official Claude Code & Skills docs, Plugins & Plugin Marketplaces, Anthropic engineering blog, community Claude Code skill notes, Groff three-tier pattern, Snyk skill catalog |
-| `codex-copilot/` | 9 | Codex agents/skills/best-practices, GitHub Copilot agent skills, GitHub CLI `gh skill`, VS Code Copilot, VS Code custom agents |
-| `openai/` | 4 | OpenAI skill-creator canonical example, skills repo, API tools/skills guide, cookbook |
-| `best-practices/` | 4 | agentskills.io, mgechev best practices, two Medium deep-dives on the SKILL.md pattern |
+| `anthropic-claude/` | 25 | Official Claude Code & Skills docs, Plugins & Plugin Marketplaces, Anthropic engineering blog, community Claude Code skill notes, Groff three-tier pattern, Snyk skill catalog; 2026-09 cohort: Fable 5.1 / Fable 5 / Opus 5 prompting guides, Fable 5.1 what's-new and migration guide, cross-model prompting best practices, effort, thinking, prompt caching, tool search |
+| `codex-copilot/` | 12 | Codex agents/skills/best-practices, GitHub Copilot agent skills, GitHub CLI `gh skill`, VS Code Copilot, VS Code custom agents; 2026-09 cohort: Codex models page (GPT-6 Astra), two community Codex CLI Astra notes |
+| `openai/` | 6 | OpenAI skill-creator canonical example, skills repo, API tools/skills guide, cookbook; 2026-09 cohort: GPT-6 Astra model guidance, GPT-6 Astra announcement (abridged browser capture) |
+| `best-practices/` | 6 | agentskills.io, mgechev best practices, two Medium deep-dives on the SKILL.md pattern; 2026-09 cohort: The Decoder on OpenAI's Astra prompting tips, Ken Huang on the Fable 5.1 guide as agent product design (abridged) |
 | `awesome-lists/` | 2 | VoltAgent and ScienceAIX curated catalogs |
-| `open-standard/` | 2 | Open Agent Skills specification (openagentskills.dev), MCP specification rev 2025-11-25 |
+| `open-standard/` | 3 | Open Agent Skills specification (openagentskills.dev), MCP specification rev 2025-11-25, Agent Skills specification (agentskills.io, 2026-09 re-capture) |
 | `other-platforms/` | 14 | agents.md, Gemini CLI (context + commands), Cursor rules, Cline rules, OpenCode, Windsurf Cascade, Spring AI, Strapi, antfu collection, sohamkamani, DataCamp, agentskills.io home, skills.sh |
 | `research-papers/` | 6 | ReAct, Reflexion, Voyager, Toolformer, MemGPT, SWE-agent |
-| `research-vault/` | 8 | Internal deep-research syntheses (SKILL.md design, routing, portability, activation, degradation, global-vs-local, .claude/skills strategy, marketplaces) |
+| `research-vault/` | 9 | Internal deep-research syntheses (SKILL.md design, routing, portability, activation, degradation, global-vs-local, .claude/skills strategy, marketplaces) plus the 2026-09 attributed synthesis of the prompt-cruft taxonomy for frontier-model generations |
 | `skill-design-methodology/` | 4 | Source index, reading-task taxonomy, design principles, this literature review |
-| **Total** | **68** | ~22,750 lines / ~168k words (clean markdown) |
+| **Total** | **87** | ~35,100 lines / ~249k words (clean markdown) |
+
+**2026-09-07 frontier-model cohort:** nineteen sources added for the Claude Fable 5.1 / GPT-6 Astra generation (thirteen Tier 1 vendor and standard docs, five Tier 2 secondary pieces, one internal attributed synthesis). The 27 captures whose content still dates from 2026-04-26 were deliberately left as-is in this refresh (scope decision); they remain flagged in the source index. The word total rises mainly because the Anthropic API reference pages (prompt caching, thinking, migration guide) carry multi-language code samples.
 
 **Extraction caveat — RESOLVED 2026-07-05:** the corpus previously carried ~26 saved-HTML page captures plus partial-HTML GitHub captures whose noise inflated substring frequency counts (the old "~750k words" total was mostly markup). The 2026-07-05 refresh normalized every capture to clean markdown with a standard provenance header (`skill-design-methodology/tools/normalize_capture.py`), re-captured the load-bearing Anthropic/agentskills.io docs as served markdown, and recovered all four former Cloudflare-stub captures. Term-frequency analysis over the corpus is now meaningful.
 

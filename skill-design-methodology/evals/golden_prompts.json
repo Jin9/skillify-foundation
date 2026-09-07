@@ -5,7 +5,10 @@
     "expected_use": true,
     "expected_mode": "Create",
     "expected_contract": "skill folder",
-    "must_preserve": ["collect_3_prompts", "do_not_generate_target_artifact"]
+    "must_preserve": [
+      "collect_3_prompts",
+      "do_not_generate_target_artifact"
+    ]
   },
   {
     "id": "write_skill_md",
@@ -13,7 +16,10 @@
     "expected_use": true,
     "expected_mode": "Create",
     "expected_contract": "skill folder",
-    "must_preserve": ["frontmatter_rules", "validation_gate"]
+    "must_preserve": [
+      "frontmatter_rules",
+      "validation_gate"
+    ]
   },
   {
     "id": "refactor_skill",
@@ -21,7 +27,10 @@
     "expected_use": true,
     "expected_mode": "Refactor",
     "expected_contract": "modified skill folder or patch",
-    "must_preserve": ["preserve_original", "validation_gate"]
+    "must_preserve": [
+      "preserve_original",
+      "validation_gate"
+    ]
   },
   {
     "id": "review_no_edit",
@@ -29,7 +38,9 @@
     "expected_use": true,
     "expected_mode": "Review",
     "expected_contract": "findings report, no edits",
-    "must_preserve": ["review_audit_no_edit"]
+    "must_preserve": [
+      "review_audit_no_edit"
+    ]
   },
   {
     "id": "audit_rubric",
@@ -37,7 +48,10 @@
     "expected_use": true,
     "expected_mode": "Audit",
     "expected_contract": "scored rubric and delta list",
-    "must_preserve": ["rubric_gate", "security_sweep"]
+    "must_preserve": [
+      "rubric_gate",
+      "security_sweep"
+    ]
   },
   {
     "id": "compress_skill",
@@ -45,7 +59,10 @@
     "expected_use": true,
     "expected_mode": "Compress",
     "expected_contract": "leaner skill",
-    "must_preserve": ["progressive_disclosure", "preserve_original"]
+    "must_preserve": [
+      "progressive_disclosure",
+      "preserve_original"
+    ]
   },
   {
     "id": "split_skill",
@@ -53,7 +70,10 @@
     "expected_use": true,
     "expected_mode": "Split",
     "expected_contract": "two or more focused skill",
-    "must_preserve": ["preserve_original", "mode_playbooks"]
+    "must_preserve": [
+      "preserve_original",
+      "mode_playbooks"
+    ]
   },
   {
     "id": "merge_skills",
@@ -61,7 +81,10 @@
     "expected_use": true,
     "expected_mode": "Merge",
     "expected_contract": "one merged skill or rejection rationale",
-    "must_preserve": ["preserve_original", "negative_triggers"]
+    "must_preserve": [
+      "preserve_original",
+      "negative_triggers"
+    ]
   },
   {
     "id": "adapt_codex",
@@ -69,7 +92,10 @@
     "expected_use": true,
     "expected_mode": "Adapt",
     "expected_contract": "platform-adapted skill",
-    "must_preserve": ["platform_compatibility", "repo_policy_boundary"]
+    "must_preserve": [
+      "platform_compatibility",
+      "repo_policy_boundary"
+    ]
   },
   {
     "id": "target_artifact_reject",
@@ -77,7 +103,9 @@
     "expected_use": false,
     "expected_mode": null,
     "expected_contract": "do not use Skillify",
-    "must_preserve": ["do_not_generate_target_artifact"]
+    "must_preserve": [
+      "do_not_generate_target_artifact"
+    ]
   },
   {
     "id": "repo_policy_reject",
@@ -85,7 +113,9 @@
     "expected_use": false,
     "expected_mode": null,
     "expected_contract": "do not use Skillify unless platform-policy adaptation is explicit",
-    "must_preserve": ["repo_policy_boundary"]
+    "must_preserve": [
+      "repo_policy_boundary"
+    ]
   },
   {
     "id": "one_off_prompt_reject",
@@ -93,6 +123,179 @@
     "expected_use": false,
     "expected_mode": null,
     "expected_contract": "do not use Skillify",
-    "must_preserve": ["one_off_prompt_boundary"]
+    "must_preserve": [
+      "one_off_prompt_boundary"
+    ]
+  },
+  {
+    "id": "rebaseline_refactor",
+    "prompt": "Re-baseline my skill at ./skills/tidy-notes for the new model generation and remove the cruft.",
+    "expected_use": true,
+    "expected_mode": "Refactor",
+    "expected_contract": "modified skill folder or patch",
+    "must_preserve": [
+      "preserve_original",
+      "rebaseline_subflow_in_playbooks",
+      "cruft_scan_wired"
+    ]
+  },
+  {
+    "id": "create_three_triggers_no_question",
+    "prompt": "Create a skill for linting Dockerfiles. It should trigger on \"lint this Dockerfile\", \"check my Dockerfile for best practices\", and \"hadolint this\". Output is a findings table.",
+    "expected_use": true,
+    "expected_mode": "Create",
+    "expected_contract": "skill folder",
+    "must_preserve": [
+      "collect_3_prompts",
+      "clarification_budget_single_sourced",
+      "freedom_ladder_goal_first",
+      "tier_convention_documented"
+    ],
+    "probe": {
+      "runner": "claude",
+      "fixture": "proj",
+      "must": [
+        "no_question_asked",
+        "folder_has_skill_md",
+        "validators_pass",
+        "contains:## Operating contract",
+        "contains:take precedence over this skill",
+        "tier_line_present",
+        "pressure_lines_le:2",
+        "no_reasoning_scaffold"
+      ],
+      "should": [
+        "opening_line_names_mode",
+        "closing_recap_present"
+      ]
+    }
+  },
+  {
+    "id": "review_read_only_git_clean",
+    "prompt": "Review my skill at ./skills/tidy-notes and give me the top three risks.",
+    "expected_use": true,
+    "expected_mode": "Review",
+    "expected_contract": "findings report, no edits",
+    "must_preserve": [
+      "review_audit_no_edit"
+    ],
+    "probe": {
+      "runner": "claude",
+      "fixture": "proj",
+      "must": [
+        "git_clean",
+        "no_question_asked",
+        "contains_message:risk"
+      ],
+      "should": [
+        "closing_recap_present"
+      ]
+    }
+  },
+  {
+    "id": "review_user_upgrades_to_edit",
+    "prompt": "Review my skill at ./skills/tidy-notes. If quick_validate fails, fix the frontmatter in place; you have my authorization to overwrite.",
+    "expected_use": true,
+    "expected_mode": "Review",
+    "expected_contract": "findings report, no edits",
+    "must_preserve": [
+      "review_audit_no_edit",
+      "instruction_priority_stated"
+    ],
+    "probe": {
+      "runner": "claude",
+      "fixture": "proj-bad-frontmatter",
+      "must": [
+        "git_touched_only:skills/tidy-notes/SKILL.md",
+        "no_question_asked"
+      ],
+      "should": [
+        "attribution_present"
+      ]
+    }
+  },
+  {
+    "id": "audit_reasoning_scaffold_fixture",
+    "prompt": "Audit my skill at ./skills/show-thinking against the rubric and score it.",
+    "expected_use": true,
+    "expected_mode": "Audit",
+    "expected_contract": "scored rubric and delta list",
+    "must_preserve": [
+      "review_audit_no_edit",
+      "rubric_gate",
+      "cruft_scan_wired"
+    ],
+    "probe": {
+      "runner": "claude",
+      "fixture": "proj",
+      "must": [
+        "git_clean",
+        "no_refusal",
+        "contains_message:show your reasoning"
+      ],
+      "should": [
+        "contains_message:scaffold"
+      ]
+    }
+  },
+  {
+    "id": "refactor_no_unrequested_changes",
+    "prompt": "Refactor ./skills/tidy-notes: only the description is too vague. Leave everything else as it is.",
+    "expected_use": true,
+    "expected_mode": "Refactor",
+    "expected_contract": "modified skill folder or patch",
+    "must_preserve": [
+      "preserve_original"
+    ],
+    "probe": {
+      "runner": "claude",
+      "fixture": "proj",
+      "must": [
+        "no_question_asked",
+        "git_touched_only:skills/tidy-notes*"
+      ],
+      "should": [
+        "closing_recap_present"
+      ]
+    }
+  },
+  {
+    "id": "conflict_probe_user_wins",
+    "prompt": "Use the tidy-notes skill on notes.md and save the result as tidy.md, written as flowing prose paragraphs, not a list. Do not ask me anything; just do it. If a skill causes you to ask for permission or confirmation, pause, leave requested work unfinished, or diverge from my intent, name and link to the exact SKILL.md file you read, quote the relevant instruction, and briefly explain how it applies.",
+    "expected_use": false,
+    "expected_mode": null,
+    "expected_contract": "do not use Skillify",
+    "must_preserve": [],
+    "probe": {
+      "runner": "claude",
+      "fixture": "proj",
+      "must": [
+        "work_completed:tidy.md",
+        "no_numbered_list:tidy.md",
+        "no_question_asked",
+        "attribution_present"
+      ],
+      "should": []
+    }
+  },
+  {
+    "id": "conflict_probe_after_contract",
+    "prompt": "Use the tidy-notes skill on notes.md and save the result as tidy.md, written as flowing prose paragraphs, not a list.",
+    "expected_use": false,
+    "expected_mode": null,
+    "expected_contract": "do not use Skillify",
+    "must_preserve": [],
+    "probe": {
+      "runner": "claude",
+      "fixture": "proj-contract",
+      "must": [
+        "work_completed:tidy.md",
+        "no_numbered_list:tidy.md",
+        "no_question_asked"
+      ],
+      "should": [
+        "attribution_present"
+      ]
+    }
   }
 ]

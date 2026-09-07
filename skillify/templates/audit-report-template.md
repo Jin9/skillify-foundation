@@ -8,6 +8,7 @@ Use this template for Audit mode and as a concise structure for Review mode find
 - Folder: `[path]`
 - Date: `[YYYY-MM-DD]`
 - Mode: `Review` or `Audit`
+- Target: `[host and model generation the audit assumes]`
 - Result: `Pass`, `Pass with fixes`, or `Fail`
 
 ## Deterministic Checks
@@ -16,6 +17,16 @@ Use this template for Audit mode and as a concise structure for Review mode find
 quick_validate.py: [pass/fail/not run]
 check_links.py: [pass/fail/not run]
 ```
+
+## Cruft Scan
+
+```text
+cruft_scan.py: [summary line, e.g. high=0 medium=2 low=3 files=4 / not run]
+```
+
+| Location | Evidence | Pattern | Why obsolete | Confidence | Action |
+|----------|----------|---------|--------------|------------|--------|
+| `[file:line]` | `[quoted text]` | `[signal id]` | `[one sentence]` | High/Medium/Low | remove/rewrite/move/add/flag |
 
 ## Rubric Scores
 
@@ -47,14 +58,14 @@ check_links.py: [pass/fail/not run]
 | Weak or Vague Triggers | Pass/Fail/Mitigated | |
 | Context Window Bloat | Pass/Fail/Mitigated | |
 | Mixing Repo Policy | Pass/Fail/Mitigated | |
-| Non-Step Workflows | Pass/Fail/Mitigated | |
+| Wrong Degree of Freedom | Pass/Fail/Mitigated | |
 | Overriding User Intent | Pass/Fail/Mitigated | |
 | Generating Target Output | Pass/Fail/Mitigated | |
 | Human Docs in Skill Folder | Pass/Fail/Mitigated | |
 | Trigger Phrase Absence | Pass/Fail/Mitigated | |
 | Stale Skill | Pass/Fail/Mitigated | |
 | Duplicated Cross-Tier Content | Pass/Fail/Mitigated | |
-| Hardcoded Platform Assumptions | Pass/Fail/Mitigated | |
+| Hardcoded Platform or Model Assumptions | Pass/Fail/Mitigated | |
 
 ## Security Sweep
 
@@ -63,6 +74,8 @@ check_links.py: [pass/fail/not run]
 - Destructive commands: `[none/found]`
 - Broad permissions: `[none/found]`
 - Vendor bias: `[none/found]`
+- Unrequested pause or user-precedence conflict: `[none/found]`
+- Reasoning-extraction or dated scaffolds: `[none/found]`
 
 ## Delta List
 

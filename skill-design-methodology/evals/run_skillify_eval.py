@@ -29,7 +29,7 @@ MODE_REL = Path("skillify/references/mode-playbooks.md")
 
 MODE_KEYWORDS = {
     "Create": ("create a skill", "write a skill.md", "design an agent skill", "build a skill"),
-    "Refactor": ("refactor", "improve this skill", "fix this skill.md", "fix this skILL.md"),
+    "Refactor": ("refactor", "improve this skill", "fix this skill.md", "fix this skILL.md", "re-baseline", "remove the cruft"),
     "Review": ("review", "feedback", "is this skill good"),
     "Audit": ("audit", "score", "rubric"),
     "Compress": ("compress", "reduce token", "shrink"),
@@ -151,6 +151,16 @@ def flag_map(version: Version) -> dict[str, bool]:
         "no_50_line_threshold": "50 lines" not in constraints,
         "no_deployment_guide_reference": "platforms/deployment-guide.md" not in text,
         "mode_count_8": len(modes) == 8,
+        # 2026-09 frontier-fit indicators (Fable 5.1 / GPT-6 Astra re-baseline)
+        "instruction_priority_stated": "take precedence over this skill" in lower,
+        "operating_contract_section": "## operating contract" in lower,
+        "no_pressure_wall": len(re.findall(r"^\s*-\s*(DO NOT|MUST|NEVER)\b", text, flags=re.MULTILINE)) <= 3,
+        "clarification_budget_single_sourced": lower.count("ask once") <= 1 and "clarification budget" in lower,
+        "freedom_ladder_goal_first": "where order matters" in create,
+        "tier_convention_documented": "model-cost tier" in lower,
+        "no_confirm_the_chain": "confirm the chain" not in version.mode_text.lower(),
+        "cruft_scan_wired": "cruft_scan.py" in validation,
+        "rebaseline_subflow_in_playbooks": "re-baseline for a model generation" in version.mode_text.lower(),
     }
 
 
@@ -200,9 +210,17 @@ def prompt_results(version: Version, prompts: list[dict[str, Any]]) -> list[dict
     return results
 
 
-def make_temp_skill_dir(base_skill_dir: Path, skill_text: str, mode_text: str) -> Path:
+def make_temp_skill_dir(base_skill_dir: Path, skill_text: str, mode_text: str, ref: str = "HEAD") -> Path:
+    """Materialise the whole skill folder at `ref` (so template and script indicators have a real baseline);
+    fall back to a working-tree copy with the two text files swapped."""
     temp_root = Path(tempfile.mkdtemp(prefix="skillify-eval-"))
     temp_skill = temp_root / "skillify"
+    archive = run(["git", "archive", "--format=tar", ref, "skillify"])
+    if archive.returncode == 0:
+        proc = subprocess.run(["tar", "-x", "-C", str(temp_root)], input=archive.stdout.encode("utf-8", "surrogateescape") if isinstance(archive.stdout, str) else archive.stdout)
+        if proc.returncode == 0 and (temp_skill / "SKILL.md").is_file():
+            return temp_skill
+        shutil.rmtree(temp_skill, ignore_errors=True)
     shutil.copytree(base_skill_dir, temp_skill)
     (temp_skill / "SKILL.md").write_text(skill_text, encoding="utf-8")
     (temp_skill / "references" / "mode-playbooks.md").write_text(mode_text, encoding="utf-8")
@@ -213,6 +231,11 @@ def validator_status(skill_dir: Path, scripts_dir: Path) -> dict[str, Any]:
     quick = run(["python3", str(scripts_dir / "quick_validate.py"), str(skill_dir)])
     links = run(["python3", str(scripts_dir / "check_links.py"), str(skill_dir)])
     banned = list(skill_dir.rglob("README.md"))
+    templates = [skill_dir / "templates" / n for n in ("basic-skill-template.md", "mcp-skill-template.md", "domain-skill-template.md")]
+    template_texts = [p.read_text(encoding="utf-8") if p.is_file() else "" for p in templates]
+    scanner = scripts_dir / "cruft_scan.py"
+    self_test = run(["python3", str(scanner), "--self-test"]) if scanner.is_file() else None
+    strict = run(["python3", str(scanner), str(skill_dir), "--strict"]) if scanner.is_file() else None
     return {
         "quick_validate": quick.returncode == 0,
         "quick_stdout": quick.stdout.strip(),
@@ -221,6 +244,12 @@ def validator_status(skill_dir: Path, scripts_dir: Path) -> dict[str, Any]:
         "links_stdout": links.stdout.strip(),
         "links_stderr": links.stderr.strip(),
         "banned_docs_absent": not banned,
+        "operating_contract_template_present": (skill_dir / "templates" / "operating-contract.md").is_file(),
+        "contract_in_skill_templates": all("## Operating contract" in x for x in template_texts),
+        "no_host_ui_paths_in_templates": all("Settings > Extensions" not in x for x in template_texts),
+        "cruft_scan_self_test_passes": bool(self_test and self_test.returncode == 0),
+        "skillify_cruft_strict_clean": bool(strict and strict.returncode == 0),
+        "cruft_scan_stdout": (strict.stdout.strip().splitlines()[-2:] if strict else []),
     }
 
 
@@ -253,6 +282,20 @@ def metrics(version: Version, prompts: list[dict[str, Any]], validators: dict[st
         "iteration_cap_single_sourced": flags["iteration_cap_single_sourced"],
         "no_50_line_threshold": flags["no_50_line_threshold"],
         "no_deployment_guide_reference": flags["no_deployment_guide_reference"],
+        "instruction_priority_stated": flags["instruction_priority_stated"],
+        "operating_contract_section": flags["operating_contract_section"],
+        "no_pressure_wall": flags["no_pressure_wall"],
+        "clarification_budget_single_sourced": flags["clarification_budget_single_sourced"],
+        "freedom_ladder_goal_first": flags["freedom_ladder_goal_first"],
+        "tier_convention_documented": flags["tier_convention_documented"],
+        "no_confirm_the_chain": flags["no_confirm_the_chain"],
+        "cruft_scan_wired": flags["cruft_scan_wired"],
+        "rebaseline_subflow_in_playbooks": flags["rebaseline_subflow_in_playbooks"],
+        "operating_contract_template_present": validators["operating_contract_template_present"],
+        "contract_in_skill_templates": validators["contract_in_skill_templates"],
+        "no_host_ui_paths_in_templates": validators["no_host_ui_paths_in_templates"],
+        "cruft_scan_self_test_passes": validators["cruft_scan_self_test_passes"],
+        "skillify_cruft_strict_clean": validators["skillify_cruft_strict_clean"],
     }
     return {
         "line_count": len(version.skill_text.splitlines()),
@@ -363,7 +406,7 @@ def main() -> int:
     after_skill = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     after_mode = (skill_dir / "references" / "mode-playbooks.md").read_text(encoding="utf-8")
 
-    before_temp = make_temp_skill_dir(skill_dir, before_skill, before_mode)
+    before_temp = make_temp_skill_dir(skill_dir, before_skill, before_mode, args.before_ref)
     try:
         before_version = Version("before", before_skill, before_mode, before_temp)
         after_version = Version("after", after_skill, after_mode, skill_dir)
