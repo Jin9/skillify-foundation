@@ -1,0 +1,9 @@
+record_id,citizen_ref,full_name,note,amount_thb,created_at,legacy_ref
+1,221673004455667788,สมชาย ใจดี,normal row,1500.50,2026-08-13 09:05:07,LR-001
+2,221673004455667789,"Somsri, Jr.",quoted comma,0042,2026-08-13 09:06:08,LR-002
+3,221673004455667790,Test User C,=SUM(A1:A2),10.00,2026-08-13 09:07:09,LR-003
+4,221673004455667791,Test User D,leading zero id,007,2026-08-13 09:08:10,LR-004
+5,221673004455667792,"multi
+line name",quoted newline,25.75,2026-08-13 09:09:11,LR-005
+6,221673004455667793,Test User F,empty amount,,2026-08-13 09:10:12,LR-006
+7,221673004455667794,Test User G,pre-damaged cell,10,2026-08-13 09:11:13,2.21673E+14
