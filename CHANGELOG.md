@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-16
+
+### Added
+
+- Promoted `eli5` into the treasury (131 → 132): a chat-only "explain like I'm 5" skill that explains one real thing by its real name in plain words, with no analogies, metaphors, or stand-in scenarios, about 120 words per pass with "more" adding one layer, in English or Thai. Thai replies read like a Thai developer typing in chat: technical nouns stay in English as typed at work (database, DB, server, deploy, subquery) instead of textbook coinages such as ฐานข้อมูล, chat glue instead of essay connectors, sentences written from the idea rather than word for word from the English skeleton. Ships `references/plain-kernel.md`, `references/shapes-by-target.md`, the stdlib linter `scripts/check_plain_style.py` (rules P1–P9, with a Thai list on P5 that names the everyday replacement), and six worked examples that double as linter fixtures, including a textbook-register Thai twin the linter rejects. Verified by both deterministic validators, a 48/50 rubric audit, and the fixture run.
+- Cataloged `csv-to-xlsx` in `treasury/README.md` (132 → 133): its folder landed in b2ce215 without a catalog row.
+
+### Changed
+
+- Synced treasury counts to 133 across `treasury/README.md` (summary, group, catalog, and index tables), root `README.md`, `AGENTS.md`, and `CLAUDE.md`.
+
 ## 2026-09-07
 
 ### Added

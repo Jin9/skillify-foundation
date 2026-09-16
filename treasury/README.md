@@ -1,6 +1,6 @@
 # Treasury — Production Skill Library
 
-131 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
+133 top-level skills, grouped by purpose. Each skill name links to its folder. The **Extra assets** column lists files or folders beside `SKILL.md`.
 
 | Purpose Group | Count |
 |---------------|-------|
@@ -12,8 +12,8 @@
 | [Research, Debate & Knowledge Synthesis](#research-debate-knowledge-synthesis) | 15 |
 | [Security, Governance & Compliance](#security-governance-compliance) | 7 |
 | [Observability, Cost & Incident Operations](#observability-cost-incident-operations) | 9 |
-| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 19 |
-| **Total** | **131** |
+| [Code Analysis, Productivity & Publishing](#code-analysis-productivity-publishing) | 21 |
+| **Total** | **133** |
 
 ---
 
@@ -185,16 +185,18 @@ Telemetry, cost governance, incident handling, readiness, and postmortems.
 | [`running-performance-load-test`](./running-performance-load-test/) | Drive a pre-prod performance/load test against a staging or UAT target and emit a budget-backed PASS, FAIL, or ERROR gate from real runner metrics — p95, p99, error rate, and throughput measured by a load runner, neve... | workflow-pack | references · schemas |
 | [`validating-production-slo`](./validating-production-slo/) | Validate a live production release against its declared SLOs by querying live SLIs over a bake window, evaluating multi-window burn-rate, and emitting a promote, hold, or rollback recommendation with a Pass, Marginal,... | workflow-pack | references · schemas |
 
-## Code Analysis, Productivity & Publishing (19)
+## Code Analysis, Productivity & Publishing (21)
 
 Code analysis, productivity, translation, publishing, and human-readable report generation.
 
 | Skill | Purpose | Source family | Extra assets |
 |-------|---------|---------------|--------------|
 | [`business-logic-extractor`](./business-logic-extractor/) | Extract the implemented business logic and rules FROM a codebase — cross-referenced with requirements and agent/execution traces — into a faithful, traceable specification that BOUNDS information loss: salient rules,... | existing treasury | references · scripts · templates |
+| [`csv-to-xlsx`](./csv-to-xlsx/) | Convert a CSV file into an XLSX workbook with an Excel AutoFilter on the header row, preserving every value exactly as text - long digit IDs never collapse into scientific notation, leading zeros and timestamp seconds... | skillify | examples · references · scripts |
 | [`daily-planner`](./daily-planner/) | Turn a raw list of tasks into a prioritized, trackable daily plan and keep it current across days. Use when the user says "here are my tasks, help me prioritize", "plan my day", "what should I work on first", "make my... | skillify | templates |
 | [`drawio`](./drawio/) | Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions dra... | drawio-mcp | — |
 | [`drawio-plus`](./drawio-plus/) | Generate clean, standardized, non-overlapping draw.io / diagrams.net diagrams of any kind (architecture, flow, ER, class, network, sequence, mockup) whose boxes never overlap and whose arrows route around boxes, following fixed 80/60/40 spacing and grid stand... | skillify | references · scripts · templates · examples |
+| [`eli5`](./eli5/) | Explains one real thing to the user in simple words and short sentences, directly and by its real name, with no analogies, metaphors, or stand-in scenarios: a task, plan, or ticket; code, a diff, or an error; a concep... | skillify | examples · references · scripts |
 | [`extract-anything`](./extract-anything/) | Extract ANY source — a document, a prior workflow stage's output, a spec, code, or notes — into a single LEAN, chainable JSON contract that preserves the source's salient context with bounded, inline-recorded information loss, so workflow stages chain without re-reading the sourc... | skillify | examples · references · schemas · scripts · templates |
 | [`generating-pseudocode`](./generating-pseudocode/) | Analyzes requirements or existing code to generate clean, language-agnostic pseudocode that bridges high-level intent and implementation, readable by a Python, Go, or TypeScript developer without translation. Use when... | existing treasury | references |
 | [`git-pro`](./git-pro/) | Manage git end-to-end like an expert: branch and stage cleanly, write atomic conventional-commit messages, choose merge vs rebase, resolve conflicts, tidy UNPUBLISHED history (squash, reorder, amend), and undo mistake... | skillify | examples · references · templates |
@@ -239,6 +241,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`crafting-frontend-code`](./crafting-frontend-code/) | Implementation, Platform Templates & Code Review | existing treasury |
 | [`crafting-rust-code`](./crafting-rust-code/) | Implementation, Platform Templates & Code Review | existing treasury |
 | [`cross-examine`](./cross-examine/) | Research, Debate & Knowledge Synthesis | squad-brainstorm |
+| [`csv-to-xlsx`](./csv-to-xlsx/) | Code Analysis, Productivity & Publishing | skillify |
 | [`daily-planner`](./daily-planner/) | Code Analysis, Productivity & Publishing | skillify |
 | [`data-modeling`](./data-modeling/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`defining-engineering-standards`](./defining-engineering-standards/) | Architecture, Engineering Decisions & Planning | business-analyse |
@@ -254,6 +257,7 @@ Code analysis, productivity, translation, publishing, and human-readable report 
 | [`drafting-stage-prompt`](./drafting-stage-prompt/) | Agent Orchestration & Workflow Infrastructure | existing treasury |
 | [`drawio`](./drawio/) | Code Analysis, Productivity & Publishing | drawio-mcp |
 | [`drawio-plus`](./drawio-plus/) | Code Analysis, Productivity & Publishing | skillify |
+| [`eli5`](./eli5/) | Code Analysis, Productivity & Publishing | skillify |
 | [`eliciting-banking-brief`](./eliciting-banking-brief/) | Banking, BA Delivery & Requirements | business-analyse |
 | [`engineer-growth-planning`](./engineer-growth-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
 | [`engineering-doc-planning`](./engineering-doc-planning/) | Architecture, Engineering Decisions & Planning | business-analyse |
